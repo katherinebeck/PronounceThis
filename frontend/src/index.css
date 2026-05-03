@@ -2,114 +2,195 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: light;
+}
+
+html,
 body {
-    margin: 0;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-        sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  background: #f9f6f0;
+  color: #1c1b1a;
+  font-family: "Crimson Text", Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-code {
-    font-family:
-        source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+::selection {
+  background: #c85a4f;
+  color: #fdfdfb;
 }
 
-@layer base {
-    :root {
-        --background: 0 0% 100%;
-        --foreground: 0 0% 3.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 3.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 3.9%;
-        --primary: 0 0% 9%;
-        --primary-foreground: 0 0% 98%;
-        --secondary: 0 0% 96.1%;
-        --secondary-foreground: 0 0% 9%;
-        --muted: 0 0% 96.1%;
-        --muted-foreground: 0 0% 45.1%;
-        --accent: 0 0% 96.1%;
-        --accent-foreground: 0 0% 9%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 89.8%;
-        --input: 0 0% 89.8%;
-        --ring: 0 0% 3.9%;
-        --chart-1: 12 76% 61%;
-        --chart-2: 173 58% 39%;
-        --chart-3: 197 37% 24%;
-        --chart-4: 43 74% 66%;
-        --chart-5: 27 87% 67%;
-        --radius: 0.5rem;
-    }
-    .dark {
-        --background: 0 0% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 0 0% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 0 0% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 14.9%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 0 0% 14.9%;
-        --muted-foreground: 0 0% 63.9%;
-        --accent: 0 0% 14.9%;
-        --accent-foreground: 0 0% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14.9%;
-        --input: 0 0% 14.9%;
-        --ring: 0 0% 83.1%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
-    }
+/* Subtle paper grain — keeps the editorial feel without being noisy. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: radial-gradient(
+      rgba(28, 27, 26, 0.035) 1px,
+      transparent 1px
+    ),
+    radial-gradient(rgba(28, 27, 26, 0.025) 1px, transparent 1px);
+  background-size: 3px 3px, 5px 5px;
+  background-position: 0 0, 1px 2px;
+  mix-blend-mode: multiply;
 }
 
 @layer base {
-    * {
-        @apply border-border;
-    }
-    body {
-        @apply bg-background text-foreground;
-    }
+  :root {
+    --background: 39 37% 95%;
+    --foreground: 30 4% 11%;
+    --card: 48 30% 98%;
+    --card-foreground: 30 4% 11%;
+    --popover: 48 30% 98%;
+    --popover-foreground: 30 4% 11%;
+    --primary: 30 4% 11%;
+    --primary-foreground: 48 30% 98%;
+    --secondary: 39 21% 87%;
+    --secondary-foreground: 30 4% 11%;
+    --muted: 39 21% 90%;
+    --muted-foreground: 30 4% 41%;
+    --accent: 39 21% 90%;
+    --accent-foreground: 30 4% 11%;
+    --destructive: 6 53% 55%;
+    --destructive-foreground: 48 30% 98%;
+    --border: 39 25% 87%;
+    --input: 39 25% 87%;
+    --ring: 6 53% 55%;
+    --radius: 0px;
+  }
 }
 
 @layer base {
-    [data-debug-wrapper="true"] {
-        display: contents !important;
-    }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-paper text-ink;
+  }
+}
 
-    [data-debug-wrapper="true"] > * {
-        margin-left: inherit;
-        margin-right: inherit;
-        margin-top: inherit;
-        margin-bottom: inherit;
-        padding-left: inherit;
-        padding-right: inherit;
-        padding-top: inherit;
-        padding-bottom: inherit;
-        column-gap: inherit;
-        row-gap: inherit;
-        gap: inherit;
-        border-left-width: inherit;
-        border-right-width: inherit;
-        border-top-width: inherit;
-        border-bottom-width: inherit;
-        border-left-style: inherit;
-        border-right-style: inherit;
-        border-top-style: inherit;
-        border-bottom-style: inherit;
-        border-left-color: inherit;
-        border-right-color: inherit;
-        border-top-color: inherit;
-        border-bottom-color: inherit;
-    }
+/* Word-block aesthetics */
+.word-block {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 6px;
+  margin: 0 1px;
+  border-radius: 2px;
+  cursor: pointer;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+  position: relative;
+}
+.word-block:hover {
+  background-color: rgba(229, 225, 216, 0.7);
+}
+.word-block.active {
+  background-color: #c85a4f;
+  color: #fdfdfb;
+}
+.word-block.active .ipa {
+  color: #fdfdfb;
+}
+.word-block.highlight {
+  background-color: rgba(200, 90, 79, 0.12);
+  outline: 1px solid rgba(200, 90, 79, 0.35);
+}
+.word-block .english {
+  font-family: "Crimson Text", Georgia, serif;
+  font-size: 1.5rem;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+.word-block .ipa {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  line-height: 1;
+  color: #c85a4f;
+  letter-spacing: -0.01em;
+  min-height: 12px;
+  font-weight: 500;
+}
+.word-block .ipa.empty {
+  color: #c8bfae;
+}
+
+.scene-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  row-gap: 14px;
+  column-gap: 0;
+}
+.scene-flow .puncwrap {
+  font-family: "Crimson Text", Georgia, serif;
+  font-size: 1.5rem;
+  white-space: pre-wrap;
+  align-self: flex-end;
+  padding-bottom: 6px;
+}
+
+.thin-rule {
+  border-color: #e5e1d8;
+}
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #1c1b1a;
+  color: #fdfdfb;
+  padding: 0.7rem 1.2rem;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  border: none;
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+.btn-primary:hover {
+  background: #c85a4f;
+}
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: transparent;
+  color: #1c1b1a;
+  padding: 0.55rem 1rem;
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  border: 1px solid #e5e1d8;
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    background 150ms ease,
+    color 150ms ease;
+}
+.btn-secondary:hover {
+  border-color: #1c1b1a;
+  background: rgba(229, 225, 216, 0.4);
+}
+.btn-secondary.active {
+  background: #1c1b1a;
+  color: #fdfdfb;
+  border-color: #1c1b1a;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #e5e1d8;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
 }
