@@ -1,0 +1,89 @@
+{
+  "theme": "light",
+  "archetype": "1_organic_earthy",
+  "mood": "Editorial, Typographic, Refined, Focused. A mix between a theatre script, linguistics workbench, and music notation app.",
+  "colors": {
+    "background": "#F9F6F0",
+    "surface": "#FDFDFB",
+    "surface_glass": "rgba(253, 253, 251, 0.7)",
+    "primary": "#C85A4F",
+    "primary_hover": "#A64A41",
+    "text_main": "#1C1B1A",
+    "text_muted": "#787672",
+    "border": "#E5E1D8",
+    "accent_sage": "#8A9A86"
+  },
+  "typography": {
+    "headings": {
+      "family": "Cormorant Garamond",
+      "weights": ["400", "600"],
+      "usage": "Page titles, large section headers, empty state hero text."
+    },
+    "script_body": {
+      "family": "Crimson Text",
+      "weights": ["400", "400i", "600", "700"],
+      "usage": "The actual English text of the audition scene. Use text-2xl or text-3xl for immersive reading, tracking-normal, leading-relaxed."
+    },
+    "phonetics_mono": {
+      "family": "IBM Plex Mono",
+      "weights": ["400", "500", "600"],
+      "usage": "IPA symbols, phonetic transcriptions, small labels, UI buttons. Gives the 'linguistics workbench' vibe."
+    }
+  },
+  "spacing_and_layout": {
+    "philosophy": "Generous spacing. The script reading area must feel like a physical piece of paper, with plenty of negative space.",
+    "scale": "Tailwind standard, prioritize p-8, p-12, p-16 for main containers.",
+    "structure": "Dual-pane editor layout. Left: Script Workspace (width: 65%). Right: Laundry Lists & Tools (width: 35%). Use 1px sharp borders to separate them (no shadows).",
+    "grid_borders": "Use border-collapse style. Panels separated by border-r border-[#E5E1D8]. No rounded corners."
+  },
+  "components": {
+    "word_block": {
+      "description": "The atomic unit of the app. Contains the English word and its IPA transcription beneath it.",
+      "layout": "Flex-col, items-center, gap-1, p-2 -mx-2 rounded-sm transition-colors",
+      "hover_state": "bg-[#E5E1D8]/50 cursor-pointer text-[#C85A4F]",
+      "english_text": "font-serif text-2xl text-[#1C1B1A]",
+      "ipa_text": "font-mono text-[13px] text-[#C85A4F] tracking-tight"
+    },
+    "buttons": {
+      "primary": "bg-[#1C1B1A] text-[#FDFDFB] hover:bg-[#C85A4F] rounded-none px-6 py-3 font-mono text-xs uppercase tracking-[0.15em] transition-colors",
+      "secondary": "border border-[#E5E1D8] bg-transparent text-[#1C1B1A] hover:bg-[#E5E1D8]/50 rounded-none px-6 py-3 font-mono text-xs uppercase tracking-[0.15em] transition-colors"
+    },
+    "cards_and_panels": {
+      "style": "Flat, 0px border-radius (sharp), 1px solid border-[#E5E1D8]. NO SHADOWS. Neumorphism and glassmorphism are banned here to keep the 'ink on paper' feeling."
+    },
+    "laundry_list_badge": {
+      "style": "inline-flex items-center gap-2 border border-[#E5E1D8] px-3 py-1 font-mono text-xs text-[#1C1B1A] hover:border-[#C85A4F] cursor-pointer"
+    }
+  },
+  "motion": {
+    "hover": "Instant or very fast (100ms) background changes on word blocks so it feels highly responsive to quick scanning.",
+    "transitions": "Slide-in from right for the Laundry List panel. Subtle fade-ins for loaded text."
+  },
+  "media": {
+    "images": [
+      {
+        "category": "empty_state_background",
+        "url": "https://images.unsplash.com/photo-1644329771909-b651e30c41da?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwzfHxtaW5pbWFsaXN0JTIwdGhlYXRyZSUyMHNjcmlwdCUyMHBhcGVyfGVufDB8fHx8MTc3Nzc4Njk0N3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Minimalist paper texture for empty states when no PDF is uploaded. Apply mix-blend-multiply and low opacity (10-20%)."
+      },
+      {
+        "category": "hero_texture",
+        "url": "https://images.unsplash.com/photo-1571232151946-f7f00c61ade7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwdGhlYXRyZSUyMHNjcmlwdCUyMHBhcGVyfGVufDB8fHx8MTc3Nzc4Njk0N3ww&ixlib=rb-4.1.0&q=85",
+        "description": "Close up book writing texture for the login/marketing landing page."
+      }
+    ]
+  },
+  "accessibility": {
+    "contrast": "Ensure all IPA text passes WCAG AA against the warm sand background.",
+    "interactive": "All clickable word blocks MUST have data-testid='word-block' and an aria-label indicating pronunciation playback. All buttons must have specific data-testid (e.g., 'upload-pdf-button', 'add-laundry-list-button')."
+  },
+  "instructions_to_main_agent": [
+    "Use Tailwind for styling. Override default shadcn styles to remove border-radius (rounded-none) to match the editorial, print-design look.",
+    "Install Google Fonts in index.html or global CSS: Cormorant Garamond, Crimson Text, IBM Plex Mono.",
+    "For the main reading view, create a continuous flowing flex-wrap container so the text wraps naturally like a paragraph, but each word is its own discrete block (the 'word_block').",
+    "Implement the 'Laundry List' panel as a sticky sidebar on the right.",
+    "Use lucide-react for UI icons (Play, List, Plus, Trash).",
+    "CRITICAL: Generate .js and .jsx files exclusively. Do not create .tsx or .ts files.",
+    "Maintain the strict 'Archetype 1: Organic & Earthy' color palette. Do not inject default blues or purples."
+  ]
+}
