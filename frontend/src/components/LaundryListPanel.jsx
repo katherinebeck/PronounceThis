@@ -20,7 +20,8 @@ export default function LaundryListPanel({
     setList(null);
     setPracticeIdx(0);
     onHighlightChange?.(new Set());
-  }, [scene?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene?.id]);
 
   const selectCategory = async (catId) => {
     if (!scene) return;

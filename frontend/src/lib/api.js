@@ -44,3 +44,10 @@ export async function fetchTTS(word) {
   const { data } = await api.post("/tts", { word });
   return data; // { word, audio_b64, mime, cached }
 }
+
+export async function fetchTurnTTS(sceneId, turnIndex) {
+  const { data } = await api.post(
+    `/scenes/${sceneId}/turns/${turnIndex}/tts`
+  );
+  return data; // { scene_id, turn_index, speaker, audio_b64, mime, cached }
+}

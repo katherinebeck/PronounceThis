@@ -1,0 +1,33 @@
+{
+  "summary": "Extended backend tests for speaker-turn detection + turn-level TTS. Added /app/backend/tests/test_turns.py with 8 new tests. All 28 pytest tests (20 prior + 8 new) pass. Verified: turns field populated on upload and on GET; inline 'SPEAKER: text' style yields JANE/MARK/JANE (3 turns) with correct bodies; screenplay style (label on own line) yields ROMEO/JULIET/ROMEO; consecutive same-speaker blocks are merged into one turn; existing seed scene 4b23e55d-... returns turns via GET; WordToken.turn_index present on tokens and speaker-label tokens (e.g. the word 'JANE' preceding ':') have turn_index=null while dialogue words are int-indexed; POST /api/scenes/{id}/turns/{i}/tts happy path returns cached=false then cached=true (real ElevenLabs 200 with non-empty audio_b64, mime=audio/mpeg, correct speaker); 404 for unknown scene and out-of-range turn_index.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/scenes/{id}/turns/{i}/tts", "issue": "Negative turn_index like -1 is accepted by FastAPI path param (int) and app returns 404 — fine. Consider a Path(ge=0) constraint for a cleaner 422 on obviously invalid values."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_accent_coach.py",
+    "/app/backend/tests/test_turns.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/turns_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "extract_turns() correctly prefers screenplay style when >=2 solo labels detected, else falls back to inline regex — validated by both PDF fixtures.",
+    "_push_turn() merge logic (same speaker consecutive) works — validated with adjacent ROMEO/ROMEO blocks merging into one turn.",
+    "assign_token_turns() maps tokens by character midpoint — dialogue tokens get an int turn_index, tokens in the speaker-label gap get turn_index=None as required.",
+    "Turn TTS caches under key 'sceneId:turnIndex' in db.turn_audio_cache and returns cached=true on repeat; audio bytes identical between calls (verified).",
+    "get_scene recomputes turns on each GET, so pre-feature scenes automatically gain turns — good for backward compatibility.",
+    "Minor: turn_index bounds could use FastAPI Path(ge=0) but current app-level 404 is acceptable and consistent with the scene 404 pattern."
+  ],
+  "updated_files": ["/app/backend/tests/test_turns.py"],
+  "success_rate": {"backend": "100% (28/28)", "frontend": "skipped"},
+  "test_credentials": "N/A",
+  "seed_data_creation": "Three in-memory PDF scenes uploaded per module and deleted at teardown: inline (JANE/MARK/JANE), screenplay (ROMEO/JULIET/ROMEO), merge (ROMEO/ROMEO/JULIET). Also read-only access to seeded scene 4b23e55d-67be-42bc-a397-4eb4085bdb2e.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run full suite: cd /app/backend && export $(grep REACT_APP_BACKEND_URL /app/frontend/.env | xargs) && python -m pytest tests/ -v. Real ElevenLabs (paid key) now returns 200 with audio — the tts_turn happy path asserts non-empty audio_b64 and cache round-trip; if a future iteration re-encounters upstream 502, the test will pytest.skip that one assertion rather than fail.",
+  "rca of the issue": "No bugs. Turn detection, token turn_index assignment, and turn-level TTS caching all behave per spec."
+}
