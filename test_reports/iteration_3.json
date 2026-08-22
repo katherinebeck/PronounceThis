@@ -1,0 +1,38 @@
+{
+  "summary": "Backend tests for the new dialogue-only extraction feature. Added /app/backend/tests/test_dialogue_only.py (14 tests) and updated the pre-existing speaker-label token test in test_turns.py to reflect the new behavior (LLM strips speaker-label tokens entirely, they no longer appear in the token stream with turn_index=None). Full suite: 42/42 pass. Verified: (a) upload with mixed narration + dialogue returns only spoken turns with speakers, merges consecutive same-speaker lines, and no narration/heading words (crowd, beat, ext, gathers, square) or bare speaker labels leak into tokens; (b) pure-narration PDF -> 400 with 'No spoken dialogue was detected' message; (c) seed scene 4b23e55d-... auto-migrated: 7 turns, every turn has a speaker, second GET < 2s; (d) POST /scenes/{id}/reparse returns 404 for unknown ids and returns fresh dialogue-only Scene for valid ids; (e) laundry-list (consonant_l, flap_t, schwa, rhotic_r, diphthongs) on dialogue-only tokens returns only words present in the dialogue token stream; (f) turn-level TTS still works on dialogue-only turns — real ElevenLabs returns 200 with non-empty audio_b64, second call cached=true; (g) regression: /api/, /sound-categories, /scenes list/get/delete, /tts, non-PDF rejection, phonetic correctness of 'butter' and 'little' all still pass.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/scenes/{id}/turns/{i}/tts", "issue": "tts_turn() calls extract_turns(doc['raw_text']) (regex on the original PDF text) instead of using the persisted dialogue-only doc['turns']. On the new dialogue-only scenes the two lists can drift in count and/or text: turn N synthesized by the endpoint may include stage directions or narration that the UI does not display, and index N in the UI may point to a different span than index N in the regex output. Tests still pass because the sample scripts happen to align, but this is a latent bug. Fix: read turns from doc directly (falling back to _ensure_dialogue_only if not yet migrated)."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_dialogue_only.py",
+    "/app/backend/tests/test_turns.py",
+    "/app/backend/tests/test_accent_coach.py",
+    "/app/test_reports/pytest/dialogue_only_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Refactor tts_turn to use the persisted dialogue-only turns from the scene doc (call _ensure_dialogue_only first) rather than re-running the regex extract_turns on raw_text. Otherwise the audio for turn i may not match the text the UI shows for turn i."
+  ],
+  "critical_code_review_comments": [
+    "build_dialogue_only_scene has a nice regex fallback that keeps only turns with a speaker — good defensive behavior when the LLM is down.",
+    "_ensure_dialogue_only correctly invalidates db.turn_audio_cache for the scene on migration so stale audio isn't served against new turn indices.",
+    "Scene response model uses ConfigDict(extra='ignore') so internal 'dialogue_only'/'dialogue' fields are stripped from API responses — clean.",
+    "BUG (see minor issues): tts_turn recomputes turns via extract_turns(raw_text) instead of reading the persisted turns; risks index/text drift with LLM-extracted turns.",
+    "Consider caching migration side-effects behind a short lock: if two GETs arrive concurrently for a legacy scene, both will run the LLM and write. Not fatal (idempotent write) but wasteful."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_dialogue_only.py",
+    "/app/backend/tests/test_turns.py"
+  ],
+  "success_rate": {"backend": "100% (42/42)", "frontend": "skipped"},
+  "test_credentials": "N/A",
+  "seed_data_creation": "Two module-scoped in-memory PDF uploads: dlg-strip (mixed narration + JANE/MARK dialogue) and one-off narration-only PDF that is rejected. Also read-only usage of seed scene 4b23e55d-67be-42bc-a397-4eb4085bdb2e.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run cd /app/backend && export $(grep REACT_APP_BACKEND_URL /app/frontend/.env | xargs) && python -m pytest tests/ -v. Note the tts_turn drift bug documented above — if fixed, add a test asserting POST /scenes/{id}/turns/{i}/tts synthesizes exactly doc['turns'][i]['text'] (e.g. by mocking _synthesize or by comparing turn count between doc['turns'] and extract_turns on a mixed narration+dialogue PDF).",
+  "rca of the issue": "tts_turn currently derives the list of turns from raw_text via regex extract_turns(). Since upload/get now persist a different, LLM-produced dialogue-only turns array on the scene doc, the two representations can disagree on both count and text. Reproduction: upload a scene whose regex extraction yields N turns and whose LLM extraction yields M != N turns (e.g. lots of interleaved narration between short dialogue snippets); then POST /scenes/{id}/turns/{i}/tts for i near the upper bound — the UI would show text T_ui but the endpoint would synthesize text T_regex. Mitigation: change tts_turn to read turns = doc.get('turns') (after ensuring migration) and index into that."
+}

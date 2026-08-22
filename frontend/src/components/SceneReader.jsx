@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Play, Pause, Square, Loader2, Volume2 } from "lucide-react";
 import WordBlock from "./WordBlock";
+import YouglishModal from "./YouglishModal";
 import { loadTurnAudio } from "@/lib/audio";
 import { toast } from "sonner";
 
@@ -36,6 +37,7 @@ export default function SceneReader({ scene, highlightSet }) {
   const [playingTurn, setPlayingTurn] = useState(null); // int | null
   const [loadingTurn, setLoadingTurn] = useState(null);
   const [scenePlaying, setScenePlaying] = useState(false);
+  const [ygQuery, setYgQuery] = useState(null); // string | null → modal
   const audioRef = useRef(null);
   const stopRef = useRef(false);
 
@@ -238,10 +240,16 @@ export default function SceneReader({ scene, highlightSet }) {
               loading={loadingTurn === turn.index}
               onTogglePlay={() => handlePlayTurn(turn.index)}
               scenePlaying={scenePlaying}
+              onOpenReference={setYgQuery}
             />
           ))}
         </div>
       </div>
+      <YouglishModal
+        open={Boolean(ygQuery)}
+        query={ygQuery || ""}
+        onClose={() => setYgQuery(null)}
+      />
     </div>
   );
 }
@@ -255,6 +263,7 @@ function TurnBlock({
   loading,
   onTogglePlay,
   scenePlaying,
+  onOpenReference,
 }) {
   const isNarration = !turn.speaker;
   return (
@@ -320,6 +329,7 @@ function TurnBlock({
               tok.is_word && highlightSet?.has(normalize(tok.text))
             }
             onSetActive={() => onSetActive(`${turn.index}:${i}`)}
+            onOpenReference={onOpenReference}
           />
         ))}
       </div>

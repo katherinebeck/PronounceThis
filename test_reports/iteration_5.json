@@ -1,0 +1,30 @@
+{
+  "summary": "Backend testing of new GET /api/pronounce endpoint. Created /app/backend/tests/test_pronounce.py with 11 tests covering CMU lookup (butter, Whitmore), case-insensitivity, LLM/none fallback for out-of-dict words, validation errors (empty, whitespace-only, punctuation-only), and regression on core endpoints. All 11 new tests pass. Full suite (62 tests including 51 pre-existing) passes with 0 failures.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pronounce.py",
+    "/app/test_reports/pytest/pronounce_results.xml",
+    "/app/test_reports/pytest/all_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is ~917 lines — consider splitting routers into modules (scenes, pronounce, tts) for maintainability, but not blocking.",
+    "GET /api/pronounce correctly returns 400 for empty/whitespace/punctuation, uses CMU first then Claude fallback, and gracefully returns source='none' with ipa=null when LLM is unreachable (verified indirectly — xyzzytest returned source='llm' in this run)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_pronounce.py"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "not tested (per request)"},
+  "seed_data_creation": "None. Tests are read-only against /api/pronounce and existing regression endpoints.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Pronounce endpoint fully tested and stable. Test file at /app/backend/tests/test_pronounce.py. Note: test_proper_nouns_and_tts_turn.py::test_legacy_scene_migrates_on_get requires MONGO_URL in shell env (reads os.environ directly); pass by sourcing backend/.env. Not a bug in the endpoint under test."
+}

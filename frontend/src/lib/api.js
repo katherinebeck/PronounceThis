@@ -45,6 +45,11 @@ export async function fetchTTS(word) {
   return data; // { word, audio_b64, mime, cached }
 }
 
+export async function pronounceWord(word) {
+  const { data } = await api.get("/pronounce", { params: { word } });
+  return data; // { word, normalized, ipa, arpabet, categories, source }
+}
+
 export async function fetchTurnTTS(sceneId, turnIndex) {
   const { data } = await api.post(
     `/scenes/${sceneId}/turns/${turnIndex}/tts`

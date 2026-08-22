@@ -120,6 +120,46 @@ body::before {
   color: #c8bfae;
 }
 
+/* Wrapper allows a small "Y" reference badge to sit next to proper nouns
+   without disrupting the flowing text layout. */
+.word-block-wrap {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 2px;
+  position: relative;
+}
+
+.word-block.proper-noun .english {
+  text-decoration: underline dotted #c85a4f;
+  text-underline-offset: 4px;
+  text-decoration-thickness: 1px;
+}
+.word-block.proper-noun.active .english {
+  text-decoration-color: #fdfdfb;
+}
+
+.pn-ref-btn {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  color: #c85a4f;
+  background: transparent;
+  border: 1px solid #c85a4f;
+  padding: 2px 4px;
+  border-radius: 2px;
+  cursor: pointer;
+  align-self: center;
+  margin-top: 4px;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.pn-ref-btn:hover {
+  background: #c85a4f;
+  color: #fdfdfb;
+}
+
 .scene-flow {
   display: flex;
   flex-wrap: wrap;

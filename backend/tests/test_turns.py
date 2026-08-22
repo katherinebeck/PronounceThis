@@ -66,24 +66,24 @@ def test_inline_turns_structure(inline_scene):
     assert "sure" in turns[2]["text"].lower()
 
 
-def test_speaker_label_tokens_have_null_turn_index(inline_scene):
+def test_dialogue_words_have_int_turn_index(inline_scene):
+    """With dialogue-only extraction, speaker-label words (JANE, MARK) are
+    stripped entirely from the token stream — only spoken words remain, each
+    with an int turn_index."""
     tokens = inline_scene["tokens"]
-    # Every real word must have a turn_index field present (possibly None)
     for t in tokens:
         if t.get("is_word"):
             assert "turn_index" in t
-    # Speaker-label words (JANE, MARK) that appear right before ':' should be
-    # excluded (turn_index=None); dialogue words must have a turn_index.
-    jane_labels = [t for t in tokens if t.get("is_word") and t["text"] == "JANE"]
-    assert jane_labels, "no JANE label tokens found"
-    # At least one JANE token should have turn_index=None (the label)
-    assert any(t.get("turn_index") is None for t in jane_labels), (
-        "expected at least one JANE label token with turn_index=None"
-    )
-    # 'butter' is dialogue -> must have an int turn_index
+            assert isinstance(t["turn_index"], int), (
+                f"dialogue word missing int turn_index: {t}"
+            )
+    # 'butter' is dialogue -> present with an int turn_index
     butter = next(t for t in tokens if t.get("is_word")
                   and t["text"].lower().strip(",.") == "butter")
     assert isinstance(butter["turn_index"], int)
+    # JANE label word should NOT appear as a token (LLM promotes to speaker).
+    word_texts = {t["text"] for t in tokens if t.get("is_word")}
+    assert "JANE" not in word_texts and "MARK" not in word_texts
 
 
 # ---------- turn detection: screenplay style -------------------------------

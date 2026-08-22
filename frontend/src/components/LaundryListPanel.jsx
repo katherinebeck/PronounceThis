@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Play, ChevronLeft, ChevronRight, X, Volume2 } from "lucide-react";
+import { Play, ChevronLeft, ChevronRight, X, Volume2, Search } from "lucide-react";
 import { fetchLaundryList } from "@/lib/api";
 import { playWord } from "@/lib/audio";
+import YouglishModal from "./YouglishModal";
 import { toast } from "sonner";
 
 export default function LaundryListPanel({
@@ -13,6 +14,7 @@ export default function LaundryListPanel({
   const [list, setList] = useState(null); // { sound, count, words }
   const [loading, setLoading] = useState(false);
   const [practiceIdx, setPracticeIdx] = useState(0);
+  const [ygQuery, setYgQuery] = useState(null);
 
   // Reset when scene changes.
   useEffect(() => {
@@ -20,8 +22,7 @@ export default function LaundryListPanel({
     setList(null);
     setPracticeIdx(0);
     onHighlightChange?.(new Set());
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scene?.id]);
+  }, [scene?.id, onHighlightChange]);
 
   const selectCategory = async (catId) => {
     if (!scene) return;
@@ -215,8 +216,17 @@ export default function LaundryListPanel({
                     <ChevronRight size={22} />
                   </button>
                 </div>
-                <div className="mt-3 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
-                  {practiceIdx + 1} / {list?.count}
+                <div className="mt-3 text-center font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 flex items-center justify-center gap-4">
+                  <span>{practiceIdx + 1} / {list?.count}</span>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 hover:text-rust"
+                    data-testid="practice-youglish"
+                    onClick={() => cur?.text && setYgQuery(cur.text)}
+                    title="Hear real speakers on YouGlish"
+                  >
+                    <Search size={11} /> YouGlish
+                  </button>
                 </div>
               </div>
 
@@ -259,6 +269,11 @@ export default function LaundryListPanel({
           )}
         </div>
       )}
+      <YouglishModal
+        open={Boolean(ygQuery)}
+        query={ygQuery || ""}
+        onClose={() => setYgQuery(null)}
+      />
     </aside>
   );
 }

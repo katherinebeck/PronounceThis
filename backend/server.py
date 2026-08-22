@@ -67,6 +67,7 @@ class WordToken(BaseModel):
     categories: List[str] = Field(default_factory=list)
     source: str = "cmu"  # "cmu" | "llm" | "none"
     turn_index: Optional[int] = None
+    is_proper_noun: bool = False
 
 
 class Turn(BaseModel):
@@ -102,6 +103,16 @@ class TTSResponse(BaseModel):
     audio_b64: str  # raw base64 (no data: prefix)
     mime: str = "audio/mpeg"
     cached: bool = False
+
+
+class PronounceResponse(BaseModel):
+    """Result of a single-word IPA lookup (no audio)."""
+    word: str
+    normalized: str
+    ipa: Optional[str]
+    arpabet: List[str] = Field(default_factory=list)
+    categories: List[str] = Field(default_factory=list)
+    source: str  # "cmu" | "llm" | "none"
 
 
 class TurnTTSResponse(BaseModel):
@@ -261,6 +272,246 @@ def build_turns_for_scene(doc: Dict) -> List[Dict]:
             for t in turns]
 
 
+async def extract_dialogue_via_llm(raw_text: str) -> Optional[Dict]:
+    """Use Claude Sonnet 4.5 to pull SPOKEN dialogue AND proper nouns out of a
+    script excerpt.
+
+    Returns `{"dialogue": [{speaker, text, index}, ...],
+              "proper_nouns": [str, ...]}` in reading order, or None if the
+    LLM was unavailable / returned garbage. Stage directions, scene headings,
+    action lines, and parentheticals are dropped from dialogue. Consecutive
+    lines by the same speaker are merged into a single entry.
+    """
+    if not raw_text.strip():
+        return None
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
+    except Exception as e:
+        logger.warning("emergentintegrations import failed: %s", e)
+        return None
+
+    api_key = os.environ.get("EMERGENT_LLM_KEY")
+    if not api_key:
+        return None
+
+    system = (
+        "You extract SPOKEN dialogue from a script excerpt (screenplay, "
+        "audition scene, or play). Two jobs:\n\n"
+        "(1) DIALOGUE — identify what characters actually SAY out loud, and "
+        "remove everything else.\n"
+        "  STRIP OUT:\n"
+        "  • Scene headings (EXT./INT./FADE IN/CUT TO)\n"
+        "  • Stage directions and action lines (e.g. 'A beat.', 'She turns.', "
+        "'The ANNOUNCER steps forward.', 'The crowd cheers.')\n"
+        "  • Parentheticals inside dialogue (e.g. '(nervously)', '(V.O.)', "
+        "'(beat)')\n"
+        "  • Any narration or descriptive prose\n"
+        "  KEEP:\n"
+        "  • Every line spoken aloud by a character, exactly as written\n"
+        "  • Speaker names capitalized as they appear (e.g. 'ELIZA', 'MARK')\n"
+        "  MERGE consecutive same-speaker lines into ONE entry (single space "
+        "separator).\n\n"
+        "(2) PROPER NOUNS — from the ENTIRE excerpt (dialogue AND stage "
+        "directions), collect every proper noun a coach would want a reference "
+        "pronunciation for: character names, place names, brand names, "
+        "specific titles. Include single words AND multi-word names "
+        "(e.g. 'Miss Whitmore', 'New Orleans', 'Independence Hall'). "
+        "Preserve their exact original capitalization. Deduplicate.\n\n"
+        "OUTPUT — exactly one JSON object, no markdown, no prose:\n"
+        "{\n"
+        "  \"dialogue\": [ {\"speaker\": \"NAME\", \"text\": \"...\"}, ... ],\n"
+        "  \"proper_nouns\": [\"Eliza\", \"Miss Whitmore\", \"Independence\"]\n"
+        "}\n"
+        "If no dialogue is present, return dialogue: []. If no proper nouns, "
+        "return proper_nouns: []."
+    )
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=f"dialogue-{uuid.uuid4()}",
+        system_message=system,
+    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+
+    try:
+        raw = await chat.send_message(UserMessage(text=raw_text))
+    except Exception as e:
+        logger.warning("LLM dialogue extraction failed: %s", e)
+        return None
+
+    cleaned = raw.strip()
+    cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", cleaned,
+                     flags=re.IGNORECASE)
+    try:
+        data = json.loads(cleaned)
+    except Exception as e:
+        logger.warning("LLM dialogue parse failed: %s :: %s", e, cleaned[:200])
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    raw_dialogue = data.get("dialogue")
+    if not isinstance(raw_dialogue, list):
+        return None
+
+    cleaned_items: List[Dict] = []
+    for item in raw_dialogue:
+        if not isinstance(item, dict):
+            continue
+        spk = str(item.get("speaker", "")).strip() or None
+        txt = re.sub(r"\s+", " ", str(item.get("text", "")).strip())
+        if not txt:
+            continue
+        txt = re.sub(r"\([^)]*\)", "", txt).strip()
+        if not txt:
+            continue
+        cleaned_items.append({"speaker": spk, "text": txt})
+
+    merged: List[Dict] = []
+    for item in cleaned_items:
+        if merged and merged[-1]["speaker"] == item["speaker"]:
+            merged[-1]["text"] = (merged[-1]["text"] + " " + item["text"]).strip()
+        else:
+            merged.append(dict(item))
+    for i, m in enumerate(merged):
+        m["index"] = i
+
+    proper_nouns_raw = data.get("proper_nouns") or []
+    proper_nouns: List[str] = []
+    seen_pn = set()
+    if isinstance(proper_nouns_raw, list):
+        for pn in proper_nouns_raw:
+            s = str(pn).strip()
+            if not s:
+                continue
+            key = s.lower()
+            if key in seen_pn:
+                continue
+            seen_pn.add(key)
+            proper_nouns.append(s)
+
+    return {"dialogue": merged, "proper_nouns": proper_nouns}
+
+
+def _proper_noun_word_set(proper_nouns: List[str]) -> set:
+    """Return a set of case-sensitive letters-only individual words from the
+    proper-noun list. Multi-word names like 'Miss Whitmore' become {'Miss',
+    'Whitmore'}. Words that don't start uppercase (e.g. articles Claude may
+    have left in) are dropped."""
+    words = set()
+    for pn in proper_nouns or []:
+        for w in re.findall(r"[A-Za-z]+", pn):
+            if len(w) > 1 and w[0].isupper():
+                words.add(w)
+    return words
+
+
+def _token_is_proper_noun(tok_text: str, pn_words: set) -> bool:
+    """A token is a proper noun if its letters-only, case-preserved form is
+    in `pn_words` — with a possessive fallback so 'Mary's' matches 'Mary'."""
+    letters = re.sub(r"[^A-Za-z]", "", tok_text or "")
+    if len(letters) < 2 or not letters[0].isupper():
+        return False
+    if letters in pn_words:
+        return True
+    if letters.endswith("s") and letters[:-1] in pn_words:
+        return True
+    return False
+
+
+def _tokens_for_dialogue(dialogue: List[Dict],
+                         proper_nouns: List[str]) -> tuple:
+    """Turn a list of `{speaker, text, index}` items into a flat token list
+    ready to render + a public `turns` list. Returns (tokens, turns_public,
+    unknown_norm_words). Each token carries `turn_index` pre-assigned; a
+    single non-word `\n\n` separator between turns has turn_index=None so it
+    doesn't render inside any turn's flow.
+    """
+    pn_words = _proper_noun_word_set(proper_nouns)
+    tokens: List[WordToken] = []
+    turns_public: List[Dict] = []
+    unknown: List[str] = []
+    for item in dialogue:
+        ti = item["index"]
+        if tokens:
+            tokens.append(WordToken(text="\n\n", is_word=False,
+                                    turn_index=None))
+        for tok in tokenize_scene(item["text"]):
+            if not tok["is_word"]:
+                tokens.append(WordToken(text=tok["text"], is_word=False,
+                                        turn_index=ti))
+                continue
+            norm = normalize_word(tok["text"])
+            ipa, arpa, cats = transcribe_word(norm) if norm else (None, [], [])
+            wt = WordToken(
+                text=tok["text"], is_word=True, ipa=ipa,
+                arpabet=arpa, categories=cats,
+                source="cmu" if ipa else "none",
+                turn_index=ti,
+                is_proper_noun=_token_is_proper_noun(tok["text"], pn_words),
+            )
+            if not ipa and norm:
+                unknown.append(norm)
+            tokens.append(wt)
+        turns_public.append({
+            "index": ti, "speaker": item["speaker"], "text": item["text"],
+        })
+    return tokens, turns_public, unknown
+
+
+async def _apply_llm_ipa_fallback(tokens: List[WordToken],
+                                  unknown_words: List[str]) -> None:
+    unique = list(dict.fromkeys(unknown_words))[:80]
+    if not unique:
+        return
+    llm_map = await llm_transcribe_words(unique)
+    if not llm_map:
+        return
+    for wt in tokens:
+        if wt.is_word and not wt.ipa:
+            key = normalize_word(wt.text)
+            if key in llm_map:
+                wt.ipa = llm_map[key]
+                wt.source = "llm"
+
+
+async def build_dialogue_only_scene(raw_text: str) -> tuple:
+    """Return (tokens, turns_public, dialogue, proper_nouns) built from
+    LLM-extracted dialogue, with a regex fallback if the LLM is unavailable.
+
+    Raises HTTPException(400) if no dialogue at all can be extracted.
+    """
+    llm_out = await extract_dialogue_via_llm(raw_text)
+    if llm_out is None:
+        dialogue: List[Dict] = []
+        proper_nouns: List[str] = []
+    else:
+        dialogue = llm_out.get("dialogue") or []
+        proper_nouns = llm_out.get("proper_nouns") or []
+
+    if not dialogue:
+        # Fallback: regex-detect turns and drop narration.
+        regex_turns = extract_turns(raw_text)
+        dialogue = [
+            {"speaker": t["speaker"], "text": t["text"], "index": 0}
+            for t in regex_turns if t["speaker"]
+        ]
+        for i, d in enumerate(dialogue):
+            d["index"] = i
+
+    if not dialogue:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "No spoken dialogue was detected in this PDF. Make sure it "
+                "contains character lines like 'ELIZA: Wait!' or a screenplay "
+                "with character names above each line."
+            ),
+        )
+
+    tokens, turns_public, unknown = _tokens_for_dialogue(dialogue, proper_nouns)
+    await _apply_llm_ipa_fallback(tokens, unknown)
+    return tokens, turns_public, dialogue, proper_nouns
+
+
 async def llm_transcribe_words(words: List[str]) -> Dict[str, str]:
     """Use Claude Sonnet 4.5 to transcribe out-of-dictionary words to American IPA.
 
@@ -323,6 +574,42 @@ async def sound_categories():
     return {"categories": SOUND_CATEGORIES}
 
 
+@api_router.get("/pronounce", response_model=PronounceResponse)
+async def pronounce(word: str):
+    """Return IPA + ARPABET + sound categories for a single word.
+
+    Uses the CMU Pronouncing Dictionary first; falls back to Claude for
+    out-of-dictionary words (names, invented spellings). Does NOT synthesize
+    audio — the frontend calls POST /api/tts for that separately.
+    """
+    raw = (word or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="word is required")
+
+    norm = normalize_word(raw)
+    if not norm:
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a real word (letters only).",
+        )
+
+    ipa, arpa, cats = transcribe_word(norm)
+    if ipa:
+        return PronounceResponse(
+            word=raw, normalized=norm, ipa=ipa,
+            arpabet=arpa, categories=cats, source="cmu",
+        )
+
+    # CMU miss → Claude fallback.
+    llm_map = await llm_transcribe_words([norm])
+    llm_ipa = llm_map.get(norm)
+    return PronounceResponse(
+        word=raw, normalized=norm, ipa=llm_ipa,
+        arpabet=[], categories=[],
+        source="llm" if llm_ipa else "none",
+    )
+
+
 @api_router.post("/scenes/upload", response_model=Scene)
 async def upload_scene(file: UploadFile = File(...), title: Optional[str] = None):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
@@ -343,52 +630,71 @@ async def upload_scene(file: UploadFile = File(...), title: Optional[str] = None
             detail="No text was found in this PDF. Only text-based PDFs are supported.",
         )
 
-    raw_tokens = tokenize_scene(text)
+    # Dialogue-only pipeline: LLM extracts spoken lines + proper nouns, then
+    # we tokenize just those and run IPA over them. Stage directions and
+    # narration are dropped.
+    typed_tokens, turns_public, dialogue, proper_nouns = (
+        await build_dialogue_only_scene(text)
+    )
 
-    # First pass — CMU dictionary.
-    unknown: List[str] = []
-    typed_tokens: List[WordToken] = []
-    for tok in raw_tokens:
-        if not tok["is_word"]:
-            typed_tokens.append(WordToken(text=tok["text"], is_word=False))
-            continue
-        norm = normalize_word(tok["text"])
-        ipa, arpa, cats = transcribe_word(norm) if norm else (None, [], [])
-        wt = WordToken(
-            text=tok["text"],
-            is_word=True,
-            ipa=ipa,
-            arpabet=arpa,
-            categories=cats,
-            source="cmu" if ipa else "none",
-        )
-        if not ipa and norm:
-            unknown.append(norm)
-        typed_tokens.append(wt)
+    scene_title = title or (
+        file.filename.rsplit(".", 1)[0] if file.filename else "Untitled scene"
+    )
+    scene = Scene(
+        title=scene_title, raw_text=text, tokens=typed_tokens,
+        turns=[Turn(**t) for t in turns_public],
+    )
 
-    # Second pass — LLM fallback for unknown words (deduped, capped).
-    unique_unknown = list(dict.fromkeys(unknown))[:80]
-    llm_map = await llm_transcribe_words(unique_unknown) if unique_unknown else {}
-    if llm_map:
-        for wt in typed_tokens:
-            if wt.is_word and not wt.ipa:
-                key = normalize_word(wt.text)
-                if key in llm_map:
-                    wt.ipa = llm_map[key]
-                    wt.source = "llm"
-
-    scene_title = title or (file.filename.rsplit(".", 1)[0] if file.filename else "Untitled scene")
-    scene = Scene(title=scene_title, raw_text=text, tokens=typed_tokens)
-
-    # Compute turns and stamp turn_index onto each token (in place on the model).
     doc = scene.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
-    turns_public = build_turns_for_scene(doc)
-    doc["turns"] = turns_public
+    doc["dialogue_only"] = True
+    doc["dialogue"] = dialogue
+    doc["proper_nouns"] = proper_nouns
     await db.scenes.insert_one(doc)
 
-    # Return a fresh Scene with turns applied.
     return Scene(**doc)
+
+
+async def _ensure_dialogue_only(doc: Dict) -> Dict:
+    """Backfill a pre-existing scene to the dialogue-only representation.
+
+    Older scenes were tokenized from the whole raw text (including stage
+    directions). On first GET after the migration lands, run the dialogue
+    extractor once, rebuild tokens, drop any cached turn audio (its text no
+    longer matches), and persist the new shape.
+    """
+    if doc.get("dialogue_only") and "proper_nouns" in doc:
+        return doc
+    raw_text = doc.get("raw_text", "") or ""
+    try:
+        typed_tokens, turns_public, dialogue, proper_nouns = (
+            await build_dialogue_only_scene(raw_text)
+        )
+    except HTTPException:
+        # Couldn't find any dialogue — leave the scene untouched so the app
+        # doesn't blow up; upload flow already blocks pure-narration PDFs.
+        logger.warning("Dialogue migration skipped for scene %s (no dialogue).",
+                       doc.get("id"))
+        return doc
+
+    new_tokens = [wt.model_dump() for wt in typed_tokens]
+    new_turns = turns_public
+    await db.scenes.update_one(
+        {"id": doc["id"]},
+        {"$set": {
+            "tokens": new_tokens, "turns": new_turns,
+            "dialogue_only": True, "dialogue": dialogue,
+            "proper_nouns": proper_nouns,
+        }},
+    )
+    # Invalidate stale turn audio — indices and text have changed.
+    await db.turn_audio_cache.delete_many({"scene_id": doc["id"]})
+    doc["tokens"] = new_tokens
+    doc["turns"] = new_turns
+    doc["dialogue_only"] = True
+    doc["dialogue"] = dialogue
+    doc["proper_nouns"] = proper_nouns
+    return doc
 
 
 @api_router.get("/scenes", response_model=List[SceneSummary])
@@ -412,11 +718,23 @@ async def get_scene(scene_id: str):
     doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Scene not found")
+    doc = await _ensure_dialogue_only(doc)
     if isinstance(doc.get("created_at"), str):
         doc["created_at"] = datetime.fromisoformat(doc["created_at"])
-    # Compute turns fresh on every fetch so parsing improvements are picked up
-    # automatically for scenes uploaded before the feature landed.
-    doc["turns"] = build_turns_for_scene(doc)
+    return Scene(**doc)
+
+
+@api_router.post("/scenes/{scene_id}/reparse", response_model=Scene)
+async def reparse_scene(scene_id: str):
+    """Force a re-extraction of dialogue for a saved scene. Useful if the
+    original extraction missed lines or grouped them oddly."""
+    doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Scene not found")
+    doc["dialogue_only"] = False  # Force re-run.
+    doc = await _ensure_dialogue_only(doc)
+    if isinstance(doc.get("created_at"), str):
+        doc["created_at"] = datetime.fromisoformat(doc["created_at"])
     return Scene(**doc)
 
 
@@ -532,12 +850,18 @@ def _synthesize(text: str) -> bytes:
 @api_router.post("/scenes/{scene_id}/turns/{turn_index}/tts",
                  response_model=TurnTTSResponse)
 async def tts_turn(scene_id: str, turn_index: int):
-    """Generate (and cache) audio for one continuous speaker turn."""
+    """Generate (and cache) audio for one continuous speaker turn.
+
+    Uses the persisted dialogue-only turns on the scene doc so the audio
+    always matches exactly what the UI shows for the same index. Legacy
+    scenes are migrated on the fly.
+    """
     doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Scene not found")
+    doc = await _ensure_dialogue_only(doc)
 
-    turns = extract_turns(doc.get("raw_text", "") or "")
+    turns = doc.get("turns") or []
     if turn_index < 0 or turn_index >= len(turns):
         raise HTTPException(status_code=404, detail="Turn not found")
     turn = turns[turn_index]
@@ -547,7 +871,8 @@ async def tts_turn(scene_id: str, turn_index: int):
     if cached and cached.get("audio_b64"):
         return TurnTTSResponse(
             scene_id=scene_id, turn_index=turn_index,
-            speaker=turn["speaker"], audio_b64=cached["audio_b64"], cached=True,
+            speaker=turn.get("speaker"), audio_b64=cached["audio_b64"],
+            cached=True,
         )
 
     try:
@@ -570,7 +895,7 @@ async def tts_turn(scene_id: str, turn_index: int):
         )
     return TurnTTSResponse(
         scene_id=scene_id, turn_index=turn_index,
-        speaker=turn["speaker"], audio_b64=audio_b64, cached=False,
+        speaker=turn.get("speaker"), audio_b64=audio_b64, cached=False,
     )
 
 

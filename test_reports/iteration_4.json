@@ -1,0 +1,32 @@
+{
+  "summary": "Backend-only regression + new-feature testing for two iteration changes: (1) tts_turn now synthesizes from persisted doc['turns'][i]['text'] (previously used regex extract_turns on raw_text), and (2) proper-noun extraction — extract_dialogue_via_llm returns {dialogue, proper_nouns}, WordToken gains is_proper_noun boolean, and scenes persist a proper_nouns list. Added /app/backend/tests/test_proper_nouns_and_tts_turn.py with 9 new tests covering: (a) upload tokens carry is_proper_noun bool; (b) positive-only assertion — 'Miss', 'Whitmore', 'Boston', 'Mary', 'Jones' are all flagged for 'ELIZA: I met Miss Whitmore in Boston. Mary Jones was there too.'; (c) common words 'in', 'was', 'there', 'met', 'too' are not flagged (and 'I' is skipped by design via len>=2 rule); (d) possessive — 'Mary's' correctly flagged via the [:-1] fallback in _token_is_proper_noun; (e) GET returns the same flags as upload; (f) legacy-scene migration — used pymongo to $unset {proper_nouns, dialogue_only} on a fresh upload to simulate legacy shape; first GET runs the migration + flags proper nouns, second GET < 2s (persistence verified) and returns identical flags; (g) reparse re-detects proper nouns even on an already-migrated scene (reparse forces dialogue_only=False so the guard re-runs); (h) tts_turn on the seed Little House scene: turn 0 and turn 6 both return speakers matching doc['turns'][i]['speaker'], turn 7 → 404 — confirms endpoint reads doc['turns'] rather than regex; (i) turn-TTS cache is invalidated after reparse (cached=false on first call after reparse). Full suite (test_accent_coach.py + test_dialogue_only.py + test_turns.py + test_proper_nouns_and_tts_turn.py) = 51/51 pass in ~35s. Previous iteration's action item (tts_turn drift bug) is now fixed in server.py — verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_proper_nouns_and_tts_turn.py",
+    "/app/backend/tests/test_dialogue_only.py",
+    "/app/backend/tests/test_turns.py",
+    "/app/backend/tests/test_accent_coach.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/proper_nouns_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "tts_turn now correctly reads doc['turns'] after _ensure_dialogue_only, closing the previous drift bug — audio for turn i is guaranteed to match the text the UI shows for the same i.",
+    "_ensure_dialogue_only guard is 'if doc.get(\"dialogue_only\") and \"proper_nouns\" in doc' — exactly matches the spec (migration re-runs only if either flag is missing). Reparse resets dialogue_only=False so the guard falls through — nice reuse.",
+    "_token_is_proper_noun handles possessives via the [:-1] fallback and skips single-letter tokens (so 'I' is never flagged) — deliberately positive-tag only.",
+    "_proper_noun_word_set flattens multi-word names like 'Miss Whitmore' into their component words and requires an initial capital — clean, avoids over-matching against articles.",
+    "server.py is now 871 lines — approaching the 700-line soft cap in code-review guidelines. Consider splitting dialogue/LLM helpers, TTS endpoints, and scene-CRUD into separate modules soon.",
+    "Concurrent GETs on a legacy scene may both trigger the LLM extract + write (idempotent but wasteful) — could be gated with a per-scene lock; not blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_proper_nouns_and_tts_turn.py"
+  ],
+  "success_rate": {"backend": "100% (51/51)", "frontend": "skipped"},
+  "test_credentials": "N/A",
+  "seed_data_creation": "Module-scoped in-memory PDF uploads: pn-basic (Miss Whitmore/Boston/Mary Jones), pn-possessive (Mary's book), pn-legacy (mutated in mongo to unset proper_nouns + dialogue_only to simulate a legacy scene), pn-cache. All are deleted in fixture teardown. Read-only usage of seed scene 4b23e55d-67be-42bc-a397-4eb4085bdb2e.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && set -a && source .env && set +a && export REACT_APP_BACKEND_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d= -f2) && python -m pytest tests/ -v. The new proper-noun tests are POSITIVE-ONLY per problem statement (no upper-bound count assertion) since Claude may occasionally over-tag. The tts_turn-drift bug from iteration 3 is verified fixed. If server.py exceeds ~1000 lines, recommend splitting.",
+  "rca of the issue": "N/A — no regressions or bugs found this iteration. Previously flagged tts_turn drift is now resolved (endpoint uses doc['turns'] after _ensure_dialogue_only)."
+}

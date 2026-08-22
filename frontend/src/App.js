@@ -4,6 +4,7 @@ import ScenesSidebar from "@/components/ScenesSidebar";
 import SceneReader from "@/components/SceneReader";
 import LaundryListPanel from "@/components/LaundryListPanel";
 import UploadDropzone from "@/components/UploadDropzone";
+import PronouncePage from "@/components/PronouncePage";
 import {
   listScenes,
   getScene,
@@ -11,19 +12,40 @@ import {
 } from "@/lib/api";
 import "@/App.css";
 
+const TABS = [
+  { id: "pronounce", label: "Pronounce It" },
+  { id: "scenes", label: "Scenes" },
+];
+
 export default function App() {
+  const [tab, setTab] = useState(() => {
+    try {
+      return window.localStorage.getItem("activeTab") || "pronounce";
+    } catch {
+      return "pronounce";
+    }
+  });
   const [scenes, setScenes] = useState([]);
   const [activeScene, setActiveScene] = useState(null);
   const [categories, setCategories] = useState([]);
   const [highlightSet, setHighlightSet] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
+  const switchTab = (t) => {
+    setTab(t);
+    try {
+      window.localStorage.setItem("activeTab", t);
+    } catch {
+      // localStorage not available (private mode) — ignore.
+    }
+  };
+
   const refreshScenes = useCallback(async () => {
     try {
       const data = await listScenes();
       setScenes(data);
       return data;
-    } catch (e) {
+    } catch {
       return [];
     }
   }, []);
@@ -42,7 +64,8 @@ export default function App() {
           setActiveScene(full);
         }
       } catch (e) {
-        // Backend might not be reachable on first load — empty state will render.
+        // Backend unreachable on first load — the Pronounce tab still works
+        // for cached tokens or once the network recovers.
       } finally {
         setLoading(false);
       }
@@ -53,14 +76,15 @@ export default function App() {
     try {
       const full = await getScene(id);
       setActiveScene(full);
-    } catch (e) {
-      /* noop */
+    } catch {
+      // ignore — sidebar highlight will simply not change
     }
   };
 
   const handleNewScene = async (scene) => {
     setActiveScene(scene);
     await refreshScenes();
+    switchTab("scenes");
   };
 
   const handleDeleted = async (id) => {
@@ -87,46 +111,51 @@ export default function App() {
           },
         }}
       />
-      <Header />
-      <div className="flex flex-1 min-h-0">
-        <ScenesSidebar
-          scenes={scenes}
-          activeId={activeScene?.id}
-          onSelect={handleSelect}
-          onNewScene={handleNewScene}
-          onDeleted={handleDeleted}
-        />
+      <Header tab={tab} onSwitchTab={switchTab} />
 
-        <main className="flex-1 flex min-w-0">
-          {loading ? (
-            <div className="flex-1 flex items-center justify-center font-mono text-xs text-muted2">
-              Preparing the workbench…
-            </div>
-          ) : activeScene ? (
-            <>
-              <SceneReader
-                scene={activeScene}
-                highlightSet={highlightSet}
-              />
-              <LaundryListPanel
-                scene={activeScene}
-                categories={categories}
-                onHighlightChange={setHighlightSet}
-              />
-            </>
-          ) : (
-            <EmptyState onUploaded={handleNewScene} />
-          )}
-        </main>
-      </div>
+      {tab === "pronounce" ? (
+        <PronouncePage />
+      ) : (
+        <div className="flex flex-1 min-h-0">
+          <ScenesSidebar
+            scenes={scenes}
+            activeId={activeScene?.id}
+            onSelect={handleSelect}
+            onNewScene={handleNewScene}
+            onDeleted={handleDeleted}
+          />
+
+          <main className="flex-1 flex min-w-0">
+            {loading ? (
+              <div className="flex-1 flex items-center justify-center font-mono text-xs text-muted2">
+                Preparing the workbench…
+              </div>
+            ) : activeScene ? (
+              <>
+                <SceneReader
+                  scene={activeScene}
+                  highlightSet={highlightSet}
+                />
+                <LaundryListPanel
+                  scene={activeScene}
+                  categories={categories}
+                  onHighlightChange={setHighlightSet}
+                />
+              </>
+            ) : (
+              <ScenesEmptyState onUploaded={handleNewScene} />
+            )}
+          </main>
+        </div>
+      )}
     </div>
   );
 }
 
-function Header() {
+function Header({ tab, onSwitchTab }) {
   return (
     <header
-      className="border-b thin-rule bg-surface px-8 py-4 flex items-center justify-between"
+      className="border-b thin-rule bg-surface px-8 py-4 flex items-center justify-between gap-6 flex-wrap"
       data-testid="app-header"
     >
       <div className="flex items-baseline gap-4">
@@ -137,14 +166,41 @@ function Header() {
           A studio for American English
         </div>
       </div>
-      <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted2">
+      <nav
+        className="flex items-center border thin-rule"
+        data-testid="tab-nav"
+        role="tablist"
+      >
+        {TABS.map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              className={
+                "font-mono text-[11px] uppercase tracking-[0.22em] px-5 py-2.5 border-r thin-rule last:border-r-0 transition-colors " +
+                (active
+                  ? "bg-ink text-surface"
+                  : "bg-transparent text-ink hover:bg-paper")
+              }
+              data-testid={`tab-${t.id}`}
+              onClick={() => onSwitchTab(t.id)}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </nav>
+      <div className="hidden lg:block font-mono text-[10px] uppercase tracking-[0.25em] text-muted2">
         IPA · ARPABET · ElevenLabs
       </div>
     </header>
   );
 }
 
-function EmptyState({ onUploaded }) {
+function ScenesEmptyState({ onUploaded }) {
   return (
     <div className="flex-1 overflow-auto bg-paper">
       <div className="max-w-4xl mx-auto px-8 py-16 lg:py-24">
