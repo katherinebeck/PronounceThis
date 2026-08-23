@@ -1,0 +1,25 @@
+{
+  "summary": "Verified frontend removal of the 'Check how you say' feature and Fluently panel hiding in YouGlish. Backend regression: 62/62 pytest still pass. Frontend: Pronounce empty state shows exactly 3 tiles (IPA, Audio, Real Speakers); no 'Check Yourself' tile; no pronounce-check testid on the page before or after lookup; no mic icon; no 'Check how you say' text; result card renders with only pronounce-play + pronounce-youglish. CheckPronunciationModal.jsx is deleted. GET /api/pronounce?word=butter returns IPA (bˈʌtɝ), ARPABET (B AH1 T ER0) and categories. YouGlish modal opens, hydrates within ~10s, contains an iframe, and page.evaluate walk of the modal subtree found ZERO visible elements whose textContent includes 'check how you say' / 'tap and read the text' / 'fluently' (offsetParent null / hidden by MutationObserver). Scenes tab renders (pn-legacy scene with word blocks). All target checks passed.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_accent_coach.py",
+    "/app/backend/tests/test_dialogue_only.py",
+    "/app/backend/tests/test_pronounce.py",
+    "/app/backend/tests/test_proper_nouns_and_tts_turn.py",
+    "/app/backend/tests/test_turns.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "YouglishModal.stripFluently walks all descendants on every mutation which is O(N) per DOM change; fine for this widget size but could be scoped to added nodes via mutation.addedNodes for cheaper updates.",
+    "stripFluently walks up 4 parents to find a promo container which is a heuristic that could accidentally hide the whole widget if YouGlish restructures markup — consider tagging via a data attribute once found.",
+    "Fluently panel hiding depends on the promo being same-origin; if YouGlish moves it into the cross-origin iframe in the future, this approach will silently stop working. Add a console.warn if promo text is detected but cannot be hidden."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "iteration_6 confirms the removal fix. Pronounce page has 3 empty-state tiles, only pronounce-play + pronounce-youglish action buttons on the result card, no pronounce-check testid, no mic icon, no 'Check how you say' text. CheckPronunciationModal.jsx is gone. YouGlish modal Fluently-hiding via MutationObserver in YouglishModal.jsx works (verified with page.evaluate that no visible node contains the offending text; iframe count >= 1). Backend 62/62 pass — must export MONGO_URL and REACT_APP_BACKEND_URL before running pytest (source backend/.env and frontend/.env)."
+}

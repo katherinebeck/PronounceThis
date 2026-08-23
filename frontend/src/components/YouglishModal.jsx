@@ -48,19 +48,53 @@ export default function YouglishModal({ open, query, onClose }) {
   useEffect(() => {
     if (!open || !query || !mountId) return;
     let cancelled = false;
+    let observer = null;
+
+    // Hide any Fluently.ai "Check how you say ... in English" panel the
+    // YouGlish widget injects. Its wording / branding is unstable across
+    // widget versions so we match against a few known strings.
+    const stripFluently = (root) => {
+      if (!root) return;
+      const kill = new Set();
+      root.querySelectorAll("*").forEach((el) => {
+        const t = (el.textContent || "").toLowerCase();
+        if (
+          t.includes("check how you say") ||
+          t.includes("tap and read the text") ||
+          t.includes("fluently")
+        ) {
+          // Bubble up to the smallest reasonable container that only carries
+          // this promo — usually a direct child of the widget mount.
+          let node = el;
+          for (let i = 0; i < 4 && node.parentElement && node.parentElement !== root; i++) {
+            node = node.parentElement;
+          }
+          kill.add(node);
+        }
+      });
+      kill.forEach((n) => {
+        n.style.display = "none";
+      });
+    };
+
     (async () => {
       const YG = await loadYouglish();
       if (cancelled || !YG) return;
-      // Ensure the mount node exists (React has already rendered).
       const el = document.getElementById(mountId);
       if (!el) return;
       widgetRef.current = new YG.Widget(mountId, {
         width: 720,
         components: 1 + 2 + 4 + 8, // search + video + captions + play controls
         events: {
-          onFetchDone: () => setLoading(false),
+          onFetchDone: () => {
+            setLoading(false);
+            stripFluently(el);
+          },
         },
       });
+      // Watch for the promo re-appearing as the user paginates clips.
+      observer = new MutationObserver(() => stripFluently(el));
+      observer.observe(el, { childList: true, subtree: true });
       try {
         widgetRef.current.fetch(query, "english", "us");
       } catch {
@@ -69,6 +103,7 @@ export default function YouglishModal({ open, query, onClose }) {
     })();
     return () => {
       cancelled = true;
+      if (observer) observer.disconnect();
     };
   }, [open, query, mountId]);
 
