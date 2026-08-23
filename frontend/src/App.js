@@ -114,7 +114,7 @@ export default function App() {
       <Header tab={tab} onSwitchTab={switchTab} />
 
       {tab === "pronounce" ? (
-        <PronouncePage />
+        <PronouncePage onGoToScenes={() => switchTab("scenes")} />
       ) : (
         <div className="flex flex-1 min-h-0">
           <ScenesSidebar
@@ -160,7 +160,7 @@ function Header({ tab, onSwitchTab }) {
     >
       <div className="flex items-baseline gap-4">
         <div className="font-display text-2xl text-ink leading-none">
-          The Accent Workbench
+          Pronounce it.
         </div>
         <div className="hidden md:block font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
           A studio for American English

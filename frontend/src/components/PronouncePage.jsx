@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Volume2, Loader2, Search, Book } from "lucide-react";
+import { Volume2, Loader2, Search, Book, FileText, ArrowRight } from "lucide-react";
 import { pronounceWord, fetchSoundCategories } from "@/lib/api";
 import { playWord } from "@/lib/audio";
 import YouglishModal from "./YouglishModal";
@@ -8,7 +8,7 @@ import { toast } from "sonner";
 // A small, focused word-lookup workbench: type anything, get IPA + ARPABET +
 // sound categories, tap to hear Rachel say it, or open YouGlish for real
 // speakers. Complements the full scene view.
-export default function PronouncePage() {
+export default function PronouncePage({ onGoToScenes }) {
   const [input, setInput] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -77,6 +77,31 @@ export default function PronouncePage() {
 
   return (
     <div className="flex-1 overflow-auto bg-paper" data-testid="pronounce-page">
+      <button
+        type="button"
+        onClick={() => onGoToScenes?.()}
+        className="w-full text-left border-b thin-rule bg-ink text-surface hover:bg-rust transition-colors group"
+        data-testid="scenes-promo-banner"
+      >
+        <div className="max-w-5xl mx-auto px-8 py-4 flex items-center gap-6 flex-wrap">
+          <div className="flex items-start gap-4 flex-1 min-w-0">
+            <FileText size={18} className="mt-0.5 shrink-0 text-rust group-hover:text-surface" />
+            <div className="min-w-0">
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] opacity-70 mb-1">
+                Got an audition scene?
+              </div>
+              <div className="font-serif text-base leading-snug">
+                Import your scene and get a full IPA transcription, sound
+                cues for every word, plus word lists pulled from your scene
+                for sound practice drills.
+              </div>
+            </div>
+          </div>
+          <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0">
+            Open Scenes <ArrowRight size={12} />
+          </span>
+        </div>
+      </button>
       <div className="max-w-3xl mx-auto px-10 lg:px-14 py-12 lg:py-16">
         <div className="mb-10">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
