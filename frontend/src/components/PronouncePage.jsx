@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Volume2, Loader2, Search, Book } from "lucide-react";
+import { Volume2, Loader2, Search, Book, Mic } from "lucide-react";
 import { pronounceWord, fetchSoundCategories } from "@/lib/api";
 import { playWord } from "@/lib/audio";
 import YouglishModal from "./YouglishModal";
+import CheckPronunciationModal from "./CheckPronunciationModal";
 import { toast } from "sonner";
 
 // A small, focused word-lookup workbench: type anything, get IPA + ARPABET +
@@ -15,6 +16,7 @@ export default function PronouncePage() {
   const [playingHint, setPlayingHint] = useState(false);
   const [categoriesMeta, setCategoriesMeta] = useState([]);
   const [ygQuery, setYgQuery] = useState(null);
+  const [checkQuery, setCheckQuery] = useState(null);
   const [history, setHistory] = useState(() => {
     try {
       const raw = window.localStorage.getItem("pronounceHistory");
@@ -89,8 +91,8 @@ export default function PronouncePage() {
           </h1>
           <p className="mt-5 text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Type any English word — a character name, a tricky place, a
-            homework word. See the American IPA, hear Rachel say it, and pull
-            real-speaker references from YouGlish.
+            homework word. See the American IPA, hear it spoken, check your
+            own pronunciation, or pull real-speaker references from YouGlish.
           </p>
         </div>
 
@@ -181,9 +183,18 @@ export default function PronouncePage() {
                     </>
                   ) : (
                     <>
-                      <Volume2 size={13} /> Hear Rachel
+                      <Volume2 size={13} /> Hear Word
                     </>
                   )}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  data-testid="pronounce-check"
+                  onClick={() => setCheckQuery(result.word)}
+                >
+                  <Mic size={12} /> Check how you say &quot;{result.word}&quot; -
+                  General American accent
                 </button>
                 <button
                   type="button"
@@ -235,10 +246,11 @@ export default function PronouncePage() {
             ) : null}
           </div>
         ) : (
-          <div className="mt-12 grid grid-cols-3 gap-px bg-rule">
+          <div className="mt-12 grid grid-cols-2 md:grid-cols-4 gap-px bg-rule">
             {[
               { t: "IPA", d: "See the exact American English phonetic spelling for any word." },
-              { t: "Audio", d: "Tap to hear Rachel (ElevenLabs) say the word in a natural voice." },
+              { t: "Audio", d: "Tap to hear the word spoken in a natural General American voice." },
+              { t: "Check Yourself", d: "Speak the word aloud — your browser transcribes it and grades the match." },
               { t: "Real Speakers", d: "Open YouGlish to hear it in real YouTube clips — great for names." },
             ].map((c) => (
               <div key={c.t} className="bg-surface p-6">
@@ -255,6 +267,11 @@ export default function PronouncePage() {
         open={Boolean(ygQuery)}
         query={ygQuery || ""}
         onClose={() => setYgQuery(null)}
+      />
+      <CheckPronunciationModal
+        open={Boolean(checkQuery)}
+        word={checkQuery || ""}
+        onClose={() => setCheckQuery(null)}
       />
     </div>
   );
