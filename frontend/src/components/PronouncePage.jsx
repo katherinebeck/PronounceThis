@@ -80,17 +80,16 @@ export default function PronouncePage() {
       <div className="max-w-3xl mx-auto px-10 lg:px-14 py-12 lg:py-16">
         <div className="mb-10">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
-            Pronounce It · Single-word workbench
+            Pronounce It · General American Accent Pronunciation Tool
           </div>
           <h1 className="font-display text-5xl lg:text-6xl text-ink leading-[0.98]">
-            One word at a time.
+            Pronounce it.
             <br />
-            <em className="not-italic text-rust">Precisely.</em>
+            <em className="not-italic text-rust">One word at a time.</em>
           </h1>
           <p className="mt-5 text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
-            Type any English word — a character name, a tricky place, a
-            homework word. See the American IPA, hear it spoken, or pull
-            real-speaker references from YouGlish.
+            Type any word, character name, location name to see the American
+            IPA, hear it spoken and pull real-speaker references from YouGlish.
           </p>
         </div>
 
@@ -239,7 +238,7 @@ export default function PronouncePage() {
             {[
               { t: "IPA", d: "See the exact American English phonetic spelling for any word." },
               { t: "Audio", d: "Tap to hear the word spoken in a natural General American voice." },
-              { t: "Real Speakers", d: "Open YouGlish to hear it in real YouTube clips — great for names." },
+              { t: "Real Speakers", d: "Open YouGlish to hear it in real YouTube clips - great for names and locations." },
             ].map((c) => (
               <div key={c.t} className="bg-surface p-6">
                 <div className="font-display text-2xl text-ink">{c.t}</div>
