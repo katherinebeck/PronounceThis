@@ -77,31 +77,6 @@ export default function PronouncePage({ onGoToScenes }) {
 
   return (
     <div className="flex-1 overflow-auto bg-paper" data-testid="pronounce-page">
-      <button
-        type="button"
-        onClick={() => onGoToScenes?.()}
-        className="w-full text-left border-b thin-rule bg-ink text-surface hover:bg-rust transition-colors group"
-        data-testid="scenes-promo-banner"
-      >
-        <div className="max-w-5xl mx-auto px-8 py-4 flex items-center gap-6 flex-wrap">
-          <div className="flex items-start gap-4 flex-1 min-w-0">
-            <FileText size={18} className="mt-0.5 shrink-0 text-rust group-hover:text-surface" />
-            <div className="min-w-0">
-              <div className="font-mono text-[10px] uppercase tracking-[0.28em] opacity-70 mb-1">
-                Got an audition scene?
-              </div>
-              <div className="font-serif text-base leading-snug">
-                Import your scene and get a full IPA transcription, sound
-                cues for every word, plus word lists pulled from your scene
-                for sound practice drills.
-              </div>
-            </div>
-          </div>
-          <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] shrink-0">
-            Open Scenes <ArrowRight size={12} />
-          </span>
-        </div>
-      </button>
       <div className="max-w-3xl mx-auto px-10 lg:px-14 py-12 lg:py-16">
         <div className="mb-10">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
@@ -116,6 +91,27 @@ export default function PronouncePage({ onGoToScenes }) {
             Type any word, character name, location name to see the American
             IPA, hear it spoken and pull real-speaker references from YouGlish.
           </p>
+          <button
+            type="button"
+            onClick={() => onGoToScenes?.()}
+            className="mt-8 w-full text-left border thin-rule bg-surface hover:border-ink transition-colors group flex items-start gap-4 p-5"
+            data-testid="scenes-promo-banner"
+          >
+            <FileText size={18} className="mt-1 shrink-0 text-rust" />
+            <div className="min-w-0 flex-1">
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
+                Got an audition scene?
+              </div>
+              <div className="font-serif text-base text-ink leading-snug">
+                Import your scene and get a full IPA transcription, sound
+                cues for every word, plus word lists pulled from your scene
+                for sound practice drills.
+              </div>
+            </div>
+            <span className="inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 group-hover:text-rust shrink-0 mt-1">
+              Open Scenes <ArrowRight size={12} />
+            </span>
+          </button>
         </div>
 
         <form
