@@ -67,7 +67,7 @@ export default function LaundryListPanel({
 
   return (
     <aside
-      className="w-[360px] xl:w-[400px] shrink-0 border-l thin-rule bg-surface flex flex-col min-w-0"
+      className="w-full lg:w-[360px] xl:w-[400px] lg:shrink-0 border-t lg:border-t-0 lg:border-l thin-rule bg-surface flex flex-col min-w-0"
       data-testid="laundry-list-panel"
     >
       <div className="px-7 py-7 border-b thin-rule">

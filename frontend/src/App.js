@@ -158,7 +158,7 @@ export default function App() {
       {tab === "pronounce" ? (
         <PronouncePage onGoToScenes={() => switchTab("scenes")} />
       ) : (
-        <div className="flex flex-1 min-h-0">
+        <div className="flex flex-col md:flex-row flex-1 min-h-0">
           <ScenesSidebar
             scenes={scenes}
             activeId={activeScene?.id}
@@ -167,9 +167,9 @@ export default function App() {
             onDeleted={handleDeleted}
           />
 
-          <main className="flex-1 flex min-w-0">
+          <main className="flex-1 flex flex-col lg:flex-row min-w-0 min-h-0">
             {loading ? (
-              <div className="flex-1 flex items-center justify-center font-mono text-xs text-muted2">
+              <div className="flex-1 flex items-center justify-center font-mono text-xs text-muted2 py-12">
                 Preparing the workbench…
               </div>
             ) : activeScene ? (
@@ -197,15 +197,12 @@ export default function App() {
 function Header({ tab, onSwitchTab }) {
   return (
     <header
-      className="border-b thin-rule bg-surface px-8 py-4 flex items-center justify-between gap-6 flex-wrap"
+      className="border-b thin-rule bg-surface px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-6 flex-wrap"
       data-testid="app-header"
     >
       <div className="flex items-baseline gap-4">
-        <div className="font-display text-2xl text-ink leading-none">
+        <div className="font-display text-xl sm:text-2xl text-ink leading-none">
           Pronounce it.
-        </div>
-        <div className="hidden md:block font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
-          A studio for American English
         </div>
       </div>
       <nav
@@ -222,7 +219,7 @@ function Header({ tab, onSwitchTab }) {
               role="tab"
               aria-selected={active}
               className={
-                "font-mono text-[11px] uppercase tracking-[0.22em] px-5 py-2.5 border-r thin-rule last:border-r-0 transition-colors " +
+                "font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.22em] px-3 sm:px-5 py-2 sm:py-2.5 border-r thin-rule last:border-r-0 transition-colors " +
                 (active
                   ? "bg-ink text-surface"
                   : "bg-transparent text-ink hover:bg-paper")
@@ -236,7 +233,7 @@ function Header({ tab, onSwitchTab }) {
         })}
       </nav>
       <div className="hidden lg:block font-mono text-[10px] uppercase tracking-[0.25em] text-muted2">
-        IPA · ARPABET · ElevenLabs
+        IPA · ElevenLabs
       </div>
     </header>
   );
@@ -245,52 +242,20 @@ function Header({ tab, onSwitchTab }) {
 function ScenesEmptyState({ onUploaded }) {
   return (
     <div className="flex-1 overflow-auto bg-paper">
-      <div className="max-w-4xl mx-auto px-8 py-16 lg:py-24">
-        <div className="mb-12">
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-4">
-            For coaches & their actors
-          </div>
-          <h1 className="font-display text-6xl lg:text-7xl text-ink leading-[0.95]">
+      <div className="max-w-4xl mx-auto px-5 sm:px-8 py-8 sm:py-16 lg:py-24">
+        <div className="mb-8 sm:mb-12">
+          <h1 className="font-display text-4xl sm:text-6xl lg:text-7xl text-ink leading-[0.95]">
             Every word.
             <br />
             <em className="not-italic text-rust">In the right sound.</em>
           </h1>
-          <p className="mt-6 text-xl text-muted2 font-serif leading-relaxed max-w-2xl">
+          <p className="mt-4 sm:mt-6 text-base sm:text-xl text-muted2 font-serif leading-relaxed max-w-2xl">
             Drop a PDF of an audition scene. Read every line in American IPA,
-            click any word to hear it, and isolate sounds — dark L, flap T,
-            schwa, the rhotic R — into focused practice lists.
+            click any word to hear it, and isolate sounds into focused
+            practice lists.
           </p>
         </div>
         <UploadDropzone onUploaded={onUploaded} />
-        <div className="mt-16 grid md:grid-cols-3 gap-px bg-rule">
-          {[
-            {
-              n: "01",
-              t: "Read",
-              d: "Each word sits beside its IPA. Click to hear the General American pronunciation.",
-            },
-            {
-              n: "02",
-              t: "Hear",
-              d: "Studio-grade ElevenLabs voices give actors a model to imitate.",
-            },
-            {
-              n: "03",
-              t: "Drill",
-              d: "Pull a list of every word with the dark L (or schwa, or flap T) and practice it cleanly.",
-            },
-          ].map((c) => (
-            <div key={c.n} className="bg-surface p-8">
-              <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted2">
-                {c.n}
-              </div>
-              <div className="font-display text-3xl text-ink mt-2">{c.t}</div>
-              <p className="mt-2 text-sm text-muted2 font-serif leading-relaxed">
-                {c.d}
-              </p>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );

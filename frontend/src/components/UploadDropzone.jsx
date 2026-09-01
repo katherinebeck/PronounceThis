@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { Upload, FileText, Loader2 } from "lucide-react";
+import { Upload, Loader2 } from "lucide-react";
 import { uploadScene } from "@/lib/api";
 import { toast } from "sonner";
 
@@ -84,10 +84,6 @@ export default function UploadDropzone({ onUploaded }) {
           <span className="font-mono text-xs text-muted2">
             or drag a file anywhere in this panel
           </span>
-        </div>
-        <div className="flex items-center gap-2 mt-2 font-mono text-xs text-muted2">
-          <FileText size={14} />
-          Text-based PDFs · CMU Pronouncing Dictionary · Claude IPA fallback
         </div>
       </div>
       <input

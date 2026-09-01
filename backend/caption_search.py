@@ -82,7 +82,6 @@ class CaptionSearchService:
     CHANNEL_TTL = 30 * 24 * 3600        # 30 days for channel-id lookups
     RESULT_TTL = 30 * 24 * 3600         # 30 days for successful transcripts
     MISS_TTL = 60 * 60                  # 1 hour for misses/rate-limits (retry later)
-    MAX_CHANNELS_PER_QUERY = 10         # 10 × 100 quota units per fresh search
 
     def __init__(self, db):
         self.db = db
@@ -161,78 +160,73 @@ class CaptionSearchService:
     # ------------------------------------------------------------------
     # YouTube search
     # ------------------------------------------------------------------
-    async def _search_in_channel(
-        self,
-        client: httpx.AsyncClient,
-        query: str,
-        channel_id: str,
-        max_results: int = 5,
-    ) -> List[Dict[str, Any]]:
-        """Search a single channel for the query. 100 quota units per call."""
-        try:
-            r = await client.get(
-                f"{YOUTUBE_API_BASE}/search",
-                params={
-                    "part": "snippet",
-                    "q": query,
-                    "type": "video",
-                    "channelId": channel_id,
-                    "videoEmbeddable": "true",
-                    "relevanceLanguage": "en",
-                    "maxResults": max_results,
-                    "key": self.api_key,
-                },
-            )
-            if r.status_code == 403:
-                logger.error("YouTube API 403 (quota or key): %s", r.text[:200])
-                return []
-            r.raise_for_status()
-            return (r.json().get("items") or [])
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("channel search failed (%s / %r): %s",
-                           channel_id, query, exc)
-            return []
+    async def _youtube_search(self, query: str) -> Dict[str, Any]:
+        """ONE broad YouTube search (100 quota units) then post-filter to
+        curated American-speaker channels.
 
-    async def _youtube_search(self, query: str) -> List[Dict[str, Any]]:
-        """Search each curated channel in parallel and combine results.
+        Earlier we ran a parallel per-channel search (1000 units/query),
+        which burnt the 10K daily quota in ~10 queries. Broad search gives
+        us ~100 fresh queries/day; Mongo caching makes repeat words free.
 
-        Each call is 100 quota units. We hit up to 10 channels per query
-        (1000 units), and cache results 30 days so repeat words are free.
-        A single videos.list follow-up (1 unit / 50 videos) confirms each
-        candidate is actually embeddable — the search-time flag alone lets
-        embed-disabled news clips through.
+        Returns {"items": [...], "quota_exceeded": bool}.
         """
         if not self.api_key:
-            return []
+            return {"items": [], "quota_exceeded": False}
         channel_ids = await self._get_curated_channel_ids()
         if not channel_ids:
-            return []
-        cap = channel_ids[: self.MAX_CHANNELS_PER_QUERY]
-        async with httpx.AsyncClient(timeout=20) as client:
-            batches = await asyncio.gather(*[
-                self._search_in_channel(client, query, cid, max_results=5)
-                for cid in cap
-            ])
-            # Interleave results so we don't front-load a single channel.
-            combined: List[Dict[str, Any]] = []
-            max_len = max((len(b) for b in batches), default=0)
-            for i in range(max_len):
-                for b in batches:
-                    if i < len(b):
-                        combined.append(b[i])
+            return {"items": [], "quota_exceeded": False}
+        curated = set(channel_ids)
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                r = await client.get(
+                    f"{YOUTUBE_API_BASE}/search",
+                    params={
+                        "part": "snippet",
+                        "q": query,
+                        "type": "video",
+                        "videoEmbeddable": "true",
+                        "regionCode": "US",
+                        "relevanceLanguage": "en",
+                        "maxResults": 50,       # max allowed; still 100 quota units
+                        "safeSearch": "none",
+                        "key": self.api_key,
+                    },
+                )
+                if r.status_code in (403, 429):
+                    body = r.text or ""
+                    is_quota = ("quota" in body.lower()
+                                or "rateLimitExceeded" in body
+                                or "dailyLimitExceeded" in body)
+                    logger.error("YouTube API %s (%s): %s", r.status_code,
+                                 "quota" if is_quota else "auth", body[:200])
+                    return {"items": [], "quota_exceeded": bool(is_quota)}
+                r.raise_for_status()
+                combined = (r.json().get("items") or [])
 
-            # Verify embeddability at the video level — the search filter
-            # misses some geo/copyright-restricted news clips.
-            ids: List[str] = []
-            for it in combined:
-                vid = (it.get("id") or {}).get("videoId")
-                if vid and vid not in ids:
-                    ids.append(vid)
-            allowed = await self._check_embeddable(client, ids)
-            return [
-                it for it in combined
-                if (it.get("id") or {}).get("videoId") in allowed
-            ]
+                # Post-filter to curated channels, dedup by video id.
+                filtered: List[Dict[str, Any]] = []
+                seen: set = set()
+                for it in combined:
+                    snip = it.get("snippet") or {}
+                    cid = snip.get("channelId")
+                    vid = (it.get("id") or {}).get("videoId")
+                    if not cid or not vid or cid not in curated or vid in seen:
+                        continue
+                    seen.add(vid)
+                    filtered.append(it)
+
+                # Confirm embeddability at the video level — the search flag
+                # misses some geo/copyright-restricted news clips.
+                ids = [f["id"]["videoId"] for f in filtered]
+                allowed = await self._check_embeddable(client, ids)
+                items = [
+                    it for it in filtered
+                    if (it.get("id") or {}).get("videoId") in allowed
+                ]
+                return {"items": items, "quota_exceeded": False}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("youtube broad search failed for %r: %s", query, exc)
+            return {"items": [], "quota_exceeded": False}
 
     async def _check_embeddable(
         self,
@@ -493,7 +487,9 @@ class CaptionSearchService:
                 }
 
         curated_ids = set(await self._get_curated_channel_ids())
-        items = await self._youtube_search(query)
+        search_data = await self._youtube_search(query)
+        items = search_data["items"]
+        quota_exceeded = search_data["quota_exceeded"]
 
         # Every result is already from a curated channel, but double-check.
         candidates: List[Dict[str, str]] = []
@@ -590,4 +586,15 @@ class CaptionSearchService:
             }},
             upsert=True,
         )
-        return {"query": query, "results": results, "cached": False}
+        response: Dict[str, Any] = {
+            "query": query,
+            "results": results,
+            "cached": False,
+        }
+        if not results and quota_exceeded:
+            response["error"] = (
+                "YouTube daily search quota exceeded on the server. "
+                "Fresh searches will resume after midnight Pacific time; "
+                "words you've already searched today remain available."
+            )
+        return response

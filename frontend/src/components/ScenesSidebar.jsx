@@ -22,6 +22,7 @@ export default function ScenesSidebar({
 }) {
   const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const handleFile = async (file) => {
     if (!file) return;
@@ -50,12 +51,47 @@ export default function ScenesSidebar({
     }
   };
 
+  const activeScene = scenes.find((s) => s.id === activeId);
+
   return (
     <aside
-      className="w-64 shrink-0 border-r thin-rule bg-surface flex flex-col min-w-0"
+      className="w-full md:w-64 md:shrink-0 border-b md:border-b-0 md:border-r thin-rule bg-surface flex flex-col min-w-0"
       data-testid="scenes-sidebar"
     >
-      <div className="px-6 py-7 border-b thin-rule">
+      {/* Mobile-only compact header */}
+      <div className="md:hidden px-4 py-3 border-b thin-rule flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
+            Scene Library
+          </div>
+          <div className="font-display text-lg text-ink truncate">
+            {activeScene?.title || `${scenes.length} scene${scenes.length === 1 ? "" : "s"}`}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            className="btn-secondary !px-3 !py-2"
+            data-testid="mobile-new-scene-button"
+            disabled={busy}
+            onClick={() => fileRef.current?.click()}
+          >
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary !px-3 !py-2"
+            data-testid="mobile-scenes-toggle"
+            onClick={() => setMobileOpen((v) => !v)}
+            aria-expanded={mobileOpen}
+          >
+            {mobileOpen ? "Hide" : "Library"}
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop header */}
+      <div className="hidden md:block px-6 py-7 border-b thin-rule">
         <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted2 mb-2">
           The Workbench
         </div>
@@ -63,7 +99,9 @@ export default function ScenesSidebar({
           Scene Library
         </div>
       </div>
-      <div className="px-4 py-4 border-b thin-rule">
+
+      {/* Desktop upload button */}
+      <div className="hidden md:block px-4 py-4 border-b thin-rule">
         <button
           type="button"
           className="btn-secondary w-full justify-center"
@@ -81,18 +119,26 @@ export default function ScenesSidebar({
             </>
           )}
         </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="application/pdf,.pdf"
-          className="hidden"
-          data-testid="sidebar-upload-input"
-          onChange={(e) => handleFile(e.target.files?.[0])}
-        />
       </div>
-      <div className="flex-1 overflow-auto scrollbar-thin">
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="hidden"
+        data-testid="sidebar-upload-input"
+        onChange={(e) => handleFile(e.target.files?.[0])}
+      />
+
+      <div
+        className={
+          "overflow-auto scrollbar-thin " +
+          (mobileOpen ? "block" : "hidden md:block") +
+          " md:flex-1 max-h-[45vh] md:max-h-none"
+        }
+      >
         {scenes.length === 0 ? (
-          <div className="px-6 py-10 text-sm text-muted2 font-serif italic">
+          <div className="px-6 py-6 md:py-10 text-sm text-muted2 font-serif italic">
             No scenes yet. Upload a PDF to start your first transcription.
           </div>
         ) : (
@@ -107,7 +153,10 @@ export default function ScenesSidebar({
                     (active ? "bg-paper" : "hover:bg-paper/60")
                   }
                   data-testid={`scene-list-item-${s.id}`}
-                  onClick={() => onSelect?.(s.id)}
+                  onClick={() => {
+                    onSelect?.(s.id);
+                    setMobileOpen(false);
+                  }}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -125,7 +174,7 @@ export default function ScenesSidebar({
                     </div>
                     <button
                       type="button"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-muted2 hover:text-rust"
+                      className="md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1 text-muted2 hover:text-rust"
                       data-testid={`delete-scene-${s.id}`}
                       onClick={(e) => handleDelete(s.id, s.title, e)}
                       aria-label="Delete scene"
@@ -139,7 +188,7 @@ export default function ScenesSidebar({
           </ul>
         )}
       </div>
-      <div className="px-6 py-4 border-t thin-rule font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 flex items-center gap-2">
+      <div className="hidden md:flex px-6 py-4 border-t thin-rule font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 items-center gap-2">
         <Upload size={12} /> Saved locally in your session
       </div>
     </aside>

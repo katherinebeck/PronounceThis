@@ -34,7 +34,8 @@ export default function CaptionSearchModal({ open, query, onClose }) {
       setSelected((data.results || [])[0] || null);
       if (!data.results?.length) {
         setError(
-          "No matches from the curated American-speaker channels for that word. Try a variant spelling."
+          data.error ||
+            "No matches from the curated American-speaker channels for that word. Try a variant spelling."
         );
       }
     } catch (err) {
@@ -90,32 +91,32 @@ export default function CaptionSearchModal({ open, query, onClose }) {
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl bg-surface border thin-rule shadow-2xl max-h-[92vh] flex flex-col"
+        className="relative w-full max-w-5xl bg-surface border thin-rule shadow-2xl max-h-[95vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between px-6 py-5 border-b thin-rule">
+        <div className="flex items-start justify-between px-4 sm:px-6 py-4 sm:py-5 border-b thin-rule gap-3">
           <div className="min-w-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
-              Real Speakers · American English · Caption Search
+            <div className="font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.22em] sm:tracking-[0.28em] text-muted2">
+              Real Speakers · American · Captions
             </div>
             <div
-              className="font-display text-2xl text-ink mt-1 truncate"
+              className="font-display text-xl sm:text-2xl text-ink mt-1 truncate"
               data-testid="caption-search-query"
             >
               {query}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button
               type="button"
-              className="btn-secondary !px-3 !py-2"
+              className="btn-secondary !px-2.5 sm:!px-3 !py-2"
               onClick={() => load(true)}
               disabled={loading}
               data-testid="caption-search-refresh"
               title="Refresh from YouTube"
             >
               <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
-              Refresh
+              <span className="hidden sm:inline">Refresh</span>
             </button>
             <button
               type="button"
@@ -129,10 +130,10 @@ export default function CaptionSearchModal({ open, query, onClose }) {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 grid md:grid-cols-[280px_1fr] gap-px bg-rule">
-          {/* Results column */}
+        <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[280px_1fr] gap-px bg-rule overflow-hidden">
+          {/* Results column (top on mobile, left on desktop) */}
           <aside
-            className="bg-surface overflow-auto scrollbar-thin min-h-[420px] max-h-[70vh]"
+            className="bg-surface overflow-auto scrollbar-thin min-h-[180px] max-h-[38vh] md:min-h-[420px] md:max-h-[70vh]"
             data-testid="caption-search-results"
           >
             {loading ? (
@@ -196,7 +197,7 @@ export default function CaptionSearchModal({ open, query, onClose }) {
           </aside>
 
           {/* Player column */}
-          <section className="bg-surface p-5 flex flex-col min-h-[420px]">
+          <section className="bg-surface p-4 sm:p-5 flex flex-col overflow-auto min-h-[280px] md:min-h-[420px]">
             {selected ? (
               <>
                 <div className="mb-3">
@@ -207,7 +208,7 @@ export default function CaptionSearchModal({ open, query, onClose }) {
                       : " · full video (captions unavailable — seek to find the word)"}
                   </div>
                   <div
-                    className="font-display text-lg text-ink leading-snug"
+                    className="font-display text-base sm:text-lg text-ink leading-snug"
                     dangerouslySetInnerHTML={{ __html: selected.title }}
                   />
                 </div>
