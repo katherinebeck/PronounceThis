@@ -249,7 +249,7 @@ function ScenesEmptyState({ onUploaded }) {
             <br />
             <em className="not-italic text-rust">In the right sound.</em>
           </h1>
-          <p className="mt-4 sm:mt-6 text-base sm:text-xl text-muted2 font-serif leading-relaxed max-w-2xl">
+          <p className="mt-4 sm:mt-6 text-lg sm:text-xl text-muted2 font-serif leading-relaxed max-w-2xl">
             Drop a PDF of an audition scene. Read every line in American IPA,
             click any word to hear it, and isolate sounds into focused
             practice lists.

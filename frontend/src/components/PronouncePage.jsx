@@ -65,7 +65,7 @@ export default function PronouncePage({ onGoToScenes }) {
             <br />
             <em className="not-italic text-rust">One word at a time.</em>
           </h1>
-          <p className="mt-4 sm:mt-5 text-base sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
+          <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Type any word, character name or location to see it written
             phonetically (IPA) and hear it spoken in an American accent.
           </p>
@@ -80,7 +80,7 @@ export default function PronouncePage({ onGoToScenes }) {
               <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
                 Got an audition scene?
               </div>
-              <div className="font-serif text-sm sm:text-base text-ink leading-snug">
+              <div className="font-serif text-base sm:text-base text-ink leading-snug">
                 Import your scene and get a full IPA transcription, sound
                 cues for every word, plus word lists pulled from your scene
                 for sound practice drills.
@@ -105,6 +105,12 @@ export default function PronouncePage({ onGoToScenes }) {
             className="flex-1 min-w-0 bg-transparent outline-none font-serif text-lg sm:text-xl text-ink placeholder:text-muted2/60 pl-3 sm:pl-0"
             data-testid="pronounce-input"
             autoFocus
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            data-form-type="other"
+            name="pronounce-word"
           />
           <button
             type="submit"
