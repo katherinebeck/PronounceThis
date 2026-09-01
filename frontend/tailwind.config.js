@@ -23,7 +23,7 @@ module.exports = {
         paper: "#F9F6F0",
         surface: "#FDFDFB",
         ink: "#1C1B1A",
-        muted2: "#787672",
+        muted2: "#4A4844",
         rule: "#E5E1D8",
         rust: "#C85A4F",
         rustDeep: "#A64A41",

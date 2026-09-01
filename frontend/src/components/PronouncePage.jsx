@@ -196,22 +196,7 @@ export default function PronouncePage({ onGoToScenes }) {
               </div>
             ) : null}
           </div>
-        ) : (
-          <div className="mt-10 sm:mt-12 grid grid-cols-1 sm:grid-cols-3 gap-px bg-rule">
-            {[
-              { t: "IPA", d: "See the exact American English phonetic spelling for any word." },
-              { t: "Audio", d: "Tap to hear the word spoken in a natural General American voice." },
-              { t: "Real Speakers", d: "Hear the word spoken in clips from curated American English YouTube channels — news anchors, late-night hosts, dialect coaches." },
-            ].map((c) => (
-              <div key={c.t} className="bg-surface p-5 sm:p-6">
-                <div className="font-display text-2xl text-ink">{c.t}</div>
-                <p className="mt-2 text-sm text-muted2 font-serif leading-relaxed">
-                  {c.d}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
+        ) : null}
       </div>
       <YouglishModal
         open={Boolean(ygQuery)}
