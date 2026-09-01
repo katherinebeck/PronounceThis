@@ -101,7 +101,7 @@ export default function PronouncePage({ onGoToScenes }) {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type a word — Whitmore, February…"
+            placeholder="Type a word"
             className="flex-1 min-w-0 bg-transparent outline-none font-serif text-lg sm:text-xl text-ink placeholder:text-muted2/60 pl-3 sm:pl-0"
             data-testid="pronounce-input"
             autoFocus
