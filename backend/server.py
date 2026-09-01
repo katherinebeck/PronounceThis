@@ -37,6 +37,7 @@ from phonetics import (
     get_arpabet,
     transcribe_word,
 )
+from caption_search import CaptionSearchService
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -49,6 +50,8 @@ db = mongo_client[os.environ["DB_NAME"]]
 # --- App --------------------------------------------------------------------
 app = FastAPI(title="American Accent Coach")
 api_router = APIRouter(prefix="/api")
+
+caption_service = CaptionSearchService(db)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -845,6 +848,20 @@ def _synthesize(text: str) -> bytes:
         if chunk:
             buf.extend(chunk)
     return bytes(buf)
+
+
+# --- Caption search (YouGlish replacement) ---------------------------------
+@api_router.get("/caption-search")
+async def caption_search(q: str, limit: int = 6, refresh: bool = False):
+    """Search curated American-speaker YouTube channels for videos where the
+    given word/phrase is actually spoken in the captions."""
+    q = (q or "").strip()
+    if not q:
+        raise HTTPException(status_code=400, detail="Missing query.")
+    if len(q) > 80:
+        raise HTTPException(status_code=400, detail="Query too long.")
+    return await caption_service.search(q, limit=max(1, min(limit, 10)),
+                                        force_refresh=refresh)
 
 
 @api_router.post("/scenes/{scene_id}/turns/{turn_index}/tts",

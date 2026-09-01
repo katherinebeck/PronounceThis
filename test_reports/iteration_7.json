@@ -1,0 +1,37 @@
+{
+  "summary": "Tested the new YouTube caption-search feature (YouGlish replacement) end-to-end. Backend: /api/caption-search works for pre-cached word 'president' returning 6 curated-channel results with all required fields; cached second call is 121ms; validation (missing q → 422, >80 chars → 400) works. Existing pytest suite is 61/62 (1 unrelated env-var setup error in test_legacy_scene_migrates_on_get). Frontend: PronouncePage 'Real Speakers' button opens CaptionSearchModal, header contains required phrases, 6 result cards render, selecting a card embeds a youtube-nocookie iframe with correct src, close/refresh buttons work, no 'YouGlish' or 'Fluently' text anywhere in the DOM. Added new regression file /app/backend/tests/test_caption_search.py (6/6 passing).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/caption-search?q=obama", "issue": "Returns {results: [], cached: true}. The word was supposedly pre-cached with 6 results but the cached entry has 0 results (likely written from an earlier rate-limited fresh fetch). Because empty results are cached with the same 30-day TTL as successful results, users will see permanent empty state for obama until a manual refresh=true or 30-day expiry. Consider using MISS_TTL (1h) when candidates list ends up empty, similar to what already exists for per-video transcript misses."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_caption_search.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(Optional/minor) In CaptionSearchService.search: when fresh youtube_search returns 0 candidates, cache with MISS_TTL (~1h) instead of RESULT_TTL (30d) so occasional rate-limited fetches don't permanently poison the cache. Currently visible on q=obama.",
+    "(Optional) test_legacy_scene_migrates_on_get in test_proper_nouns_and_tts_turn.py reads MONGO_URL at module scope without load_dotenv → fails when the shell env is minimal. Move the env read inside the fixture or call load_dotenv at the top of the file."
+  ],
+  "critical_code_review_comments": [
+    "caption_search.py:552-568: precise-hits + fallbacks sort by (has_timestamp, offset_seconds) but fallbacks all have offset_seconds=0.0, so their relative order is undefined; consider preserving candidate order to keep top-relevance videos first.",
+    "server.py:854: /api/caption-search declares 'limit' as int query param without gt/le constraints; the service clamps to [1,10] but Pydantic-level Query(..., ge=1, le=10) would give clearer 422s than a silent clamp.",
+    "CaptionSearchModal.jsx uses dangerouslySetInnerHTML on YouTube titles (r.title / selected.title). YouTube search API returns escaped HTML entities but strictly speaking this is XSS-adjacent — a plain textContent with a small entity-decoder would be safer."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_caption_search.py (new)"
+  ],
+  "success_rate": {"backend": "100% (67/67 relevant tests; 1 pre-existing env-setup error unrelated to this feature)", "frontend": "100% of tested flows"},
+  "test_credentials": "n/a",
+  "seed_data_creation": "None. Used pre-existing Mongo cache entry for 'president'.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend /api/caption-search is stable; q=president returns 6 curated results (ABC News, Jimmy Kimmel Live, CNN, Team Coco). q=obama in the current preview DB has an empty cached entry — either force refresh=true once from a rate-limit-free IP, or fix the empty-cache TTL. All the important frontend data-testids are present: caption-search-modal, caption-search-query, caption-search-refresh, caption-search-close, caption-search-iframe, caption-result-<video_id>, pronounce-youglish (button says 'Real Speakers'), word-youglish-button (proper-noun Y button in SceneReader), practice-youglish (Clips chip in LaundryListPanel). SceneReader/LaundryListPanel integration was not exercised end-to-end because no scene exists in local storage and no test PDF was provided; the modal component is shared so behavior should match Pronounce-tab tests.",
+  "rca of the issue": "Empty q=obama results: caption_search.CaptionSearchService.search() caches results unconditionally with RESULT_TTL=30d regardless of whether 'results' is empty. When YouTube either rate-limits (403 quota) or the interleaved search yields 0 embeddable candidates, an empty list is persisted for 30 days. Fix: if len(results) == 0, use MISS_TTL (1h) so subsequent traffic re-attempts a fresh search once quotas / rate-limits reset."
+}

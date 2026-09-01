@@ -14,7 +14,7 @@ export default function WordBlock({
     return <span className="puncwrap">{token.text}</span>;
   }
   const handleClick = async (e) => {
-    // Shift/Cmd/Ctrl-click → look up on YouGlish instead of playing.
+    // Shift/Cmd/Ctrl-click → look up real-speaker clips instead of playing.
     if (e.shiftKey || e.metaKey || e.ctrlKey) {
       e.preventDefault();
       onOpenReference?.(token.text);
@@ -62,7 +62,7 @@ export default function WordBlock({
           className="pn-ref-btn"
           data-testid="word-youglish-button"
           aria-label={`Hear real speakers say ${token.text}`}
-          title="Hear real speakers on YouGlish"
+          title="Hear real speakers say this word"
           onClick={(e) => {
             e.stopPropagation();
             onOpenReference?.(token.text);

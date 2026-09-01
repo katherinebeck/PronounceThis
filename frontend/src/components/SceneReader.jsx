@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Play, Pause, Square, Loader2, Volume2 } from "lucide-react";
 import WordBlock from "./WordBlock";
-import YouglishModal from "./YouglishModal";
+import YouglishModal from "./CaptionSearchModal";
 import { loadTurnAudio } from "@/lib/audio";
 import { toast } from "sonner";
 
@@ -177,7 +177,7 @@ export default function SceneReader({ scene, highlightSet }) {
 
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-paper">
-      <div className="px-10 lg:px-16 pt-10 pb-6 border-b thin-rule">
+      <div className="px-6 lg:px-10 xl:px-14 pt-8 pb-5 border-b thin-rule">
         <div className="flex items-start justify-between gap-6 flex-wrap">
           <div className="min-w-0">
             <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted2 mb-2">
@@ -225,7 +225,7 @@ export default function SceneReader({ scene, highlightSet }) {
         </div>
       </div>
       <div
-        className="flex-1 overflow-auto scrollbar-thin px-10 lg:px-16 py-10 animate-fade-in"
+        className="flex-1 overflow-auto scrollbar-thin px-6 lg:px-10 xl:px-14 py-8 animate-fade-in"
         data-testid="scene-reader"
       >
         <div className="max-w-[78ch] flex flex-col gap-8">

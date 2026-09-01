@@ -52,7 +52,7 @@ export default function ScenesSidebar({
 
   return (
     <aside
-      className="w-72 shrink-0 border-r thin-rule bg-surface flex flex-col"
+      className="w-64 shrink-0 border-r thin-rule bg-surface flex flex-col min-w-0"
       data-testid="scenes-sidebar"
     >
       <div className="px-6 py-7 border-b thin-rule">

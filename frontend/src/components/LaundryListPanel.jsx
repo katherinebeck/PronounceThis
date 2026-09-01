@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Play, ChevronLeft, ChevronRight, X, Volume2, Search } from "lucide-react";
 import { fetchLaundryList } from "@/lib/api";
 import { playWord } from "@/lib/audio";
-import YouglishModal from "./YouglishModal";
+import YouglishModal from "./CaptionSearchModal";
 import { toast } from "sonner";
 
 export default function LaundryListPanel({
@@ -67,7 +67,7 @@ export default function LaundryListPanel({
 
   return (
     <aside
-      className="w-[420px] shrink-0 border-l thin-rule bg-surface flex flex-col"
+      className="w-[360px] xl:w-[400px] shrink-0 border-l thin-rule bg-surface flex flex-col min-w-0"
       data-testid="laundry-list-panel"
     >
       <div className="px-7 py-7 border-b thin-rule">
@@ -223,24 +223,24 @@ export default function LaundryListPanel({
                     className="inline-flex items-center gap-1 hover:text-rust"
                     data-testid="practice-youglish"
                     onClick={() => cur?.text && setYgQuery(cur.text)}
-                    title="Hear real speakers on YouGlish"
+                    title="Hear real speakers say this word"
                   >
-                    <Search size={11} /> YouGlish
+                    <Search size={11} /> Clips
                   </button>
                 </div>
               </div>
 
               <div
-                className="flex-1 overflow-auto scrollbar-thin px-7 py-5"
+                className="flex-1 overflow-auto scrollbar-thin px-6 py-5"
                 data-testid="word-list"
               >
-                <div className="flex flex-wrap gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {list.words.map((w, i) => (
                     <button
                       key={i}
                       type="button"
                       className={
-                        "border thin-rule px-3 py-2 flex flex-col items-start gap-0 hover:border-ink transition-colors " +
+                        "border thin-rule px-3 py-2 flex flex-col items-start gap-0.5 hover:border-ink transition-colors min-w-0 text-left " +
                         (i === practiceIdx
                           ? "border-rust bg-paper"
                           : "")
@@ -255,10 +255,10 @@ export default function LaundryListPanel({
                         }
                       }}
                     >
-                      <span className="font-serif text-lg leading-tight text-ink">
+                      <span className="font-serif text-base leading-tight text-ink truncate w-full">
                         {w.text}
                       </span>
-                      <span className="font-mono text-[11px] text-rust">
+                      <span className="font-mono text-[10px] text-rust truncate w-full">
                         {w.ipa || "—"}
                       </span>
                     </button>

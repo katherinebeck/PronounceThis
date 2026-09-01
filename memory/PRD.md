@@ -27,8 +27,18 @@
 - React UI matching the design guidelines exactly (verified via screenshot): word blocks with English+IPA, hover/active states, scene highlighting from active list, practice card with arrow nav.
 - 20 backend pytest cases (100% pass) at `/app/backend/tests/test_accent_coach.py`.
 
-## Known limitation
+## Added (Feb 2026)
+- **Custom Real-Speaker Caption Search** replaces the YouGlish widget entirely.
+  - `GET /api/caption-search?q=<word>` searches a curated allowlist of 19 American-English YouTube channels (NPR, CBS News, PBS, ABC, CNN, 60 Minutes, Fallon, Ellen, Conan, Kimmel, Colbert, Hot Ones, Vanity Fair, GQ, Variety, TED-Ed, Vox, CrashCourse, WIRED).
+  - Uses YouTube Data API v3 (parallel per-channel search) → `videos.list` embeddability check → yt-dlp caption download → server-side word/timestamp match.
+  - Aggressive Mongo caching: 30-day TTL for successful hits, 1-hour miss TTL so temporary YouTube rate limits self-heal.
+  - Hybrid fallback: if transcript is unavailable, still returns the video with `has_timestamp=false` so users see results.
+  - Custom `<CaptionSearchModal>` embeds the youtube-nocookie player at the exact caption timestamp — zero third-party branding, zero Fluently promo.
+  - 6 new pytest cases at `/app/backend/tests/test_caption_search.py` (all passing).
+
+## Known limitations
 - The provided **ElevenLabs key is on the Free tier**, which the provider blocks from cloud datacenter IPs ("detected_unusual_activity"). Upgrading the ElevenLabs plan unlocks real audio playback. All other features are unaffected.
+- **YouTube throttles cloud-provider IPs** for caption fetches. First-time transcript fetches may fall back to whole-video mode until the cache warms. Repeat queries are instant (Mongo cached).
 
 ## Backlog
 ### P0 (blocked on user action)

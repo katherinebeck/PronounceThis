@@ -50,6 +50,13 @@ export async function pronounceWord(word) {
   return data; // { word, normalized, ipa, arpabet, categories, source }
 }
 
+export async function captionSearch(query, { limit = 6, refresh = false } = {}) {
+  const { data } = await api.get("/caption-search", {
+    params: { q: query, limit, refresh: refresh ? "true" : "false" },
+  });
+  return data; // { query, results: [{ video_id, title, channel_title, offset_seconds, snippet, youtube_url, thumbnail }], cached }
+}
+
 export async function fetchTurnTTS(sceneId, turnIndex) {
   const { data } = await api.post(
     `/scenes/${sceneId}/turns/${turnIndex}/tts`

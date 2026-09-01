@@ -6,7 +6,6 @@ import LaundryListPanel from "@/components/LaundryListPanel";
 import UploadDropzone from "@/components/UploadDropzone";
 import PronouncePage from "@/components/PronouncePage";
 import {
-  listScenes,
   getScene,
   fetchSoundCategories,
 } from "@/lib/api";
@@ -16,6 +15,29 @@ const TABS = [
   { id: "pronounce", label: "Pronounce It" },
   { id: "scenes", label: "Scenes" },
 ];
+
+const MY_SCENES_KEY = "myScenes";
+
+// Read the ids of scenes uploaded from THIS browser. Scenes on the server
+// are visible to whoever knows the id, but the sidebar only ever lists the
+// ones this browser has seen — so people don't see what someone else
+// searched or uploaded.
+function readMyScenes() {
+  try {
+    const raw = window.localStorage.getItem(MY_SCENES_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+function writeMyScenes(list) {
+  try {
+    window.localStorage.setItem(MY_SCENES_KEY, JSON.stringify(list));
+  } catch {
+    // localStorage unavailable — silently drop persistence
+  }
+}
 
 export default function App() {
   const [tab, setTab] = useState(() => {
@@ -41,27 +63,31 @@ export default function App() {
   };
 
   const refreshScenes = useCallback(async () => {
-    try {
-      const data = await listScenes();
-      setScenes(data);
-      return data;
-    } catch {
-      return [];
-    }
+    // Only list scenes this browser has uploaded. `listScenes()` on the
+    // server returns every scene — we no longer call it, so users don't see
+    // each other's uploads.
+    const mine = readMyScenes();
+    setScenes(mine);
+    return mine;
   }, []);
 
   useEffect(() => {
     (async () => {
       try {
-        const [list, cats] = await Promise.all([
-          listScenes(),
-          fetchSoundCategories(),
-        ]);
-        setScenes(list);
+        const cats = await fetchSoundCategories();
         setCategories(cats);
-        if (list.length > 0) {
-          const full = await getScene(list[0].id);
-          setActiveScene(full);
+        const mine = readMyScenes();
+        setScenes(mine);
+        if (mine.length > 0) {
+          try {
+            const full = await getScene(mine[0].id);
+            setActiveScene(full);
+          } catch {
+            // Scene was deleted server-side — drop it from the local index.
+            const filtered = mine.slice(1);
+            writeMyScenes(filtered);
+            setScenes(filtered);
+          }
         }
       } catch (e) {
         // Backend unreachable on first load — the Pronounce tab still works
@@ -83,16 +109,32 @@ export default function App() {
 
   const handleNewScene = async (scene) => {
     setActiveScene(scene);
-    await refreshScenes();
+    // Prepend the newly uploaded scene to this browser's private index.
+    const summary = {
+      id: scene.id,
+      title: scene.title,
+      created_at: scene.created_at,
+      word_count: (scene.tokens || []).filter((t) => t.is_word).length,
+    };
+    const mine = readMyScenes().filter((s) => s.id !== scene.id);
+    const next = [summary, ...mine];
+    writeMyScenes(next);
+    setScenes(next);
     switchTab("scenes");
   };
 
   const handleDeleted = async (id) => {
     if (activeScene?.id === id) setActiveScene(null);
-    const next = await refreshScenes();
+    const next = readMyScenes().filter((s) => s.id !== id);
+    writeMyScenes(next);
+    setScenes(next);
     if (!activeScene && next.length > 0) {
-      const full = await getScene(next[0].id);
-      setActiveScene(full);
+      try {
+        const full = await getScene(next[0].id);
+        setActiveScene(full);
+      } catch {
+        // ignore
+      }
     }
   };
 

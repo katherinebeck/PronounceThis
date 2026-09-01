@@ -1,0 +1,593 @@
+"""Custom caption-search for the Accent Coach app.
+
+Replaces the YouGlish widget with our own YouTube-caption-driven search,
+restricted to a curated set of channels whose speakers are American English
+natives (news anchors, US late-night hosts, dialect coaches, etc.).
+
+Flow:
+1. YouTube Data API v3 search for the word (US region, English relevance)
+2. Post-filter results to the curated channel allowlist
+3. Fetch each candidate's captions via `youtube-transcript-api`
+4. Locate the word in the transcript, extract the timestamp
+5. Return a list of {video_id, title, channel, offset_seconds, snippet}
+
+Results are cached in Mongo for 24h keyed by the normalized word so repeat
+queries cost zero YouTube quota.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import os
+import re
+import time
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
+import httpx
+import yt_dlp
+
+logger = logging.getLogger(__name__)
+
+YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
+
+# Curated allowlist of American-speaker YouTube channels. We resolve @handle
+# -> channelId at runtime (and cache) so we don't hard-code potentially stale
+# ids. Keep this list focused on speakers with clear, natural General
+# American English (news anchors, US late-night hosts, dialect coaches, etc).
+CURATED_HANDLES: List[Dict[str, str]] = [
+    # News / broadcast
+    {"handle": "NPR",              "label": "NPR"},
+    {"handle": "CBSNews",          "label": "CBS News"},
+    {"handle": "PBSNewsHour",      "label": "PBS NewsHour"},
+    {"handle": "ABCNews",          "label": "ABC News"},
+    {"handle": "CNN",              "label": "CNN"},
+    {"handle": "60minutes",        "label": "60 Minutes"},
+    # Late-night / talk
+    {"handle": "FallonTonight",    "label": "The Tonight Show"},
+    {"handle": "TheEllenShow",     "label": "The Ellen Show"},
+    {"handle": "TeamCoco",         "label": "Conan O'Brien"},
+    {"handle": "JimmyKimmelLive",  "label": "Jimmy Kimmel Live"},
+    {"handle": "colbertlateshow",  "label": "The Late Show w/ Colbert"},
+    # Interviews / long-form
+    {"handle": "FirstWeFeast",     "label": "Hot Ones"},
+    {"handle": "VanityFair",       "label": "Vanity Fair"},
+    {"handle": "GQ",               "label": "GQ"},
+    {"handle": "Variety",          "label": "Variety"},
+    # Educational
+    {"handle": "TEDEd",            "label": "TED-Ed"},
+    {"handle": "Vox",              "label": "Vox"},
+    {"handle": "crashcourse",      "label": "CrashCourse"},
+    # Dialect / accent-focused
+    {"handle": "WIRED",            "label": "WIRED (Erik Singer)"},
+]
+
+WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
+
+
+@dataclass
+class CaptionHit:
+    video_id: str
+    title: str
+    channel_id: str
+    channel_title: str
+    offset_seconds: float
+    snippet: str
+
+
+class CaptionSearchService:
+    """Encapsulates YouTube search + caption scanning with Mongo caching."""
+
+    # Cache TTLs (seconds)
+    CHANNEL_TTL = 30 * 24 * 3600        # 30 days for channel-id lookups
+    RESULT_TTL = 30 * 24 * 3600         # 30 days for successful transcripts
+    MISS_TTL = 60 * 60                  # 1 hour for misses/rate-limits (retry later)
+    MAX_CHANNELS_PER_QUERY = 10         # 10 × 100 quota units per fresh search
+
+    def __init__(self, db):
+        self.db = db
+        self.api_key = os.environ.get("YOUTUBE_API_KEY", "").strip()
+        # Local in-process channel-id cache to avoid repeated Mongo hits.
+        self._channel_ids: Optional[List[str]] = None
+        self._channel_meta: Dict[str, Dict[str, str]] = {}
+
+    # ------------------------------------------------------------------
+    # Channel allowlist resolution
+    # ------------------------------------------------------------------
+    async def _resolve_channel(self, handle: str) -> Optional[Dict[str, str]]:
+        """Look up a channel id by @handle. Cached in Mongo indefinitely."""
+        norm = handle.lower().lstrip("@")
+        cached = await self.db.caption_channel_cache.find_one({"handle": norm})
+        if cached and cached.get("channel_id"):
+            return {
+                "channel_id": cached["channel_id"],
+                "handle": norm,
+                "title": cached.get("title", norm),
+            }
+        if not self.api_key:
+            return None
+        try:
+            async with httpx.AsyncClient(timeout=15) as client:
+                r = await client.get(
+                    f"{YOUTUBE_API_BASE}/channels",
+                    params={
+                        "part": "snippet",
+                        "forHandle": f"@{norm}",
+                        "key": self.api_key,
+                    },
+                )
+                r.raise_for_status()
+                data = r.json()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("channel resolve failed for %s: %s", norm, exc)
+            return None
+        items = data.get("items") or []
+        if not items:
+            return None
+        item = items[0]
+        cid = item.get("id")
+        title = (item.get("snippet") or {}).get("title", norm)
+        if not cid:
+            return None
+        await self.db.caption_channel_cache.update_one(
+            {"handle": norm},
+            {"$set": {"handle": norm, "channel_id": cid, "title": title,
+                      "cached_at": time.time()}},
+            upsert=True,
+        )
+        return {"channel_id": cid, "handle": norm, "title": title}
+
+    async def _get_curated_channel_ids(self) -> List[str]:
+        """Resolve every curated handle to a channel id, cached long-term."""
+        if self._channel_ids is not None:
+            return self._channel_ids
+        resolved = await asyncio.gather(*[
+            self._resolve_channel(h["handle"]) for h in CURATED_HANDLES
+        ])
+        ids: List[str] = []
+        for entry, meta in zip(CURATED_HANDLES, resolved):
+            if not meta:
+                continue
+            ids.append(meta["channel_id"])
+            self._channel_meta[meta["channel_id"]] = {
+                "handle": meta["handle"],
+                "label": entry["label"],
+                "title": meta["title"],
+            }
+        self._channel_ids = ids
+        logger.info("Resolved %d/%d curated channels", len(ids), len(CURATED_HANDLES))
+        return ids
+
+    # ------------------------------------------------------------------
+    # YouTube search
+    # ------------------------------------------------------------------
+    async def _search_in_channel(
+        self,
+        client: httpx.AsyncClient,
+        query: str,
+        channel_id: str,
+        max_results: int = 5,
+    ) -> List[Dict[str, Any]]:
+        """Search a single channel for the query. 100 quota units per call."""
+        try:
+            r = await client.get(
+                f"{YOUTUBE_API_BASE}/search",
+                params={
+                    "part": "snippet",
+                    "q": query,
+                    "type": "video",
+                    "channelId": channel_id,
+                    "videoEmbeddable": "true",
+                    "relevanceLanguage": "en",
+                    "maxResults": max_results,
+                    "key": self.api_key,
+                },
+            )
+            if r.status_code == 403:
+                logger.error("YouTube API 403 (quota or key): %s", r.text[:200])
+                return []
+            r.raise_for_status()
+            return (r.json().get("items") or [])
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("channel search failed (%s / %r): %s",
+                           channel_id, query, exc)
+            return []
+
+    async def _youtube_search(self, query: str) -> List[Dict[str, Any]]:
+        """Search each curated channel in parallel and combine results.
+
+        Each call is 100 quota units. We hit up to 10 channels per query
+        (1000 units), and cache results 30 days so repeat words are free.
+        A single videos.list follow-up (1 unit / 50 videos) confirms each
+        candidate is actually embeddable — the search-time flag alone lets
+        embed-disabled news clips through.
+        """
+        if not self.api_key:
+            return []
+        channel_ids = await self._get_curated_channel_ids()
+        if not channel_ids:
+            return []
+        cap = channel_ids[: self.MAX_CHANNELS_PER_QUERY]
+        async with httpx.AsyncClient(timeout=20) as client:
+            batches = await asyncio.gather(*[
+                self._search_in_channel(client, query, cid, max_results=5)
+                for cid in cap
+            ])
+            # Interleave results so we don't front-load a single channel.
+            combined: List[Dict[str, Any]] = []
+            max_len = max((len(b) for b in batches), default=0)
+            for i in range(max_len):
+                for b in batches:
+                    if i < len(b):
+                        combined.append(b[i])
+
+            # Verify embeddability at the video level — the search filter
+            # misses some geo/copyright-restricted news clips.
+            ids: List[str] = []
+            for it in combined:
+                vid = (it.get("id") or {}).get("videoId")
+                if vid and vid not in ids:
+                    ids.append(vid)
+            allowed = await self._check_embeddable(client, ids)
+            return [
+                it for it in combined
+                if (it.get("id") or {}).get("videoId") in allowed
+            ]
+
+    async def _check_embeddable(
+        self,
+        client: httpx.AsyncClient,
+        video_ids: List[str],
+    ) -> set:
+        """Batch-check videos.list for embeddable + not-region-blocked-in-US.
+        Returns the set of video ids that pass. Cheap: 1 quota / 50 ids."""
+        allowed: set = set()
+        if not video_ids:
+            return allowed
+        # YouTube caps videos.list at 50 ids per request.
+        for i in range(0, len(video_ids), 50):
+            chunk = video_ids[i:i + 50]
+            try:
+                r = await client.get(
+                    f"{YOUTUBE_API_BASE}/videos",
+                    params={
+                        "part": "status,contentDetails",
+                        "id": ",".join(chunk),
+                        "key": self.api_key,
+                    },
+                )
+                r.raise_for_status()
+                data = r.json()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("videos.list check failed: %s", exc)
+                # Fall back to trusting the search-time filter.
+                allowed.update(chunk)
+                continue
+            for item in data.get("items", []):
+                status = item.get("status") or {}
+                cd = item.get("contentDetails") or {}
+                region = cd.get("regionRestriction") or {}
+                blocked = set(region.get("blocked") or [])
+                allowed_regions = region.get("allowed")
+                us_ok = (
+                    "US" not in blocked
+                    and (allowed_regions is None or "US" in allowed_regions)
+                )
+                if status.get("embeddable") and us_ok:
+                    allowed.add(item["id"])
+        return allowed
+
+    # ------------------------------------------------------------------
+    # Caption fetch + scan
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _find_word_in_transcript(
+        transcript: List[Dict[str, Any]],
+        query: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Locate the query word inside a transcript. Case-insensitive,
+        whole-word match. Returns {offset, snippet} or None."""
+        target = query.lower().strip()
+        if not target:
+            return None
+        # Support multi-word queries and single words alike.
+        for entry in transcript:
+            text = (entry.get("text") or "").strip()
+            if not text:
+                continue
+            words = [w.lower() for w in WORD_RE.findall(text)]
+            if not words:
+                continue
+            if " " in target:
+                # phrase match: does the lowered text contain the phrase?
+                if target in text.lower():
+                    return {
+                        "offset": float(entry.get("start", 0) or 0),
+                        "snippet": text,
+                    }
+            else:
+                if target in words:
+                    return {
+                        "offset": float(entry.get("start", 0) or 0),
+                        "snippet": text,
+                    }
+        return None
+
+    def _fetch_transcript_sync(self, video_id: str) -> Optional[List[Dict[str, Any]]]:
+        """Blocking transcript fetch via yt-dlp. Downloads subtitles into a
+        tempdir so yt-dlp handles the session/headers itself (fetching URLs
+        directly frequently 403s because the URLs are session-bound)."""
+        import glob
+        import shutil
+        import tempfile
+
+        url = f"https://www.youtube.com/watch?v={video_id}"
+        tmp = tempfile.mkdtemp(prefix=f"yt_{video_id}_")
+        opts = {
+            "skip_download": True,
+            "writesubtitles": True,
+            "writeautomaticsub": True,
+            "subtitleslangs": ["en", "en-US", "en-orig", "en.*"],
+            "subtitlesformat": "json3/vtt/best",
+            "outtmpl": f"{tmp}/%(id)s.%(ext)s",
+            "quiet": True,
+            "no_warnings": True,
+            "socket_timeout": 15,
+            "retries": 1,
+            "http_headers": {
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+            },
+        }
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                ydl.extract_info(url, download=True)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("yt-dlp caption fetch failed for %s: %s", video_id, exc)
+            shutil.rmtree(tmp, ignore_errors=True)
+            return None
+
+        # Pick the best subtitle file: prefer manual en/en-US, then auto.
+        files = sorted(glob.glob(f"{tmp}/*.json3")) + sorted(glob.glob(f"{tmp}/*.vtt"))
+        if not files:
+            shutil.rmtree(tmp, ignore_errors=True)
+            return None
+
+        # Prefer manual (no "-orig" and no auto marker) but any works.
+        def _score(path: str) -> int:
+            lname = path.lower()
+            score = 0
+            if "en-us" in lname:
+                score += 20
+            elif ".en." in lname or lname.endswith(".en.json3") or lname.endswith(".en.vtt"):
+                score += 15
+            if "orig" in lname:
+                score -= 5
+            if lname.endswith(".json3"):
+                score += 2
+            return score
+
+        files.sort(key=_score, reverse=True)
+        chosen = files[0]
+        try:
+            with open(chosen, "r", encoding="utf-8", errors="ignore") as fh:
+                raw = fh.read()
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+        if chosen.endswith(".json3"):
+            return self._parse_json3(raw)
+        return self._parse_vtt(raw)
+
+    @staticmethod
+    def _parse_json3(raw: str) -> List[Dict[str, Any]]:
+        import json
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            return []
+        events = data.get("events") or []
+        out: List[Dict[str, Any]] = []
+        for ev in events:
+            segs = ev.get("segs") or []
+            if not segs:
+                continue
+            text = "".join(s.get("utf8", "") for s in segs).strip()
+            if not text or text == "\n":
+                continue
+            start_ms = ev.get("tStartMs") or 0
+            dur_ms = ev.get("dDurationMs") or 0
+            out.append({
+                "text": text.replace("\n", " "),
+                "start": start_ms / 1000.0,
+                "duration": dur_ms / 1000.0,
+            })
+        return out
+
+    @staticmethod
+    def _parse_vtt(raw: str) -> List[Dict[str, Any]]:
+        """Minimal WebVTT parser: [start --> end] then one or more text lines."""
+        out: List[Dict[str, Any]] = []
+        blocks = re.split(r"\n\s*\n", raw)
+        ts = re.compile(
+            r"(\d{2}):(\d{2}):(\d{2})[.,](\d{3})\s*-->\s*"
+            r"(\d{2}):(\d{2}):(\d{2})[.,](\d{3})"
+        )
+        for block in blocks:
+            m = ts.search(block)
+            if not m:
+                continue
+            h, mn, s, ms = map(int, m.group(1, 2, 3, 4))
+            eh, em, es, ems = map(int, m.group(5, 6, 7, 8))
+            start = h * 3600 + mn * 60 + s + ms / 1000.0
+            end = eh * 3600 + em * 60 + es + ems / 1000.0
+            text_lines = []
+            for line in block.splitlines():
+                if ts.search(line) or line.strip().startswith(("WEBVTT", "NOTE")):
+                    continue
+                # Strip inline tags like <c> and timestamp <00:00:01.000> markers.
+                cleaned = re.sub(r"<[^>]+>", "", line).strip()
+                if cleaned:
+                    text_lines.append(cleaned)
+            text = " ".join(text_lines).strip()
+            if text:
+                out.append({"text": text, "start": start, "duration": max(0.0, end - start)})
+        return out
+
+    async def _scan_video(self, video_id: str, query: str) -> Optional[Dict[str, Any]]:
+        # Check per-video transcript cache first (Mongo, 30d TTL for hits,
+        # 1h TTL for misses so we eventually retry after rate-limits clear).
+        cached = await self.db.caption_transcript_cache.find_one({"video_id": video_id})
+        if cached and cached.get("expires_at", 0) > time.time():
+            transcript = cached.get("transcript")
+        else:
+            transcript = await asyncio.to_thread(self._fetch_transcript_sync, video_id)
+            ttl = self.RESULT_TTL if transcript else self.MISS_TTL
+            await self.db.caption_transcript_cache.update_one(
+                {"video_id": video_id},
+                {"$set": {
+                    "video_id": video_id,
+                    "transcript": transcript or [],
+                    "has_transcript": bool(transcript),
+                    "expires_at": time.time() + ttl,
+                    "cached_at": time.time(),
+                }},
+                upsert=True,
+            )
+            # Small delay between live fetches to avoid YouTube rate-limits.
+            await asyncio.sleep(1.5)
+        if not transcript:
+            return None
+        return self._find_word_in_transcript(transcript, query)
+
+    # ------------------------------------------------------------------
+    # Public entry
+    # ------------------------------------------------------------------
+    async def search(
+        self,
+        query: str,
+        limit: int = 6,
+        force_refresh: bool = False,
+    ) -> Dict[str, Any]:
+        query = (query or "").strip()
+        if not query:
+            return {"query": query, "results": [], "cached": False}
+        if not self.api_key:
+            return {
+                "query": query,
+                "results": [],
+                "cached": False,
+                "error": "YouTube API key not configured on the server.",
+            }
+
+        cache_key = query.lower()
+        if not force_refresh:
+            cached = await self.db.caption_search_cache.find_one({"query": cache_key})
+            if cached and cached.get("expires_at", 0) > time.time():
+                return {
+                    "query": query,
+                    "results": cached.get("results", []),
+                    "cached": True,
+                }
+
+        curated_ids = set(await self._get_curated_channel_ids())
+        items = await self._youtube_search(query)
+
+        # Every result is already from a curated channel, but double-check.
+        candidates: List[Dict[str, str]] = []
+        seen_vids = set()
+        for it in items:
+            snip = it.get("snippet") or {}
+            cid = snip.get("channelId")
+            vid_obj = it.get("id") or {}
+            vid = vid_obj.get("videoId") if isinstance(vid_obj, dict) else None
+            if not cid or not vid or cid not in curated_ids or vid in seen_vids:
+                continue
+            seen_vids.add(vid)
+            candidates.append({
+                "video_id": vid,
+                "title": snip.get("title", ""),
+                "channel_id": cid,
+                "channel_title": snip.get("channelTitle", ""),
+                "thumbnail": (snip.get("thumbnails", {}).get("medium") or {}).get("url", ""),
+            })
+
+        # Scan captions serially to stay well under YouTube's rate limits.
+        # Once a transcript is cached in Mongo, subsequent scans are instant.
+        results: List[Dict[str, Any]] = []
+        sem = asyncio.Semaphore(1)
+
+        async def _scan(cand: Dict[str, str]):
+            async with sem:
+                hit = await self._scan_video(cand["video_id"], query)
+                if not hit:
+                    return None
+                seconds = max(0.0, float(hit["offset"]))
+                return {
+                    **cand,
+                    "offset_seconds": seconds,
+                    "snippet": hit["snippet"],
+                    "youtube_url": f"https://www.youtube.com/watch?v={cand['video_id']}&t={int(seconds)}s",
+                }
+
+        # Fire scans until we've collected `limit` matches. Cap at 12 to keep
+        # per-query fetch counts under YouTube's per-IP rate ceiling.
+        pending = [asyncio.create_task(_scan(c)) for c in candidates[:12]]
+        precise: List[Dict[str, Any]] = []
+        fallback_pool: List[Dict[str, Any]] = list(candidates[:limit])
+        try:
+            for coro in asyncio.as_completed(pending):
+                res = await coro
+                if res:
+                    precise.append(res)
+                    if len(precise) >= limit:
+                        break
+        finally:
+            for t in pending:
+                if not t.done():
+                    t.cancel()
+
+        # Build final results: precise (timestamped) hits first, then
+        # untimestamped fallbacks for videos we couldn't scan. Every result is
+        # from a curated American-speaker channel either way.
+        results = list(precise)
+        precise_ids = {r["video_id"] for r in precise}
+        if len(results) < limit:
+            for cand in fallback_pool:
+                if cand["video_id"] in precise_ids:
+                    continue
+                results.append({
+                    **cand,
+                    "offset_seconds": 0.0,
+                    "snippet": "",
+                    "has_timestamp": False,
+                    "youtube_url": f"https://www.youtube.com/watch?v={cand['video_id']}",
+                })
+                if len(results) >= limit:
+                    break
+
+        # Mark precise entries too so the client can style differently.
+        for r in results:
+            r.setdefault("has_timestamp", bool(r.get("snippet")))
+
+        # Sort: precise hits first (earliest offset first), then fallbacks.
+        results.sort(key=lambda r: (0 if r["has_timestamp"] else 1,
+                                    r["offset_seconds"]))
+
+        # Cache the top-level query. Successful queries get the long TTL;
+        # empty results only get MISS_TTL so we retry after rate-limits pass
+        # rather than showing an empty state for 30 days.
+        top_ttl = self.RESULT_TTL if results else self.MISS_TTL
+        await self.db.caption_search_cache.update_one(
+            {"query": cache_key},
+            {"$set": {
+                "query": cache_key,
+                "results": results,
+                "expires_at": time.time() + top_ttl,
+                "cached_at": time.time(),
+            }},
+            upsert=True,
+        )
+        return {"query": query, "results": results, "cached": False}
