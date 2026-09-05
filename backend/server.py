@@ -800,12 +800,23 @@ async def tts(req: TTSRequest):
 
     def _generate() -> bytes:
         client = _eleven_client()
-        # ElevenLabs SDK is sync; collect chunks into one mp3 blob.
+        # Force a declarative reading: appending a period tells the TTS
+        # engine to fall in pitch at the end rather than uptalk-question
+        # every isolated word ("popular?" → "popular."). `stability` +
+        # low `style` also flattens prosody swings for single-word reads.
+        from elevenlabs import VoiceSettings
+        spoken = word if word.endswith((".", "!", "?")) else f"{word}."
         stream = client.text_to_speech.convert(
-            text=word,
+            text=spoken,
             voice_id=voice_id,
             model_id="eleven_multilingual_v2",
             output_format="mp3_44100_128",
+            voice_settings=VoiceSettings(
+                stability=0.75,
+                similarity_boost=0.85,
+                style=0.0,
+                use_speaker_boost=True,
+            ),
         )
         buf = bytearray()
         for chunk in stream:
