@@ -19,7 +19,7 @@ import "@/App.css";
 
 const TABS = [
   { id: "pronounce", label: "Word" },
-  { id: "scenes", label: "Scenes" },
+  { id: "scenes", label: "Scene" },
 ];
 
 const MY_SCENES_KEY = "myScenes";

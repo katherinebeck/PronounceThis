@@ -48,15 +48,17 @@ export default function UploadDropzone({ onUploaded }) {
       }}
     >
       <div className="flex flex-col items-start gap-6 max-w-xl">
-        <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.05] text-ink">
+        <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl leading-[1.1] text-ink">
           Prepare for your next American accent audition.
           <br />
-          <em className="not-italic text-rust text-2xl sm:text-3xl lg:text-4xl">Hear how to pronounce every word.</em>
+          <em className="not-italic text-rust text-xl sm:text-2xl lg:text-3xl">Hear how to pronounce every word.</em>
         </h2>
         <p className="text-lg text-muted2 leading-relaxed font-serif">
           Upload an audition scene as a PDF. Each word will be transcribed in
           American IPA, click any word to hear it spoken aloud, and pull
-          laundry lists by sound for targeted practice.
+          laundry lists by sound for targeted practice. When you're ready to
+          rehearse, download your character's dialogue as a single MP3 so you
+          can practice along with the native-speaker read.
         </p>
         <div className="flex gap-3 items-center">
           <button
