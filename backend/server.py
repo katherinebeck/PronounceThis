@@ -798,12 +798,26 @@ async def tts(req: TTSRequest):
 
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
 
+    # Look up the CMU-derived IPA so we can tell ElevenLabs *exactly* what
+    # phonemes to say instead of letting it guess from the spelling. Skips
+    # words CMU doesn't know (rare proper nouns) — those fall back to the
+    # engine's own reading.
+    arp = get_arpabet(word)
+    ipa = arpabet_to_ipa(arp) if arp else None
+
     def _generate() -> bytes:
         client = _eleven_client()
         # Force a declarative reading: appending a period tells the TTS
         # engine to fall in pitch at the end rather than uptalk-question
         # every isolated word ("popular?" → "popular.").
-        spoken = word if word.endswith((".", "!", "?")) else f"{word}."
+        if ipa:
+            # SSML phoneme tag pins the pronunciation to the CMU IPA
+            # transcription — fixes "die-rection" → "duh-REK-shun".
+            spoken = (
+                f'<phoneme alphabet="ipa" ph="{ipa}">{word}</phoneme>.'
+            )
+        else:
+            spoken = word if word.endswith((".", "!", "?")) else f"{word}."
         stream = client.text_to_speech.convert(
             text=spoken,
             voice_id=voice_id,

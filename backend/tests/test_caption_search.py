@@ -21,6 +21,7 @@ ALLOWED_CHANNELS = {
     "The Ellen Show", "TheEllenShow",
     "Conan O'Brien", "Team Coco",
     "Jimmy Kimmel Live", "The Late Show w/ Colbert",
+    "The Late Show with Stephen Colbert",
     "Hot Ones", "First We Feast",
     "Vanity Fair", "VanityFair", "GQ", "Variety",
     "TED-Ed", "Vox", "CrashCourse",

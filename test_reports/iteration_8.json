@@ -1,0 +1,32 @@
+{
+  "summary": "Validated the pronunciation bug fix for POST /api/tts. Added a new pytest module (test_tts_pronunciation.py, 12 tests) covering: (a) CMU-known words hitting the new SSML <phoneme alphabet='ipa' ph='...'> path — direction, popular, either, route, aunt, schedule; (b) CMU-unknown words falling back gracefully — Whitmore, Zzykx; (c) empty-word 400; (d) cache-hit path returns cached=true and is fast; (e) direct phonetics helper sanity (get_arpabet / arpabet_to_ipa). All 12 new tests pass. Full regression across /app/backend/tests: 79/80 pass. The single failure (test_caption_search.py::test_obama_returns_only_curated_channels) is UNRELATED to this bug fix — a curated-channel allow-list is missing 'The Late Show with Stephen Colbert' (YouTube data drift). Scene turn TTS regression (POST /api/scenes/{id}/turns/{i}/tts) is covered by pre-existing test_proper_nouns_and_tts_turn.py which passes.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/caption-search", "issue": "Pre-existing test failure unrelated to TTS fix: ALLOWED_CHANNELS in test_caption_search.py does not include 'The Late Show with Stephen Colbert' though it is a legitimate American-speaker channel returned for 'obama' query. Add it to the allow list (or to the curated channels set) to restore 80/80."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_tts_pronunciation.py",
+    "/app/test_reports/pytest/tts_pronunciation_results.xml",
+    "/app/test_reports/pytest/all_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Update ALLOWED_CHANNELS in /app/backend/tests/test_caption_search.py to include 'The Late Show with Stephen Colbert' — pre-existing failure, not caused by this fix."
+  ],
+  "critical_code_review_comments": [
+    "server.py:817 — the CMU word is passed as-is into the <phoneme> tag content (<phoneme ...>{word}</phoneme>). If a user ever submitted a word containing ' or < or & it would produce invalid SSML. Words are letters-only in practice, but adding a defensive re.sub(r'[^A-Za-z\\'-]', '', word) or escaping before embedding would harden this against unexpected inputs.",
+    "server.py:820 — trailing period logic uses endswith((\".\", \"!\", \"?\")) but the SSML branch always appends '.' unconditionally. Fine for the pronunciation goal but slightly inconsistent; harmless.",
+    "phonetics.py:57 — arpabet_to_ipa uses ˈ prefix immediately before the stressed vowel symbol rather than at the syllable boundary. ElevenLabs' SSML phoneme handler accepts this and produces the correct stress pattern (verified: 'direction' now sounds like duh-REK-shun), but classical IPA convention places the marker at the onset of the stressed syllable. Not a bug for TTS purposes."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_tts_pronunciation.py (NEW)"
+  ],
+  "success_rate": {"backend": "98.75% (79/80 overall; 12/12 new TTS pronunciation tests)", "frontend": "not tested (per request)"},
+  "test_credentials": "not applicable",
+  "seed_data_creation": "None; test relies on the freshly-cleared audio cache warming up during the first parametrized call and being hit on the caching test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The pronunciation fix path in server.py:788-830 is working correctly. New regression suite lives at /app/backend/tests/test_tts_pronunciation.py. If run standalone against a warm cache, the parametrized 'direction' case may hit the cache first and skip fresh generation — the dedicated cache test still validates cache correctness. The only failing test in the whole backend suite is a caption-search allow-list drift that has nothing to do with TTS."
+}
