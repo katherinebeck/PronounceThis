@@ -1,0 +1,35 @@
+{
+  "summary": "Backend-only test of expanded CURATED_HANDLES (37 -> effectively 38 entries) in /app/backend/caption_search.py. Created /app/backend/tests/test_caption_search_expanded.py (7 tests). 6/7 passed. Expansion works: 32/38 handles resolve to channelIds and are cached in Mongo (caption_channel_cache). Endpoint handles all queries gracefully (no crashes; nonsense returns empty). BUT the underlying user complaint ('lots of words don't get videos') is not fully solved by expansion: broad-search + post-filter still yields few curated-channel hits for common words — 'president' with refresh=true returned only 1 result from 1 channel (NBC News), 'hello' refresh=true returned 0. Root cause: YouTube's global search endpoint rarely surfaces curated channels in the top 50 for common terms; expansion helps but is not sufficient.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/caption-search", "issue": "6 of 38 curated @handles do not resolve on YouTube (200 with items=[]). Wrong spellings: 'architecturaldigest' (should be 'ArchitecturalDigest' or 'archdigest'), 'bloomberg' (try 'BloombergTelevision' or 'business'), 'insiderbusiness' (try 'BusinessInsider'), 'marquesbrownlee' (should be 'mkbhd'), 'sethmeyers' (should be 'LateNightSeth'), 'thehollywoodreporter' (should be 'hollywoodreporter'). Result: only 32/38 channels are actually in the pool."},
+      {"endpoint": "/api/caption-search?q=president&refresh=true", "issue": "Only 1 result / 1 channel returned. Broad-search post-filter finds very few curated-channel videos in top 50 YouTube results for common words. Expansion alone does not solve the core user complaint. Consider (a) fixing the 6 broken handles above, (b) increasing maxResults via pagination, or (c) per-channel search (higher quota cost)."},
+      {"endpoint": "/api/caption-search?q=hello&refresh=true", "issue": "Returns 0 results even with refresh. Same root cause as above — broad search rarely returns curated channels for very short/common terms."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_caption_search_expanded.py",
+    "/app/test_reports/pytest/caption_expanded.xml"
+  ],
+  "action_items": [
+    "Fix the 6 non-resolving @handles in CURATED_HANDLES (see backend_issues.minor). This is the highest-ROI change — recovers ~16% of intended pool.",
+    "Consider augmenting broad-search: pull two YouTube search pages (pageToken) to widen the top-50 window to top-100, so more curated-channel videos appear per query (+100 quota per query — still cheap vs per-channel).",
+    "For very common short words ('hello','yes','no'), broad search will always be dominated by non-curated content. Consider a fallback per-channel search that runs only when broad-search returns <N curated hits, gated on quota."
+  ],
+  "critical_code_review_comments": [
+    "caption_search.py has a comment '`CURATED_HANDLES` at line ~38, list of 37' but the current list is actually 38 entries (recount).",
+    "_get_curated_channel_ids() caches misses only via the absence of channel_id in Mongo — misses are re-fetched every cold start (see log: 6 handles queried again on reload). Cheap (1 unit each) but adds ~6 unavoidable quota units per process restart. Consider caching negative results with a TTL.",
+    "Search flow does not surface which channels contributed results — impossible for the client (or a tester) to see the true diversity. Consider adding a debug/admin endpoint that returns len(resolved_ids) and the label list."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_caption_search_expanded.py (new)"
+  ],
+  "success_rate": {"backend": "86% (6/7 tests passed)", "frontend": "n/a (skipped per request)"},
+  "seed_data_creation": "None. Live YouTube API calls only. Populated caption_channel_cache with 32 resolved handles (already existed for original 18; expansion added ~14 new resolutions).",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Handle-resolution cache in Mongo (caption_channel_cache) is populated: 32/38 handles resolved. To retest handle fixes: (1) delete failing handle docs via db.caption_channel_cache.delete_many({handle: {$in: [...]}}) then hit /api/caption-search once to trigger _get_curated_channel_ids. Do NOT burn more refresh=true calls than needed — the process holds an in-memory list _channel_ids that only resets on backend restart. Use `sudo supervisorctl restart backend` when you need to re-resolve. Quota budget is 10k/day, each refresh=true = 100 units + <=1 unit per unresolved handle. Existing subscription/auth tests unaffected.",
+  "rca of the issue": "User report: 'Still getting a lot of words that aren't coming up with a video'. Investigation: (1) Only 32/38 curated channels actually reach the pool — 6 handles are misspelled, so effective expansion is 32 not 38. (2) Even with 32 channels, YouTube's broad `search.list` endpoint returns at most 50 videos globally per query; for common words, most of those 50 are from mainstream news channels not in the curated list. Post-filter drops nearly all of them. In our live test 'president' broad-search returned 50 videos, only 1 was from a curated channel (NBC News). (3) Because we deliberately use broad-search (100 quota) instead of per-channel search (100 * N quota) to preserve daily quota, the coverage-vs-cost tradeoff is the real bottleneck. Mitigation: fix the 6 handles (quick win), then add a pagination step (200 quota total, doubles surface area), then consider a targeted per-channel search fallback gated behind low-hit-rate detection."
+}
