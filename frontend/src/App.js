@@ -7,6 +7,7 @@ import UploadDropzone from "@/components/UploadDropzone";
 import PronouncePage from "@/components/PronouncePage";
 import LoginModal from "@/components/LoginModal";
 import PaywallModal from "@/components/PaywallModal";
+import WelcomeModal from "@/components/WelcomeModal";
 import VerifyPage from "@/components/VerifyPage";
 import AccountChip from "@/components/AccountChip";
 import AdminPage from "@/components/AdminPage";
@@ -64,6 +65,7 @@ export default function AppRoot() {
       />
       <LoginModal />
       <PaywallModal />
+      <WelcomeModal />
       {path.startsWith("/auth/verify") ? (
         <VerifyPage />
       ) : path.startsWith("/admin") ? (
