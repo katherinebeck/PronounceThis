@@ -11,6 +11,8 @@ import WelcomeModal from "@/components/WelcomeModal";
 import VerifyPage from "@/components/VerifyPage";
 import AccountChip from "@/components/AccountChip";
 import AdminPage from "@/components/AdminPage";
+import PaymentSuccessPage from "@/components/PaymentSuccessPage";
+import PaymentCancelPage from "@/components/PaymentCancelPage";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import {
@@ -68,6 +70,10 @@ export default function AppRoot() {
       <WelcomeModal />
       {path.startsWith("/auth/verify") ? (
         <VerifyPage />
+      ) : path.startsWith("/payment/success") ? (
+        <PaymentSuccessPage />
+      ) : path.startsWith("/payment/cancel") ? (
+        <PaymentCancelPage />
       ) : path.startsWith("/admin") ? (
         <AdminPage />
       ) : (
@@ -248,7 +254,7 @@ function Header({ tab, onSwitchTab }) {
     >
       <div className="flex items-baseline gap-4">
         <div className="font-display text-xl sm:text-2xl text-ink leading-none">
-          Pronounce it.
+          American Accent Prep.
         </div>
       </div>
       <nav

@@ -23,6 +23,25 @@ export async function logout() {
   return data;
 }
 
+// --- Stripe payments --------------------------------------------------
+export async function createStripeCheckout(lookup_key) {
+  const { data } = await api.post("/payments/checkout", {
+    lookup_key,
+    origin_url: window.location.origin,
+  });
+  return data; // { checkout_url, session_id }
+}
+export async function getPaymentStatus(session_id) {
+  const { data } = await api.get(`/payments/status/${session_id}`);
+  return data;
+}
+export async function createStripePortal() {
+  const { data } = await api.post("/payments/portal", {
+    origin_url: window.location.origin,
+  });
+  return data; // { url }
+}
+
 export async function uploadScene(file) {
   const fd = new FormData();
   fd.append("file", file);

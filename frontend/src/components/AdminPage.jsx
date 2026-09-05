@@ -134,7 +134,7 @@ export default function AdminPage() {
       <header className="border-b thin-rule bg-surface px-4 sm:px-8 py-4 flex items-center justify-between">
         <div>
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
-            Accent Coach · Admin
+            Accent Prep · Admin
           </div>
           <div className="font-display text-2xl text-ink mt-0.5">Memberships</div>
         </div>

@@ -53,6 +53,7 @@ from auth import (
 )
 from kajabi import create_kajabi_router
 from admin import create_admin_router
+from stripe_payments import create_stripe_router
 
 # --- DB ---------------------------------------------------------------------
 mongo_url = os.environ["MONGO_URL"]
@@ -60,7 +61,7 @@ mongo_client = AsyncIOMotorClient(mongo_url)
 db = mongo_client[os.environ["DB_NAME"]]
 
 # --- App --------------------------------------------------------------------
-app = FastAPI(title="American Accent Coach")
+app = FastAPI(title="American Accent Prep")
 api_router = APIRouter(prefix="/api")
 
 caption_service = CaptionSearchService(db)
@@ -581,7 +582,7 @@ async def llm_transcribe_words(words: List[str]) -> Dict[str, str]:
 # --- Routes -----------------------------------------------------------------
 @api_router.get("/")
 async def root():
-    return {"message": "American Accent Coach API"}
+    return {"message": "American Accent Prep API"}
 
 
 @api_router.get("/sound-categories")
@@ -1112,6 +1113,7 @@ async def tts_turn(scene_id: str, turn_index: int, voice: Optional[str] = None):
 api_router.include_router(create_auth_router(db))
 api_router.include_router(create_kajabi_router(db))
 api_router.include_router(create_admin_router(db))
+api_router.include_router(create_stripe_router(db))
 app.include_router(api_router)
 
 app.add_middleware(

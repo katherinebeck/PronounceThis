@@ -58,10 +58,10 @@ export default function PronouncePage({ onGoToScenes }) {
       <div className="max-w-3xl mx-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12 lg:py-16">
         <div className="mb-8 sm:mb-10">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
-            Pronounce It · General American Accent Pronunciation Tool
+            American Accent Prep · General American Accent Pronunciation Tool
           </div>
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl text-ink leading-[0.98]">
-            Pronounce it.
+            American Accent Prep.
           </h1>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Type any word, character name or location to see it written

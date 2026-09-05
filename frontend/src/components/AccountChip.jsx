@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { User, LogOut, CreditCard, ExternalLink, ChevronDown } from "lucide-react";
+import { User, LogOut, CreditCard, ExternalLink, ChevronDown, Loader2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { createStripePortal } from "@/lib/api";
+import { toast } from "sonner";
 
 // Header account chip: shows "Sign in" for anonymous users, or a small
 // menu with email + status + logout for logged-in users.
@@ -8,6 +10,7 @@ export default function AccountChip() {
   const { me, isAuthenticated, isSubscriber, openLogin, logout,
           trialWordRemaining, trialSceneRemaining } = useAuth();
   const [open, setOpen] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -35,6 +38,22 @@ export default function AccountChip() {
   const status = isSubscriber
     ? (me?.subscription_offer_title || "Member")
     : "Free trial";
+
+  const openStripePortal = async () => {
+    setPortalLoading(true);
+    try {
+      const { url } = await createStripePortal();
+      window.location.href = url;
+    } catch (err) {
+      setPortalLoading(false);
+      toast.error(err?.response?.data?.detail || "Could not open the billing portal");
+    }
+  };
+  // Members who paid via Stripe get the Stripe Customer Portal (cancel /
+  // change card / upgrade). Members granted via Kajabi / admin panel don't
+  // have a Stripe customer — they see the Kajabi library link (if set)
+  // or no manage-billing button at all.
+  const canOpenStripePortal = !!me?.has_stripe_customer;
 
   return (
     <div ref={ref} className="relative">
@@ -78,7 +97,25 @@ export default function AccountChip() {
             ) : null}
           </div>
 
-          {portal ? (
+          {canOpenStripePortal ? (
+            <button
+              type="button"
+              onClick={openStripePortal}
+              disabled={portalLoading}
+              className="flex items-center justify-between gap-2 w-full px-4 py-3 hover:bg-paper transition-colors border-b thin-rule text-left"
+              data-testid="account-manage-stripe"
+            >
+              <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
+                <CreditCard size={12} />
+                Manage subscription
+              </span>
+              {portalLoading ? (
+                <Loader2 size={12} className="animate-spin text-muted2" />
+              ) : (
+                <ExternalLink size={12} className="text-muted2" />
+              )}
+            </button>
+          ) : portal ? (
             <a
               href={portal}
               target="_blank"
@@ -88,7 +125,7 @@ export default function AccountChip() {
             >
               <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-ink">
                 <CreditCard size={12} />
-                Manage subscription
+                Coaching library
               </span>
               <ExternalLink size={12} className="text-muted2" />
             </a>

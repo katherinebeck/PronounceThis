@@ -1,19 +1,35 @@
-import React from "react";
-import { X, ArrowRight, Lock } from "lucide-react";
+import React, { useState } from "react";
+import { X, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { createStripeCheckout } from "@/lib/api";
+import { toast } from "sonner";
 
 // Shown when a trial-gated (or subscriber-only) request comes back 402.
-// The subscribe buttons point to the coach's Kajabi checkout URLs (set
-// via env). Falls back to a friendly "coming soon" state if URLs aren't
-// configured yet.
+// The subscribe buttons open Stripe Checkout for the selected plan.
 export default function PaywallModal() {
   const { paywallOpen, closePaywall, paywallReason, me } = useAuth();
+  const [loading, setLoading] = useState(null); // lookup_key currently checking-out
   if (!paywallOpen) return null;
 
-  const monthly = me?.monthly_offer_url || "";
-  const annual = me?.annual_offer_url || "";
-  const portal = me?.member_portal_url || "";
-  const configured = !!(monthly || annual);
+  const prices = Array.isArray(me?.stripe_prices) ? me.stripe_prices : [];
+
+  const startCheckout = async (lookup_key) => {
+    setLoading(lookup_key);
+    try {
+      const { checkout_url } = await createStripeCheckout(lookup_key);
+      // Redirect the whole page to Stripe. On return, /payment/success
+      // handles the state flip.
+      window.location.href = checkout_url;
+    } catch (err) {
+      setLoading(null);
+      const detail = err?.response?.data?.detail;
+      toast.error(
+        detail === "not_authenticated"
+          ? "Please sign in first."
+          : String(detail || err?.message || "Could not start checkout")
+      );
+    }
+  };
 
   const headline =
     paywallReason === "scene"
@@ -64,81 +80,69 @@ export default function PaywallModal() {
             {subhead}
           </p>
 
-          {configured ? (
-            <div className="space-y-3">
-              {monthly ? (
-                <a
-                  href={monthly}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group block border thin-rule bg-paper hover:bg-ink hover:text-surface transition-colors px-5 py-4"
-                  data-testid="paywall-monthly"
+          <div className="space-y-3">
+            {prices.map((p) => {
+              const isAnnual = p.interval === "year";
+              return (
+                <button
+                  key={p.lookup_key}
+                  type="button"
+                  onClick={() => startCheckout(p.lookup_key)}
+                  disabled={loading !== null}
+                  className={
+                    "group block w-full text-left border thin-rule px-5 py-4 transition-colors disabled:opacity-60 " +
+                    (isAnnual
+                      ? "bg-ink text-surface hover:bg-rust hover:border-rust"
+                      : "bg-paper hover:bg-ink hover:text-surface")
+                  }
+                  data-testid={`paywall-${p.lookup_key}`}
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted2 group-hover:text-surface/70">
-                        Monthly
+                      <div className={
+                        "font-mono text-[10px] uppercase tracking-[0.24em] " +
+                        (isAnnual
+                          ? "text-surface/70"
+                          : "text-muted2 group-hover:text-surface/70")
+                      }>
+                        {p.label}
+                        {p.savings_note ? ` · ${p.savings_note}` : ""}
                       </div>
                       <div className="font-display text-xl mt-0.5">
-                        Start monthly membership
+                        {isAnnual ? "Save with annual · " : "Start monthly · "}
+                        <span className="font-mono not-italic tabular-nums">
+                          ${p.amount}
+                        </span>
+                        <span className={
+                          "font-mono text-sm ml-0.5 " +
+                          (isAnnual
+                            ? "text-surface/70"
+                            : "text-muted2 group-hover:text-surface/70")
+                        }>
+                          /{p.interval === "year" ? "yr" : "mo"}
+                        </span>
                       </div>
                     </div>
-                    <ArrowRight
-                      size={18}
-                      className="shrink-0 transition-transform group-hover:translate-x-1"
-                    />
+                    {loading === p.lookup_key ? (
+                      <Loader2 size={18} className="animate-spin shrink-0" />
+                    ) : (
+                      <ArrowRight
+                        size={18}
+                        className="shrink-0 transition-transform group-hover:translate-x-1"
+                      />
+                    )}
                   </div>
-                </a>
-              ) : null}
-              {annual ? (
-                <a
-                  href={annual}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="group block border thin-rule bg-ink text-surface hover:bg-rust hover:border-rust transition-colors px-5 py-4"
-                  data-testid="paywall-annual"
-                >
-                  <div className="flex items-center justify-between gap-4">
-                    <div>
-                      <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-surface/70">
-                        Annual · Best value
-                      </div>
-                      <div className="font-display text-xl mt-0.5">
-                        Save with annual membership
-                      </div>
-                    </div>
-                    <ArrowRight
-                      size={18}
-                      className="shrink-0 transition-transform group-hover:translate-x-1"
-                    />
-                  </div>
-                </a>
-              ) : null}
-            </div>
-          ) : (
-            <div className="border thin-rule bg-paper px-5 py-6 text-center">
-              <Lock size={18} className="text-muted2 mx-auto mb-3" />
-              <p className="font-serif text-sm text-ink leading-relaxed">
-                Memberships are launching soon. Reach out to your coach to
-                request access.
-              </p>
-            </div>
-          )}
+                </button>
+              );
+            })}
+          </div>
 
-          {portal ? (
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 text-center mt-5">
-              Already a member?{" "}
-              <a
-                href={portal}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-ink hover:text-rust underline"
-                data-testid="paywall-portal-link"
-              >
-                Open the member portal →
-              </a>
+          <div className="mt-5 flex items-center justify-center gap-1.5 text-muted2">
+            <Sparkles size={11} />
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em]">
+              Cancel anytime. Secure checkout by Stripe.
             </p>
-          ) : null}
+          </div>
         </div>
       </div>
     </div>

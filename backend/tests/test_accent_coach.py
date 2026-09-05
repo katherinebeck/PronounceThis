@@ -51,7 +51,7 @@ def uploaded_scene(session, sample_pdf_bytes):
 def test_root(session):
     r = session.get(f"{API}/", timeout=10)
     assert r.status_code == 200
-    assert r.json().get("message") == "American Accent Coach API"
+    assert r.json().get("message") == "American Accent Prep API"
 
 
 # --- Sound categories -------------------------------------------------------

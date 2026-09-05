@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALG = "HS256"
 JWT_COOKIE_NAME = "accent_session"
-JWT_DAYS = 30                       # session lifetime
+JWT_DAYS = 90                       # session lifetime
 MAGIC_LINK_TTL_MIN = 15             # magic link expiry
 MAGIC_LINK_RATE_LIMIT_MIN = 1       # 1 magic link per minute per email
 TRIAL_WORD_LIMIT = 1
@@ -49,7 +49,7 @@ TRIAL_SCENE_LIMIT = 1
 
 APP_PUBLIC_URL = (os.environ.get("APP_PUBLIC_URL") or "").rstrip("/")
 SENDER_EMAIL = os.environ["SENDER_EMAIL"]
-SENDER_NAME = os.environ.get("SENDER_NAME", "Accent Coach")
+SENDER_NAME = os.environ.get("SENDER_NAME", "American Accent Prep")
 FROM_HEADER = f"{SENDER_NAME} <{SENDER_EMAIL}>"
 
 resend.api_key = os.environ["RESEND_API_KEY"]
@@ -71,9 +71,14 @@ class AuthMeResponse(BaseModel):
     trial_scene_used: int = 0
     trial_word_limit: int = TRIAL_WORD_LIMIT
     trial_scene_limit: int = TRIAL_SCENE_LIMIT
+    # Kept for now to preserve backwards-compat during the Kajabi → Stripe
+    # transition; the paywall now uses `stripe_prices` instead.
     monthly_offer_url: str = ""
     annual_offer_url: str = ""
     member_portal_url: str = ""
+    # Stripe subscription plan surface for the paywall.
+    stripe_prices: list = []
+    has_stripe_customer: bool = False
 
 
 # --- Helpers ----------------------------------------------------------------
@@ -114,7 +119,7 @@ def _magic_link_email_html(login_url: str) -> str:
           <tr>
             <td style="padding:32px 32px 0 32px;">
               <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#8B8578;">
-                Accent Coach · Sign in
+                American Accent Prep · Sign in
               </div>
               <h1 style="margin:12px 0 20px 0;font-family:'Cormorant Garamond',Georgia,serif;font-weight:400;font-size:32px;color:#2A2620;">
                 Your sign-in link
@@ -128,7 +133,7 @@ def _magic_link_email_html(login_url: str) -> str:
             <td align="center" style="padding:8px 32px 24px 32px;">
               <a href="{login_url}"
                  style="display:inline-block;padding:14px 28px;background:#2A2620;color:#F5F1EA;text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.24em;text-transform:uppercase;">
-                Sign in to Accent Coach
+                Sign in to American Accent Prep
               </a>
             </td>
           </tr>
@@ -156,7 +161,7 @@ async def _send_magic_link_email(email: str, login_url: str) -> None:
     params = {
         "from": FROM_HEADER,
         "to": [email],
-        "subject": "Your Accent Coach sign-in link",
+        "subject": "Your American Accent Prep sign-in link",
         "html": _magic_link_email_html(login_url),
     }
     try:
@@ -318,13 +323,31 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "annual_offer_url": os.environ.get("KAJABI_ANNUAL_OFFER_URL", ""),
             "member_portal_url": os.environ.get("KAJABI_MEMBER_PORTAL_URL", ""),
         }
+        # Static plan shape (backend does not need Stripe here — checkout is
+        # created on demand). Prices come from Stripe by lookup_key.
+        stripe_prices = [
+            {"lookup_key": "accent_coach_monthly", "label": "Monthly",
+             "amount": 9, "currency": "usd", "interval": "month"},
+            {"lookup_key": "accent_coach_yearly", "label": "Annual",
+             "amount": 90, "currency": "usd", "interval": "year",
+             "savings_note": "Save $18 vs monthly"},
+        ]
         if not email:
-            return AuthMeResponse(authenticated=False, **offer_urls)
+            return AuthMeResponse(
+                authenticated=False,
+                stripe_prices=stripe_prices,
+                has_stripe_customer=False,
+                **offer_urls,
+            )
 
         user = await db.users.find_one({"email": email})
         if not user:
-            # Cookie references a deleted user — treat as logged out.
-            return AuthMeResponse(authenticated=False, **offer_urls)
+            return AuthMeResponse(
+                authenticated=False,
+                stripe_prices=stripe_prices,
+                has_stripe_customer=False,
+                **offer_urls,
+            )
 
         status = await _membership_status(db, email)
         return AuthMeResponse(
@@ -335,6 +358,8 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             subscription_end_at=status["subscription_end_at"],
             trial_word_used=user.get("trial_word_used", 0),
             trial_scene_used=user.get("trial_scene_used", 0),
+            stripe_prices=stripe_prices,
+            has_stripe_customer=bool(user.get("stripe_customer_id")),
             **offer_urls,
         )
 

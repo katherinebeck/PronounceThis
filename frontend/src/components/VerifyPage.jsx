@@ -43,7 +43,7 @@ export default function VerifyPage() {
     <div className="min-h-screen flex items-center justify-center bg-paper px-4">
       <div className="w-full max-w-md bg-surface border thin-rule px-8 py-12 text-center">
         <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
-          Accent Coach
+          Accent Prep
         </div>
         {state === "verifying" && (
           <>
@@ -91,7 +91,7 @@ export default function VerifyPage() {
               className="btn-primary mt-6 inline-flex"
               data-testid="verify-back"
             >
-              Back to Accent Coach
+              Back to Accent Prep
             </a>
           </>
         )}
