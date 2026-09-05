@@ -51,7 +51,7 @@ from auth import (
     consume_trial,
     ensure_indexes as ensure_auth_indexes,
 )
-from kajabi import create_kajabi_router
+from kajabi import create_kajabi_router, start_reconciliation_loop
 
 # --- DB ---------------------------------------------------------------------
 mongo_url = os.environ["MONGO_URL"]
@@ -1124,6 +1124,10 @@ app.add_middleware(
 @app.on_event("startup")
 async def _startup_indexes():
     await ensure_auth_indexes(db)
+    # Kick off the nightly Kajabi ↔ DB reconciliation. Handles cancellations
+    # + refunds for customers on Kajabi plans that don't support outbound
+    # webhook Automation actions.
+    start_reconciliation_loop(db)
 
 
 @app.on_event("shutdown")
