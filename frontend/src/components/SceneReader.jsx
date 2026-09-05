@@ -322,7 +322,7 @@ export default function SceneReader({ scene, highlightSet }) {
               onClick={handleDownloadMyLines}
               data-testid="download-my-lines-button"
               disabled={downloading || running}
-              title="Download every one of your character's lines as an MP3 zip for offline drilling"
+              title="Download every one of your character's lines as a single MP3 (with a 2-second pause between lines) for offline drilling"
             >
               {downloading ? (
                 <>

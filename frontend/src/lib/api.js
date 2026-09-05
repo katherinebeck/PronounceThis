@@ -82,6 +82,6 @@ export async function downloadMyLines(sceneId, { character, voice = null } = {})
   // Filename comes from the Content-Disposition header the backend sets.
   const disp = response.headers?.["content-disposition"] || "";
   const match = /filename="?([^"]+)"?/i.exec(disp);
-  const filename = match?.[1] || `${character || "lines"}.zip`;
+  const filename = match?.[1] || `${character || "lines"}.mp3`;
   return { blob: response.data, filename };
 }

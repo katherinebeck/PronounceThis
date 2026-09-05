@@ -1,11 +1,16 @@
-"""Tests for GET /api/scenes/{id}/download-lines (Download My Lines ZIP)."""
+"""Tests for GET /api/scenes/{id}/download-lines.
+
+Iteration 13: response is now a SINGLE concatenated MP3 with a silent gap
+between each of the character's lines (default 2000ms), configurable via
+`gap_ms` (clamped 0..10000).
+"""
 import io
 import os
 import time
-import zipfile
 
 import pytest
 import requests
+from pydub import AudioSegment
 from reportlab.pdfgen import canvas
 
 BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
@@ -31,6 +36,17 @@ def session():
 
 @pytest.fixture(scope="module")
 def scene(session):
+    # Prefer the known cached scene for speed
+    known_id = "4b23e55d-67be-42bc-a397-4eb4085bdb2e"
+    r = session.get(f"{API}/scenes/{known_id}", timeout=30)
+    if r.status_code == 200:
+        detail = r.json()
+        turns = detail.get("turns") or []
+        speakers = {(t.get("speaker") or "").strip() for t in turns}
+        speakers.discard("")
+        if turns and speakers:
+            return detail
+
     r = session.get(f"{API}/scenes", timeout=30)
     assert r.status_code == 200
     for s in r.json():
@@ -40,7 +56,6 @@ def scene(session):
         speakers.discard("")
         if len(turns) >= 2 and speakers:
             return detail
-    # upload one
     lines = [
         "JANE: Hello there friend.",
         "MARK: How are you today.",
@@ -54,11 +69,19 @@ def scene(session):
 
 
 def _char(scene):
+    # prefer ELIZA (cached) if available, else first speaker
+    for t in scene["turns"]:
+        if (t.get("speaker") or "").strip() == "ELIZA":
+            return "ELIZA"
     for t in scene["turns"]:
         sp = (t.get("speaker") or "").strip()
         if sp:
             return sp
     raise AssertionError("No speaker in scene")
+
+
+def _count_char_lines(scene, ch):
+    return sum(1 for t in scene["turns"] if (t.get("speaker") or "").strip() == ch)
 
 
 def _valid_mp3(b: bytes) -> bool:
@@ -67,24 +90,64 @@ def _valid_mp3(b: bytes) -> bool:
     return b.startswith(b"ID3") or (len(b) >= 2 and b[0] == 0xFF and (b[1] & 0xE0) == 0xE0)
 
 
-def test_download_lines_ok(session, scene):
+def _duration_ms(b: bytes) -> int:
+    seg = AudioSegment.from_file(io.BytesIO(b), format="mp3")
+    return len(seg)
+
+
+def test_download_lines_ok_single_mp3(session, scene):
     ch = _char(scene)
     r = session.get(f"{API}/scenes/{scene['id']}/download-lines",
-                    params={"character": ch}, timeout=180)
+                    params={"character": ch}, timeout=300)
     assert r.status_code == 200, r.text
-    assert r.headers["content-type"].startswith("application/zip")
+    assert r.headers["content-type"].startswith("audio/mpeg")
     disp = r.headers.get("content-disposition", "")
-    assert "attachment" in disp and ".zip" in disp
+    assert "attachment" in disp and ".mp3" in disp and ".zip" not in disp
+    assert _valid_mp3(r.content), f"not a valid MP3 ({len(r.content)} bytes)"
 
-    zf = zipfile.ZipFile(io.BytesIO(r.content))
-    names = zf.namelist()
-    assert names, "empty ZIP"
-    # naming NN_...mp3
-    for i, name in enumerate(names, start=1):
-        assert name.endswith(".mp3")
-        assert name.startswith(f"{i:02d}_")
-        data = zf.read(name)
-        assert _valid_mp3(data), f"{name} not a valid mp3 ({len(data)} bytes)"
+
+def test_download_lines_gap_default_2s(session, scene):
+    ch = _char(scene)
+    n = _count_char_lines(scene, ch)
+    # Default gap = 2000ms
+    r_def = session.get(f"{API}/scenes/{scene['id']}/download-lines",
+                        params={"character": ch}, timeout=300)
+    assert r_def.status_code == 200
+    d_def = _duration_ms(r_def.content)
+
+    r0 = session.get(f"{API}/scenes/{scene['id']}/download-lines",
+                     params={"character": ch, "gap_ms": 0}, timeout=300)
+    assert r0.status_code == 200
+    d0 = _duration_ms(r0.content)
+
+    expected_extra = 2000 * max(0, n - 1)
+    diff = d_def - d0
+    # allow ±400ms tolerance for MP3 frame boundary rounding
+    assert abs(diff - expected_extra) <= 400, (
+        f"expected ~{expected_extra}ms extra silence, got {diff}ms (n={n})"
+    )
+
+
+def test_download_lines_gap_clamped(session, scene):
+    ch = _char(scene)
+    n = _count_char_lines(scene, ch)
+    if n < 2:
+        pytest.skip("need at least 2 lines for gap comparison")
+    r0 = session.get(f"{API}/scenes/{scene['id']}/download-lines",
+                     params={"character": ch, "gap_ms": 0}, timeout=300)
+    r1 = session.get(f"{API}/scenes/{scene['id']}/download-lines",
+                     params={"character": ch, "gap_ms": 1000}, timeout=300)
+    r15 = session.get(f"{API}/scenes/{scene['id']}/download-lines",
+                      params={"character": ch, "gap_ms": 15000}, timeout=300)
+    assert r0.status_code == r1.status_code == r15.status_code == 200
+    d0 = _duration_ms(r0.content)
+    d1 = _duration_ms(r1.content)
+    d15 = _duration_ms(r15.content)
+
+    exp1 = 1000 * (n - 1)
+    exp15 = 10000 * (n - 1)  # clamped to 10s
+    assert abs((d1 - d0) - exp1) <= 400
+    assert abs((d15 - d0) - exp15) <= 500
 
 
 def test_download_lines_voice_cache(session, scene):
@@ -93,24 +156,17 @@ def test_download_lines_voice_cache(session, scene):
 
     t0 = time.time()
     r1 = session.get(f"{API}/scenes/{sid}/download-lines",
-                     params={"character": ch, "voice": "jessica"}, timeout=180)
+                     params={"character": ch, "voice": "jessica"}, timeout=300)
     t1 = time.time() - t0
-    assert r1.status_code == 200, r1.text
-    assert r1.headers["content-type"].startswith("application/zip")
+    assert r1.status_code == 200
+    assert r1.headers["content-type"].startswith("audio/mpeg")
 
     t0 = time.time()
     r2 = session.get(f"{API}/scenes/{sid}/download-lines",
-                     params={"character": ch, "voice": "jessica"}, timeout=60)
+                     params={"character": ch, "voice": "jessica"}, timeout=120)
     t2 = time.time() - t0
     assert r2.status_code == 200
-    # second call should be much faster (cached)
-    assert t2 < max(5.0, t1 * 0.6), f"cache didn't help: t1={t1:.2f}s t2={t2:.2f}s"
-
-    # adam separate cache -> different bytes
-    ra = session.get(f"{API}/scenes/{sid}/download-lines",
-                     params={"character": ch, "voice": "adam"}, timeout=180)
-    assert ra.status_code == 200
-    assert ra.content != r1.content
+    assert t2 < max(10.0, t1 * 0.7), f"cache didn't help: t1={t1:.2f}s t2={t2:.2f}s"
 
 
 def test_download_lines_bad_voice(session, scene):

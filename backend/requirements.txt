@@ -65,6 +65,7 @@ motor==3.3.1
 multidict==6.7.1
 mypy==1.20.0
 mypy_extensions==1.1.0
+nodejs-wheel-binaries==24.19.0
 numpy==2.4.4
 oauthlib==3.3.1
 openai==1.99.9
@@ -85,6 +86,7 @@ pycodestyle==2.14.0
 pycparser==3.0
 pydantic==2.12.5
 pydantic_core==2.41.5
+pydub==0.25.1
 pyflakes==3.4.0
 Pygments==2.20.0
 PyJWT==2.12.1
@@ -97,6 +99,7 @@ python-dotenv==1.2.2
 python-jose==3.5.0
 python-multipart==0.0.24
 pytokens==0.4.1
+pytubefix==10.11.0
 PyYAML==6.0.3
 referencing==0.37.0
 regex==2026.4.4

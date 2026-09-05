@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, Field
@@ -616,7 +616,11 @@ async def pronounce(word: str):
 
 
 @api_router.post("/scenes/upload", response_model=Scene)
-async def upload_scene(file: UploadFile = File(...), title: Optional[str] = None):
+async def upload_scene(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    title: Optional[str] = None,
+):
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Please upload a PDF file.")
 
@@ -657,7 +661,30 @@ async def upload_scene(file: UploadFile = File(...), title: Optional[str] = None
     doc["proper_nouns"] = proper_nouns
     await db.scenes.insert_one(doc)
 
+    # Quota safety net: pre-cache Real Speaker caption search for every
+    # proper noun in the scene. Runs in the background so the upload
+    # response is instant. Proper nouns (names, cities) are the words
+    # students are most likely to look up.
+    if proper_nouns:
+        background_tasks.add_task(_prewarm_proper_nouns, proper_nouns)
+
     return Scene(**doc)
+
+
+async def _prewarm_proper_nouns(words: List[str]) -> None:
+    """Warm the caption_search_cache for the scene's proper nouns. Runs
+    serially with a short delay to be gentle on the YouTube API quota.
+    Silently skips already-cached words and any that fail (rate limits,
+    etc) — those simply mean the student's first click will do the work."""
+    unique = list({w.strip() for w in words if w and w.strip()})
+    unique.sort()
+    for word in unique:
+        try:
+            await caption_service.search(word, limit=6)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("prewarm caption failed for %r: %s", word, exc)
+            continue
+        await asyncio.sleep(0.5)
 
 
 async def _ensure_dialogue_only(doc: Dict) -> Dict:
@@ -873,11 +900,14 @@ async def download_my_lines(
     scene_id: str,
     character: str,
     voice: Optional[str] = None,
+    gap_ms: int = 2000,
 ):
-    """Bundle every audio line for `character` in this scene into a single
-    ZIP so actors can drill offline. Reuses turn_audio_cache: cached lines
-    are pulled instantly; missing ones are generated (and cached) here."""
-    import zipfile
+    """Return a single MP3 containing every one of `character`'s lines
+    concatenated with a short silent gap between them (default 2s — the
+    beat where the other character would speak). Reuses turn_audio_cache
+    so a scene the actor has already played back downloads instantly.
+    """
+    from pydub import AudioSegment
 
     doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
     if not doc:
@@ -901,56 +931,72 @@ async def download_my_lines(
             detail=f"No lines found for character '{character}'.",
         )
 
-    # Build MP3s (from cache when possible) then zip them in memory.
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
-        for i, turn in enumerate(mine, start=1):
-            turn_idx = turn.get("index", 0)
-            cache_key = (
-                f"{scene_id}:{turn_idx}"
-                + (f":{voice_key}" if voice_key else "")
-            )
-            cached = await db.turn_audio_cache.find_one(
-                {"key": cache_key}, {"_id": 0},
-            )
-            if cached and cached.get("audio_b64"):
-                audio_bytes = base64.b64decode(cached["audio_b64"])
-            else:
-                try:
-                    audio_bytes = await asyncio.to_thread(
-                        _synthesize, turn["text"], voice_id,
-                    )
-                except Exception as e:
-                    logger.exception("Download lines TTS error")
-                    raise HTTPException(
-                        status_code=502, detail=f"TTS failed: {e}",
-                    )
-                if audio_bytes:
-                    audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
-                    async with _tts_lock:
-                        await db.turn_audio_cache.update_one(
-                            {"key": cache_key},
-                            {"$set": {
-                                "key": cache_key,
-                                "audio_b64": audio_b64,
-                                "created_at": datetime.now(timezone.utc).isoformat(),
-                            }},
-                            upsert=True,
-                        )
-            if not audio_bytes:
-                continue
-            # File name: 01_first-few-words.mp3
-            preview = re.sub(r"[^A-Za-z0-9]+", "-", turn.get("text", ""))[:40].strip("-")
-            fname = f"{i:02d}_{preview or 'line'}.mp3"
-            zf.writestr(fname, audio_bytes)
+    gap_ms = max(0, min(int(gap_ms), 10000))
+    gap = AudioSegment.silent(duration=gap_ms) if gap_ms > 0 else None
 
-    zip_bytes = buf.getvalue()
+    # Fetch (or generate + cache) each line's audio, then concatenate.
+    combined: Optional[AudioSegment] = None
+    for turn in mine:
+        turn_idx = turn.get("index", 0)
+        cache_key = (
+            f"{scene_id}:{turn_idx}"
+            + (f":{voice_key}" if voice_key else "")
+        )
+        cached = await db.turn_audio_cache.find_one(
+            {"key": cache_key}, {"_id": 0},
+        )
+        if cached and cached.get("audio_b64"):
+            audio_bytes = base64.b64decode(cached["audio_b64"])
+        else:
+            try:
+                audio_bytes = await asyncio.to_thread(
+                    _synthesize, turn["text"], voice_id,
+                )
+            except Exception as e:
+                logger.exception("Download lines TTS error")
+                raise HTTPException(
+                    status_code=502, detail=f"TTS failed: {e}",
+                )
+            if audio_bytes:
+                audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+                async with _tts_lock:
+                    await db.turn_audio_cache.update_one(
+                        {"key": cache_key},
+                        {"$set": {
+                            "key": cache_key,
+                            "audio_b64": audio_b64,
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        }},
+                        upsert=True,
+                    )
+        if not audio_bytes:
+            continue
+        try:
+            seg = AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
+        except Exception:
+            logger.exception("Failed to decode line MP3 for concat")
+            continue
+        if combined is None:
+            combined = seg
+        else:
+            combined = combined + gap + seg if gap is not None else combined + seg
+
+    if combined is None:
+        raise HTTPException(status_code=502, detail="No audio to bundle.")
+
+    out = io.BytesIO()
+    await asyncio.to_thread(
+        combined.export, out, format="mp3", bitrate="128k",
+    )
+    out.seek(0)
+    audio_bytes = out.getvalue()
+
     safe_char = re.sub(r"[^A-Za-z0-9]+", "-", normalized_char).strip("-") or "lines"
     scene_slug = re.sub(r"[^A-Za-z0-9]+", "-", doc.get("title", "scene")).strip("-") or "scene"
-    filename = f"{scene_slug}_{safe_char}.zip"
+    filename = f"{scene_slug}_{safe_char}.mp3"
     return Response(
-        content=zip_bytes,
-        media_type="application/zip",
+        content=audio_bytes,
+        media_type="audio/mpeg",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 

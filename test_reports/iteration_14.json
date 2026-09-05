@@ -1,0 +1,28 @@
+{
+  "summary": "Iteration 14 — Quota Safety Net (backend only). Added /app/backend/tests/test_prewarm_quota_safety_net.py with 10 tests covering (a) server module import, (b) _prewarm_proper_nouns unit behavior (dedup, per-word search calls, 0.5s inter-call sleep, exception swallowing, empty-list no-op), (c) POST /api/scenes/upload enqueues _prewarm_proper_nouns via BackgroundTasks with the scene's proper_nouns AND is non-blocking (request returns in <2s even when caption_service.search is monkeypatched to sleep 3s per call — proven by patching BackgroundTasks.add_task so the task never actually runs), (d) upload with zero proper_nouns does NOT enqueue a task, (e) CLI prewarm.py subprocess run with --limit 3 --delay 0.1 exits 0 and reports 'Loaded 3 words', (f) CLI prewarm stops early on quota_exceeded response and logs 'YouTube quota exhausted' (only 1 search call before quota_hit short-circuits the rest). Full regression: 117 passed / 1 skipped / 0 failed. Real live CLI run against prewarm_words.txt with --limit 3 completed in <1s (cache already warm), exit=0.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_prewarm_quota_safety_net.py",
+    "/app/test_reports/pytest/iter14_all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server._prewarm_proper_nouns correctly dedups by strip() (case-sensitive) and sleeps 0.5s between calls; exceptions are caught with a broad except so a single failing word never poisons the run — good defensive posture for a background prewarm.",
+    "upload_scene only enqueues the prewarm task when proper_nouns is non-empty — no wasted BackgroundTask overhead for narration-only scenes.",
+    "BackgroundTasks in FastAPI run *after* the response is sent, so the 3s-sleep monkeypatch test proves the endpoint's own latency is unaffected. Verified by spying on add_task without running it: request returned in <2s.",
+    "prewarm.py uses `asyncio.gather` over a semaphore-bounded coroutine set; the quota_hit flag is checked *inside* the semaphore, so tasks scheduled before the first quota response still enter and return immediately without a real search call — correct behavior for graceful stop.",
+    "Minor: prewarm.py catches 'quota' substring case-insensitively in the error string — brittle if YouTube API changes wording. Consider matching a numeric quota code from the caption_search response envelope in a future pass.",
+    "Minor: prewarm.py calls `mongo.close()` (sync method on AsyncIOMotorClient) — motor exposes `close()` which is fine but not awaited. No leak observed in tests.",
+    "server.py now at 1103 lines — still above the 700-line refactor threshold flagged in iter 13. Prewarm helper is a natural split candidate (background_tasks.py or prewarm_service.py module).",
+    "Prewarm word list (~239 entries) lives at /app/backend/data/prewarm_words.txt as expected; loader correctly strips '#' comments, blanks, and dedup by lowercase."
+  ],
+  "updated_files": ["/app/backend/tests/test_prewarm_quota_safety_net.py"],
+  "success_rate": {"backend": "100% (117/117, 1 skipped by design for env-guard branch)", "frontend": "N/A (backend-only iteration)"},
+  "test_credentials": "N/A - no auth in this app",
+  "seed_data_creation": "None. Tests either monkeypatch db/caption_service or use the real Mongo cache (read-only).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Quota Safety Net feature is fully covered by test_prewarm_quota_safety_net.py. TestClient closes its event loop on exit, so motor DB calls from the second TestClient in a single test file will 'RuntimeError: Event loop is closed' — the workaround used here is to patch server.db with a FakeScenes namespace for the second upload test. If you add more upload tests, either combine them into one test/TestClient session or patch server.db similarly. To run the full suite: `REACT_APP_BACKEND_URL=<url> pytest /app/backend/tests/ --tb=short`.",
+  "rca of the issue": "N/A - no bugs found. Feature works as specified."
+}

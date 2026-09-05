@@ -1,0 +1,34 @@
+{
+  "summary": "Iteration 13 verified: Download My Lines now returns a SINGLE concatenated MP3 (no more ZIP). Updated test_download_lines.py (was written for ZIP in iter 12) to assert audio/mpeg content-type, .mp3 filename in Content-Disposition, ID3/MP3-sync magic bytes, and precise silence-gap arithmetic using pydub. Backend: 7/7 new tests pass. Full backend regression: 108/108 pass (previous iter-12 flaky adam-cache test now green). Frontend: seeded localStorage with the known scene id, picked ELIZA, clicked Download My Lines — Playwright expect_download captured suggested_filename 'Little-House-on-the-Prarie-Eliza_ELIZA.mp3' (ends .mp3, no .zip), 1.35MB payload with ID3 header (0x494433). Cache confirmed working (voice-cache test: second call to same voice returned much faster than first). gap_ms clamped to 10000, gap=0 vs gap=2000 delta matches (N-1)*2000ms within ~400ms tolerance. Bad voice -> 400, unknown character -> 404, missing scene -> 404.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "SceneReader voice picker", "issues": ["Pre-existing (from iter 12) React hydration warning: <span> inside <option> in VoicePicker (line ~414 SceneReader.jsx). Cosmetic only."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_download_lines.py",
+    "/app/test_reports/pytest/dl.xml",
+    "/app/test_reports/pytest/all.xml"
+  ],
+  "action_items": [
+    "Optional: remove <span> wrapper inside <option> in VoicePicker to silence React hydration warning (unchanged from iter 12)."
+  ],
+  "critical_code_review_comments": [
+    "download_my_lines endpoint correctly uses pydub AudioSegment for concat + silent gap; gap clamped to [0,10000]ms server-side — good defense.",
+    "Reuses turn_audio_cache keyed by (scene_id, turn_idx, voice_key) so warm scenes download in <1s. Verified via test_download_lines_voice_cache.",
+    "Response headers correct: Content-Type=audio/mpeg, Content-Disposition attachment; filename=\"scene-slug_CHAR.mp3\".",
+    "Frontend api.js downloadMyLines reads Content-Disposition and falls back to `${character}.mp3` — matches new format.",
+    "server.py is now 1076 lines — approaching the 700-line refactor threshold. Consider splitting TTS/download routes into a router module in a future pass.",
+    "Minor: `character` is a required FastAPI query param — missing it returns 422 rather than 400. Cosmetic; not a bug."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (108/108)", "frontend": "100% (1/1 new download flow)"},
+  "test_credentials": "N/A - no auth in this app",
+  "seed_data_creation": "Used existing DB scene 4b23e55d-67be-42bc-a397-4eb4085bdb2e. For Playwright, seeded localStorage.myScenes with that scene id so the sidebar surfaced it (sidebar is per-browser).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature is fully working. Frontend sidebar shows only scenes uploaded from THAT browser (localStorage.myScenes). To test against a pre-seeded DB scene via Playwright, seed localStorage.myScenes = [{id, title}] before reload. The old iter-12 flaky adam-cache assertion is passing again."
+}

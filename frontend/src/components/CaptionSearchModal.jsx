@@ -1,41 +1,35 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { X, ExternalLink, Loader2, Play, RefreshCw } from "lucide-react";
+import { X, ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink } from "lucide-react";
 import { captionSearch } from "@/lib/api";
 import { toast } from "sonner";
 
-// Formats seconds as m:ss for the "Play at" chip.
-function formatTime(sec) {
-  const s = Math.max(0, Math.floor(sec || 0));
-  const m = Math.floor(s / 60);
-  const r = s % 60;
-  return `${m}:${String(r).padStart(2, "0")}`;
-}
-
-// Custom YouGlish replacement: searches our curated allowlist of American
-// English YouTube channels for videos where the word is actually spoken,
-// and embeds the player at the exact caption timestamp. No third-party
-// widget, no Fluently promo, no cross-user history.
+// YouGlish-style single-clip player. Opens on the first result, cued to the
+// word, and lets you tap ▶ / ◀ to jump to the next / previous clip. No
+// sidebar, no transcript spam — just the word, spoken.
 export default function CaptionSearchModal({ open, query, onClose }) {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
-  const [selected, setSelected] = useState(null);
+  const [index, setIndex] = useState(0);
   const [error, setError] = useState("");
   const abortRef = useRef(null);
 
   const load = async (refresh = false) => {
     if (!query) return;
-    // Kill any in-flight request
     if (abortRef.current) abortRef.current.abort?.();
     setLoading(true);
     setError("");
     try {
       const data = await captionSearch(query, { refresh });
-      setResults(data.results || []);
-      setSelected((data.results || [])[0] || null);
-      if (!data.results?.length) {
+      // YouGlish behavior: only keep clips cued to the exact word. Full-video
+      // fallbacks (no captions) aren't useful when you just want to hear the
+      // word right now.
+      const cued = (data.results || []).filter((r) => r.has_timestamp);
+      setResults(cued);
+      setIndex(0);
+      if (!cued.length) {
         setError(
           data.error ||
-            "No matches from the curated American-speaker channels for that word. Try a variant spelling."
+            "No timestamped clips from the curated American-speaker channels for that word. Try Refresh or a variant spelling."
         );
       }
     } catch (err) {
@@ -51,37 +45,50 @@ export default function CaptionSearchModal({ open, query, onClose }) {
   useEffect(() => {
     if (!open || !query) return;
     setResults([]);
-    setSelected(null);
+    setIndex(0);
     load(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, query]);
 
-  // Close on Escape.
+  // Keyboard: Esc closes, ←/→ cycles clips.
   useEffect(() => {
     if (!open) return;
     const onKey = (e) => {
       if (e.key === "Escape") onClose?.();
+      if (e.key === "ArrowRight") next();
+      if (e.key === "ArrowLeft") prev();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, onClose, results.length]);
+
+  const current = results[index] || null;
+
+  const next = () => {
+    if (!results.length) return;
+    setIndex((i) => (i + 1) % results.length);
+  };
+  const prev = () => {
+    if (!results.length) return;
+    setIndex((i) => (i - 1 + results.length) % results.length);
+  };
 
   const embedSrc = useMemo(() => {
-    if (!selected) return null;
-    const start = Math.max(0, Math.floor(selected.offset_seconds || 0));
-    // youtube-nocookie.com is more permissive with embeds and doesn't set
-    // tracking cookies. `rel=0` avoids unrelated recommendations,
-    // `modestbranding` trims logos. Autoplay is off so the iframe doesn't
-    // hijack focus in a coaching session.
+    if (!current) return null;
+    const start = Math.max(0, Math.floor(current.offset_seconds || 0));
+    // Autoplay is fine here: the modal only opens on a direct user click,
+    // which satisfies the browser autoplay policy.
     const params = new URLSearchParams({
       start: String(start),
+      autoplay: "1",
       rel: "0",
       modestbranding: "1",
     });
     return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(
-      selected.video_id
+      current.video_id
     )}?${params.toString()}`;
-  }, [selected]);
+  }, [current]);
 
   if (!open) return null;
   return (
@@ -91,22 +98,23 @@ export default function CaptionSearchModal({ open, query, onClose }) {
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl bg-surface border thin-rule shadow-2xl max-h-[95vh] flex flex-col"
+        className="relative w-full max-w-3xl bg-surface border thin-rule shadow-2xl max-h-[95vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between px-4 sm:px-6 py-4 sm:py-5 border-b thin-rule gap-3">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b thin-rule gap-3">
           <div className="min-w-0">
             <div className="font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.22em] sm:tracking-[0.28em] text-muted2">
-              Real Speakers · American · Captions
+              Real Speakers · American
             </div>
             <div
-              className="font-display text-xl sm:text-2xl text-ink mt-1 truncate"
+              className="font-display text-xl sm:text-2xl text-ink mt-0.5 truncate"
               data-testid="caption-search-query"
             >
               {query}
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               className="btn-secondary !px-2.5 sm:!px-3 !py-2"
@@ -130,128 +138,88 @@ export default function CaptionSearchModal({ open, query, onClose }) {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 grid grid-cols-1 md:grid-cols-[280px_1fr] gap-px bg-rule overflow-hidden">
-          {/* Results column (top on mobile, left on desktop) */}
-          <aside
-            className="bg-surface overflow-auto scrollbar-thin min-h-[180px] max-h-[38vh] md:min-h-[420px] md:max-h-[70vh]"
-            data-testid="caption-search-results"
-          >
+        {/* Player */}
+        <div className="p-4 sm:p-5 bg-surface">
+          <div className="aspect-video bg-ink border thin-rule overflow-hidden relative">
             {loading ? (
-              <div className="p-8 flex items-center gap-2 font-mono text-xs text-muted2">
+              <div className="absolute inset-0 flex items-center gap-2 justify-center font-mono text-xs text-paper/80">
                 <Loader2 size={14} className="animate-spin" /> Searching real
                 speakers…
               </div>
-            ) : results.length ? (
-              <ul>
-                {results.map((r) => {
-                  const active = selected?.video_id === r.video_id &&
-                    selected?.offset_seconds === r.offset_seconds;
-                  const precise = r.has_timestamp;
-                  return (
-                    <li
-                      key={`${r.video_id}-${r.offset_seconds}`}
-                      className={
-                        "px-5 py-4 border-b thin-rule cursor-pointer transition-colors " +
-                        (active ? "bg-paper" : "hover:bg-paper/60")
-                      }
-                      data-testid={`caption-result-${r.video_id}`}
-                      onClick={() => setSelected(r)}
-                    >
-                      <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 truncate">
-                        {r.channel_title}
-                      </div>
-                      <div
-                        className={
-                          "font-serif text-sm leading-snug mt-1 line-clamp-2 " +
-                          (active ? "text-rust" : "text-ink")
-                        }
-                        // titles come from YT and may include HTML entities
-                        dangerouslySetInnerHTML={{ __html: r.title }}
-                      />
-                      {r.snippet ? (
-                        <div className="font-serif text-xs text-muted2 mt-2 italic line-clamp-2">
-                          "{r.snippet}"
-                        </div>
-                      ) : null}
-                      <div className="mt-2 inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
-                        {precise ? (
-                          <>
-                            <Play size={10} /> {formatTime(r.offset_seconds)}
-                          </>
-                        ) : (
-                          <span title="Full video — seek to find the word">
-                            Full video
-                          </span>
-                        )}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+            ) : embedSrc ? (
+              <iframe
+                key={embedSrc}
+                title={current?.title || query}
+                className="w-full h-full"
+                src={embedSrc}
+                allow="autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+                data-testid="caption-search-iframe"
+              />
             ) : (
-              <div className="p-8 font-serif text-sm text-muted2 italic leading-relaxed">
+              <div className="absolute inset-0 flex items-center justify-center p-6 text-center font-serif text-sm text-paper/80 italic leading-relaxed">
                 {error ||
-                  "No matches yet. Try Refresh, or use a variant spelling."}
+                  "No matches yet. Tap Refresh, or try a variant spelling."}
               </div>
             )}
-          </aside>
+          </div>
 
-          {/* Player column */}
-          <section className="bg-surface p-4 sm:p-5 flex flex-col overflow-auto min-h-[280px] md:min-h-[420px]">
-            {selected ? (
-              <>
-                <div className="mb-3">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mb-1">
-                    {selected.channel_title}
-                    {selected.has_timestamp
-                      ? ` · starts at ${formatTime(selected.offset_seconds)}`
-                      : " · full video (captions unavailable — seek to find the word)"}
-                  </div>
-                  <div
-                    className="font-display text-base sm:text-lg text-ink leading-snug"
-                    dangerouslySetInnerHTML={{ __html: selected.title }}
-                  />
-                </div>
-                <div className="aspect-video bg-ink border thin-rule overflow-hidden">
-                  {embedSrc ? (
-                    <iframe
-                      key={embedSrc}
-                      title={selected.title}
-                      className="w-full h-full"
-                      src={embedSrc}
-                      allow="autoplay; encrypted-media; picture-in-picture"
-                      allowFullScreen
-                      data-testid="caption-search-iframe"
-                    />
-                  ) : null}
-                </div>
-                <div className="mt-3 flex items-center justify-between gap-3 flex-wrap">
-                  <div className="font-serif text-xs text-muted2 italic">
-                    {selected.snippet ? `"${selected.snippet}"` : ""}
-                  </div>
-                  <a
-                    className="btn-secondary !px-3 !py-2"
-                    href={selected.youtube_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-testid="caption-search-open-external"
-                  >
-                    <ExternalLink size={12} />
-                    Open on YouTube
-                  </a>
-                </div>
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-center font-mono text-xs text-muted2">
-                {loading ? "Loading…" : "Select a clip to play."}
+          {/* Nav row */}
+          <div className="mt-3 sm:mt-4 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              className="btn-secondary !px-3 !py-2 disabled:opacity-40"
+              onClick={prev}
+              disabled={!results.length || results.length < 2}
+              data-testid="caption-search-prev"
+              aria-label="Previous clip"
+              title="Previous clip (←)"
+            >
+              <ChevronLeft size={16} />
+              <span className="hidden sm:inline">Prev</span>
+            </button>
+
+            <div className="flex-1 text-center min-w-0 px-2">
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 truncate">
+                {current
+                  ? `${current.channel_title} · clip ${index + 1} of ${results.length}`
+                  : loading
+                  ? "Loading…"
+                  : results.length
+                  ? `Clip ${index + 1} of ${results.length}`
+                  : "No clips"}
               </div>
-            )}
-          </section>
-        </div>
+            </div>
 
-        <div className="px-6 py-3 border-t thin-rule font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 flex items-center justify-between gap-4 flex-wrap">
-          <span>Curated American-speaker channels · captions from YouTube</span>
-          <span>{results.length} clip{results.length === 1 ? "" : "s"}</span>
+            <button
+              type="button"
+              className="btn-primary !px-3 !py-2 disabled:opacity-40"
+              onClick={next}
+              disabled={!results.length || results.length < 2}
+              data-testid="caption-search-next"
+              aria-label="Next clip"
+              title="Next clip (→)"
+            >
+              <span className="hidden sm:inline">Next</span>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+
+          {/* Optional "Open on YouTube" — minimal footer */}
+          {current ? (
+            <div className="mt-3 flex justify-end">
+              <a
+                className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 hover:text-ink inline-flex items-center gap-1.5"
+                href={current.youtube_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="caption-search-open-external"
+              >
+                <ExternalLink size={11} />
+                Open on YouTube
+              </a>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

@@ -55,7 +55,16 @@
 - PDF export of a laundry list as a printable practice handout.
 - Multi-coach accounts (would introduce auth — Emergent Google login is a clean drop-in).
 
+## Added (Feb 5, 2026)
+- **YouGlish-style Real Speakers modal redesign** (`CaptionSearchModal.jsx`).
+  - Removed the text-heavy sidebar entirely.
+  - Single video player fills the modal, autoplayed and cued to the exact caption timestamp.
+  - `Prev` / `Next` buttons (and ← / → arrow keys) cycle through the cached list of clips.
+  - Filters out non-timestamped "full video" fallbacks — only cued clips shown.
+  - Minimal footer: `CHANNEL · CLIP n OF N` + compact "Open on YouTube" link.
+
 ## Next tasks
-1. Inform user about the ElevenLabs free-tier limitation and the upgrade path.
-2. (After user upgrade) Re-run TTS test to confirm audio caching works.
-3. Tackle P1 items based on user priority.
+1. **Merriam-Webster audio integration (P0)** — waiting on user's MW API key. Layer real human recordings on top of ElevenLabs TTS.
+2. Adjustable playback speed (0.5× / 0.75× / 1×) toggle in Word + Scenes.
+3. Session Notes — coach attaches a homework note to any word/scene.
+4. Refactor `server.py` (1100+ lines) into `routes/` + `services/`.
