@@ -47,7 +47,7 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "CBSSundayMorning", "label": "CBS Sunday Morning"},
     {"handle": "TODAY",            "label": "TODAY"},
     {"handle": "CNBC",             "label": "CNBC"},
-    {"handle": "Bloomberg",        "label": "Bloomberg"},
+    {"handle": "bloomberglp",      "label": "Bloomberg"},
     # Late-night / talk
     {"handle": "FallonTonight",    "label": "The Tonight Show"},
     {"handle": "TheEllenShow",     "label": "The Ellen Show"},
@@ -55,15 +55,15 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "JimmyKimmelLive",  "label": "Jimmy Kimmel Live"},
     {"handle": "colbertlateshow",  "label": "The Late Show w/ Colbert"},
     {"handle": "TheDailyShow",     "label": "The Daily Show"},
-    {"handle": "SethMeyers",       "label": "Late Night w/ Seth Meyers"},
+    {"handle": "LateNightSeth",    "label": "Late Night w/ Seth Meyers"},
     # Interviews / long-form
     {"handle": "FirstWeFeast",     "label": "Hot Ones"},
     {"handle": "VanityFair",       "label": "Vanity Fair"},
     {"handle": "GQ",               "label": "GQ"},
     {"handle": "Variety",          "label": "Variety"},
     {"handle": "Vogue",            "label": "Vogue"},
-    {"handle": "ArchitecturalDigest", "label": "Architectural Digest"},
-    {"handle": "TheHollywoodReporter", "label": "The Hollywood Reporter"},
+    {"handle": "Archdigest",       "label": "Architectural Digest"},
+    {"handle": "hollywoodreporter", "label": "The Hollywood Reporter"},
     {"handle": "IMDb",             "label": "IMDb"},
     # Educational / long-form
     {"handle": "TED",              "label": "TED"},
@@ -74,11 +74,11 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "NatGeo",           "label": "National Geographic"},
     {"handle": "scishow",          "label": "SciShow"},
     {"handle": "veritasium",       "label": "Veritasium"},
-    {"handle": "MarquesBrownlee",  "label": "MKBHD"},
+    {"handle": "mkbhd",            "label": "MKBHD"},
     {"handle": "MasterClass",      "label": "MasterClass"},
     # Dialect / accent-focused
     {"handle": "WIRED",            "label": "WIRED (Erik Singer)"},
-    {"handle": "InsiderBusiness",  "label": "Business Insider"},
+    {"handle": "businessinsider",  "label": "Business Insider"},
 ]
 
 WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")

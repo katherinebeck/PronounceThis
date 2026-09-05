@@ -1,0 +1,31 @@
+{
+  "summary": "Backend-only retest of CURATED_HANDLES handle fixes. All 38 curated @handles now resolve to a channelId — up from 32/38 in iteration_16. Mongo caption_channel_cache contains exactly 38 documents, all with a non-null channel_id including the 6 previously-broken handles (Archdigest, bloomberglp, mkbhd, LateNightSeth, hollywoodreporter, businessinsider). /api/caption-search still functional: 'president' with refresh=true returned 1 curated-channel result (NBC News) — meets review's >=1 requirement; nonsense query returns 200 with empty results; result shape (video_id, title, channel_title, offset_seconds, has_timestamp, youtube_url, snippet) intact. Regression sanity on /api/auth/me passes — returns 200 with stripe_prices array populated (monthly + yearly). 8/8 pytest tests passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/caption-search?q=president&refresh=true", "issue": "Only 1 curated-channel result even after all 38 handles resolved. Handle-fix delivered the intended 100% resolution rate, but the underlying broad-search coverage bottleneck from iteration_16 remains: YouTube global search.list rarely surfaces curated channels in top-50 for common terms. Consider pagination (2nd page of results = +100 quota, doubles surface area) or per-channel fallback for low-hit queries."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_caption_search_expanded.py",
+    "/app/test_reports/pytest/caption_expanded_v2.xml"
+  ],
+  "action_items": [
+    "Handle-fix complete — no action required for this iteration's scope.",
+    "Optional follow-up (from iter_16 minor issue, not blocking): add pagination or per-channel fallback in caption_search.py to increase result count per query for common terms. Current expansion + fix gets 38/38 channels into the pool but broad-search still filters most out."
+  ],
+  "critical_code_review_comments": [
+    "caption_search.py header comment on line 34-37 says 'focused on speakers with clear, natural General American English' — Vogue, Variety, GQ, VanityFair, Archdigest are magazine channels with mixed international guests. Fine for exposure but not strictly GA English. Documentation nit only.",
+    "The 6 renamed handles are correct on YouTube as of Jan 2026 — verified via cache resolution. However CURATED_HANDLES has no source-of-truth doc/comment; future YouTube handle renames will silently fail again (they resolve to 200 with items=[], not an error). Suggest a startup health-check log that warns if any curated handle fails to resolve, so ops can catch drift early."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_caption_search_expanded.py (relaxed president threshold from >=3 to >=1 per review request; bumped channel_cache assertion from >=25 to >=38; added test_auth_me_stripe_prices_regression)"
+  ],
+  "success_rate": {"backend": "100% (8/8 tests passed)", "frontend": "n/a (skipped per request)"},
+  "seed_data_creation": "None. caption_channel_cache was already fully populated with 38/38 handles from main-agent's warm-up curl post-restart.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 38 curated YouTube handles resolve successfully as of iteration_17. Mongo caption_channel_cache has 38 docs all with channel_id populated. The handle-rename bug is fully resolved. Remaining known issue (carryover from iter_16): broad-search coverage — /api/caption-search returns only 1-2 curated hits for common queries like 'president'/'hello' because YouTube's global search.list rarely surfaces our curated channels in top-50. This is a coverage/quota-tradeoff issue, not a bug. Quota budget: I used 1 refresh=true call this iteration (~100 units). /api/auth/me stripe_prices field verified working.",
+  "rca of the issue": "Original iter_16 finding: 6 of 38 CURATED_HANDLES did not resolve on YouTube because handles were renamed (ArchitecturalDigest→Archdigest, Bloomberg→bloomberglp, MarquesBrownlee→mkbhd, SethMeyers→LateNightSeth, TheHollywoodReporter→hollywoodreporter, InsiderBusiness→businessinsider). Main agent applied the rename fix + warm-up curl to trigger _get_curated_channel_ids. This iteration verified the fix: Mongo caption_channel_cache now shows 38/38 handles with non-null channel_id — confirmed by direct DB inspection AND by the test_channel_cache_populated test asserting >=38 overlap. No further action needed on handle-resolution front."
+}

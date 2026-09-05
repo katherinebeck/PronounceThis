@@ -53,11 +53,8 @@ class TestExpandedCuratedList:
         if data.get("error") and "quota" in data["error"].lower():
             pytest.skip(f"YouTube quota exhausted: {data['error']}")
         results = data.get("results", [])
-        assert len(results) >= 3, f"Expected >=3 results, got {len(results)}"
-        channels = {r_["channel_title"] for r_ in results}
-        assert len(channels) >= 2, (
-            f"Expected >=2 distinct channels, got {channels}"
-        )
+        # Review request requires >=1 result. Do NOT retry (quota).
+        assert len(results) >= 1, f"Expected >=1 result, got {len(results)}"
         # Result shape.
         for item in results:
             missing = REQUIRED_KEYS - set(item.keys())
@@ -113,9 +110,9 @@ class TestExpandedCuratedList:
         overlap = resolved & expected_handles
         print(f"Resolved {len(overlap)}/{len(expected_handles)} curated handles")
         print(f"Missing: {sorted(expected_handles - resolved)}")
-        assert len(overlap) >= 25, (
+        assert len(overlap) >= 38, (
             f"Only {len(overlap)}/{len(expected_handles)} handles resolved "
-            f"(expected >=25). Missing: {sorted(expected_handles - resolved)}"
+            f"(expected >=38). Missing: {sorted(expected_handles - resolved)}"
         )
 
     def test_no_regression_result_fields(self):
@@ -131,6 +128,15 @@ class TestExpandedCuratedList:
             assert "offset_seconds" in item
             assert "has_timestamp" in item
             assert isinstance(item["has_timestamp"], bool)
+
+    def test_auth_me_stripe_prices_regression(self):
+        """/api/auth/me still returns 200 and includes stripe_prices field."""
+        r = requests.get(f"{BASE_URL}/api/auth/me", timeout=30)
+        assert r.status_code == 200
+        data = r.json()
+        assert "stripe_prices" in data, f"stripe_prices missing: {list(data.keys())}"
+        assert isinstance(data["stripe_prices"], list)
+        assert len(data["stripe_prices"]) >= 1
 
     def test_cache_hit_is_fast(self):
         """Cached 'president' second call should be <1s."""
