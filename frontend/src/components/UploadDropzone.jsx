@@ -49,7 +49,7 @@ export default function UploadDropzone({ onUploaded }) {
     >
       <div className="flex flex-col items-start gap-6 max-w-xl">
         <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.05] text-ink">
-          Upload your audition scene.
+          Prepare for your next American accent audition.
           <br />
           <em className="not-italic text-rust">Hear how to pronounce every word.</em>
         </h2>
