@@ -169,7 +169,21 @@ async def _send_magic_link_email(email: str, login_url: str) -> None:
         logger.info(f"Sent magic link to {email}: {result.get('id')}")
     except Exception as e:
         logger.exception(f"Resend send failed for {email}: {e}")
-        raise HTTPException(status_code=502, detail="email_send_failed")
+        # Resend testing mode error: "You can only send testing emails to
+        # your own email address" until a domain is verified in Resend.
+        err_msg = str(e).lower()
+        if (
+            "testing emails to your own" in err_msg
+            or "verify a domain" in err_msg
+            or "restricted" in err_msg
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="email_delivery_pending_domain_verification",
+            )
+        # Any other Resend/network failure — still a client-visible error, but
+        # return 400 (not 5xx) so Cloudflare passes the response through.
+        raise HTTPException(status_code=400, detail="email_send_failed")
 
 
 # --- Membership status helper ----------------------------------------------

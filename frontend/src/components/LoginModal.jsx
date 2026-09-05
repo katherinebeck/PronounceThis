@@ -28,8 +28,19 @@ export default function LoginModal() {
       setStatus("sent");
     } catch (err) {
       setStatus("error");
-      const msg =
-        err?.response?.data?.detail || err?.message || "Could not send link.";
+      const detail = err?.response?.data?.detail;
+      let msg;
+      if (detail === "email_delivery_pending_domain_verification") {
+        msg =
+          "We're still verifying our email domain — right now sign-in links only work for the app owner. Please email support to get a comp account while we finish setup.";
+      } else if (detail === "email_send_failed") {
+        msg =
+          "Couldn't send the sign-in email right now. Please try again in a minute, or contact support if it persists.";
+      } else if (detail === "invalid_email") {
+        msg = "That doesn't look like a valid email address.";
+      } else {
+        msg = detail || err?.message || "Could not send link.";
+      }
       setError(String(msg));
       toast.error(String(msg));
     }

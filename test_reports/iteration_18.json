@@ -1,0 +1,22 @@
+{
+  "summary": "Verified the magic-link 5xx->4xx Cloudflare fix on the preview backend. All 4 magic-link error-mapping cases and all 3 regression endpoints pass (7/7). No 5xx escapes from /api/auth/request-magic-link even when Resend rejects the send; rate-limit path is silent 200 ok:true.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_magic_link_error.py",
+    "/app/test_reports/pytest/magic_link_error.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "auth.py _send_magic_link_email now correctly maps all Resend failures to HTTP 400 with detail codes (email_delivery_pending_domain_verification / email_send_failed). No 5xx path remains. Detection uses str(e).lower() substring match on 'testing emails to your own' / 'verify a domain' / 'restricted' — reasonable but brittle if Resend rewords the error; consider matching on the Resend error code/name if available.",
+    "Rate-limit path in request_magic_link correctly returns silent {ok: true} without leaking timing info, and executes BEFORE _send_magic_link_email so a failed first send does not preclude the silent second call (row is inserted only after send in current code — actually row is inserted before send; verified silent path works)."
+  ],
+  "updated_files": ["/app/backend/tests/test_magic_link_error.py"],
+  "success_rate": {"backend": "100%", "frontend": "n/a"},
+  "test_credentials": "none needed - unauthenticated endpoints",
+  "seed_data_creation": "Created and cleaned up 3 magic_link + 3 user rows for randomtest*/tester*/ratelimit* emails.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend fix on preview (accent-coach-pro.preview.emergentagent.com) verified. Production has not been redeployed yet per main agent note. Rerun /app/backend/tests/test_magic_link_error.py after prod redeploy to verify same behavior against prod URL.",
+  "rca of the issue": "Cloudflare intercepts 5xx from origin and returns generic 'origin returned invalid response' error. Original code raised HTTPException(status_code=502) from _send_magic_link_email when Resend refused (test-mode restriction: can only send to Resend account owner until domain verified). Fix maps Resend errors to 400 with a specific detail code so Cloudflare passes through and the frontend LoginModal can render a friendly message. Verified: unverified real gmail -> 400 detail=email_delivery_pending_domain_verification; example.com -> 400 detail=email_send_failed; invalid email -> 400 invalid_email; 2nd call within 60s -> 200 {ok:true}."
+}
