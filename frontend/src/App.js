@@ -9,6 +9,7 @@ import LoginModal from "@/components/LoginModal";
 import PaywallModal from "@/components/PaywallModal";
 import VerifyPage from "@/components/VerifyPage";
 import AccountChip from "@/components/AccountChip";
+import AdminPage from "@/components/AdminPage";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import {
@@ -63,7 +64,13 @@ export default function AppRoot() {
       />
       <LoginModal />
       <PaywallModal />
-      {path.startsWith("/auth/verify") ? <VerifyPage /> : <App />}
+      {path.startsWith("/auth/verify") ? (
+        <VerifyPage />
+      ) : path.startsWith("/admin") ? (
+        <AdminPage />
+      ) : (
+        <App />
+      )}
     </AuthProvider>
   );
 }

@@ -51,7 +51,8 @@ from auth import (
     consume_trial,
     ensure_indexes as ensure_auth_indexes,
 )
-from kajabi import create_kajabi_router, start_reconciliation_loop
+from kajabi import create_kajabi_router
+from admin import create_admin_router
 
 # --- DB ---------------------------------------------------------------------
 mongo_url = os.environ["MONGO_URL"]
@@ -1110,6 +1111,7 @@ async def tts_turn(scene_id: str, turn_index: int, voice: Optional[str] = None):
 # --- Mount ------------------------------------------------------------------
 api_router.include_router(create_auth_router(db))
 api_router.include_router(create_kajabi_router(db))
+api_router.include_router(create_admin_router(db))
 app.include_router(api_router)
 
 app.add_middleware(
@@ -1124,10 +1126,6 @@ app.add_middleware(
 @app.on_event("startup")
 async def _startup_indexes():
     await ensure_auth_indexes(db)
-    # Kick off the nightly Kajabi ↔ DB reconciliation. Handles cancellations
-    # + refunds for customers on Kajabi plans that don't support outbound
-    # webhook Automation actions.
-    start_reconciliation_loop(db)
 
 
 @app.on_event("shutdown")

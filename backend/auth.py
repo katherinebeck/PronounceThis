@@ -416,6 +416,24 @@ async def require_login(request: Request, db: AsyncIOMotorDatabase) -> str:
     return email
 
 
+async def require_admin(request: Request, db: AsyncIOMotorDatabase) -> str:
+    """Verify caller is a logged-in admin. Admins are listed in ADMIN_EMAILS
+    env var (comma-separated). Returns the admin's email on success."""
+    email = await require_login(request, db)
+    admins = {
+        e.strip().lower()
+        for e in os.environ.get("ADMIN_EMAILS", "").split(",")
+        if e.strip()
+    }
+    if not admins:
+        # No admins configured yet — deny everything explicitly so nothing
+        # ships "open by default" if the env var is missing.
+        raise HTTPException(status_code=403, detail="admin_not_configured")
+    if email.lower() not in admins:
+        raise HTTPException(status_code=403, detail="not_admin")
+    return email
+
+
 async def require_subscriber(request: Request, db: AsyncIOMotorDatabase) -> str:
     """Verify caller is logged in AND has an active membership."""
     email = await require_login(request, db)

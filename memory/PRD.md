@@ -63,6 +63,12 @@
   - Filters out non-timestamped "full video" fallbacks — only cued clips shown.
   - Minimal footer: `CHANNEL · CLIP n OF N` + compact "Open on YouTube" link.
 
+## Added (Feb 5, 2026 — Admin panel)
+- Owner admin panel at `/admin` — accessible only to emails in the `ADMIN_EMAILS` env var (currently `katherine@katherinebeck.com`).
+- Backend `/api/admin/*` routes: `whoami`, `memberships`, `memberships/cancel`, `memberships/grant`, `users`, `events`.
+- Purpose: manual cancellation on Kajabi plans without Public API access (Basic/Growth), plus manual grants for group-coaching students and refunds.
+- Frontend: `AdminPage.jsx` with a searchable user table, per-user Cancel button, and a Grant Access form (email + offer title + optional expiry in days).
+
 ## Added (Feb 5, 2026 — Production launch)
 - Deployed to production at **https://accent-coach-pro.emergent.host** ✅
 - Monthly offer configured: `https://www.katherinebeck.com/offers/tHhcLLoy`
