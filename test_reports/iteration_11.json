@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 11 verified backend TTS revert (plain word + trailing period) and consolidated Scenes UI. Backend: 101/101 pytest tests passed including test_tts_pronunciation, test_tts_respelling (unit tests on arpabet_to_respelling helper still valid; API tests only assert len(audio_b64) > threshold), test_reader_voices, test_turns. Explicit re-check on POST /api/tts for direction/popular/either/water/president returned 200 with decoded audio bytes 14254-16762 (>12000). Read /app/backend/server.py L789-836: tts_word sends spoken = word if word.endswith(('.','!','?')) else f'{word}.' — NO call to arpabet_to_respelling. Helper still exists in phonetics.py but unused by tts_word. GET /api/reader-voices returns Jessica + Adam. Per-voice cache still works (test_reader_voices adam/jessica separate cache). Frontend: uploaded test_scene.pdf (JANE/MARK 4-turn dialogue) via UI. Verified single-view Scenes tab: (a) scene-mode-tabs, mode-tab-read/mine/run, run-lines-button all count=0 (removed); (b) character-picker, voice-picker, play-my-lines-button all count=1 (present); (c) voice options ['Default','Jessica (female)','Adam (male)']; (d) after selecting JANE, turn-0/turn-2 have 'You' badges and border-l-ink accent while turn-1/turn-3 (MARK) get opacity-45 dim class — 2 You badges rendered; (e) 4 per-line turn-play-{i} buttons present; (f) play-my-lines-button toggles playback (clicked, waited 5s, button returns to 'Play My Lines' after second click); (g) laundry-list-panel still present with all category-* rows; (h) IPA shown under every word.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "SceneReader VoicePicker/CharacterPicker", "issues": ["React dev-mode warning persists: '<span> cannot be a child of <option>' — caused by Emergent dev overlay injecting <span> wrappers into <option> children in SceneReader.jsx CharacterPicker/VoicePicker. Cosmetic dev-only console noise; not visible in prod build."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_tts_pronunciation.py",
+    "/app/backend/tests/test_tts_respelling.py",
+    "/app/backend/tests/test_reader_voices.py",
+    "/app/test_reports/pytest/iter11_all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py tts endpoint correctly reverted — appends trailing period only when missing, uses eleven_multilingual_v2, MP3 128k. Clean and minimal.",
+    "phonetics.arpabet_to_respelling is now dead code from the tts flow but retained (imported in server.py L36 but not called by tts_word). Consider removing the import to reduce confusion, or add a comment noting it's kept for future respelling reuse.",
+    "SceneReader.jsx now ~465 lines — down from ~620. Still worth extracting CharacterPicker/VoicePicker/TurnBlock to their own files for maintainability.",
+    "usePersistedScenePrefs correctly resets state when sceneId changes; localStorage per-scene key prevents cross-scene bleed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (101/101)", "frontend": "100% (all 9 UI assertions pass)"},
+  "test_credentials": "N/A",
+  "seed_data_creation": "Uploaded /tmp/test_scene.pdf (JANE/MARK 4-turn) to backend; scene id 3f7f6461-bfb2-49e0-aa2c-c7b2701315e2. Cleared audio_cache entries for the 5 target words before backend TTS re-check.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Nav uses lowercase 'Scenes' textContent (CSS uppercase). Use JS click or evaluate to switch tabs. Scene Library resets per browser session — upload PDF via first file input on Scenes tab. arpabet_to_respelling import in server.py is currently unused by tts_word (revert per user request).",
+  "rca of the issue": "N/A — no bugs surfaced this iteration."
+}

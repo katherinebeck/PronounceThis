@@ -799,22 +799,11 @@ async def tts(req: TTSRequest):
 
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
 
-    # Look up the CMU pronunciation and convert to an English-readable
-    # respelling ("duh-REK-shun"). ElevenLabs' multilingual_v2 doesn't
-    # support SSML <phoneme> tags — sending them silently produces broken
-    # audio — but it reads plain-text respellings phonetically, so this
-    # nudges Jessica onto the correct pronunciation.
-    arp = get_arpabet(word)
-    respelling = arpabet_to_respelling(arp) if arp else None
-
     def _generate() -> bytes:
         client = _eleven_client()
-        # A trailing period tells the TTS engine to end with a falling
-        # pitch instead of trailing up like a question.
-        if respelling:
-            spoken = f"{respelling}."
-        else:
-            spoken = word if word.endswith((".", "!", "?")) else f"{word}."
+        # A trailing period cues a declarative (falling-pitch) reading instead
+        # of the "uptalk question" ElevenLabs otherwise gives to isolated words.
+        spoken = word if word.endswith((".", "!", "?")) else f"{word}."
         stream = client.text_to_speech.convert(
             text=spoken,
             voice_id=voice_id,

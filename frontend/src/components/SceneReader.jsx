@@ -6,11 +6,7 @@ import {
   Loader2,
   Volume2,
   User,
-  Mic,
-  BookOpen,
-  Users,
   ChevronDown,
-  SkipForward,
 } from "lucide-react";
 import WordBlock from "./WordBlock";
 import YouglishModal from "./CaptionSearchModal";
@@ -18,15 +14,8 @@ import { loadTurnAudio } from "@/lib/audio";
 import { fetchReaderVoices } from "@/lib/api";
 import { toast } from "sonner";
 
-// Pause between turns for Play My Lines (same-character, back-to-back).
+// Pause between successive "Play My Lines" lines (same character).
 const PAUSE_BETWEEN_MY_LINES_MS = 600;
-// Between reader-voice lines in Run Lines (natural conversational beat).
-const PAUSE_AFTER_READER_MS = 400;
-// Extra buffer added to the estimated speak time before auto-advancing.
-const USER_LINE_BUFFER_MS = 1000;
-// Speaking speed estimate for the user's own lines: characters per second.
-// ~2.5 words/sec × ~5 chars/word ≈ 12.5 chars/sec.
-const USER_CHARS_PER_SEC = 12.5;
 
 function normalize(w) {
   return (w || "").toLowerCase().replace(/[^a-z']/g, "");
@@ -48,19 +37,19 @@ function trimEdgeWhitespace(tokens) {
   return tokens.slice(start, end);
 }
 
-// Persist the coach's per-scene picks (character + reader voice) so
-// re-opening a scene remembers them. Scoped per browser.
+// Persist the coach's per-scene picks (character + voice) so re-opening
+// a scene remembers them. Scoped per browser.
 function usePersistedScenePrefs(sceneId) {
   const key = sceneId ? `scene_prefs::${sceneId}` : null;
-  const [prefs, setPrefs] = useState({ character: null, reader: null });
+  const [prefs, setPrefs] = useState({ character: null, voice: null });
   useEffect(() => {
     if (!key) return;
     try {
       const raw = window.localStorage.getItem(key);
       if (raw) setPrefs(JSON.parse(raw));
-      else setPrefs({ character: null, reader: null });
+      else setPrefs({ character: null, voice: null });
     } catch {
-      setPrefs({ character: null, reader: null });
+      setPrefs({ character: null, voice: null });
     }
   }, [key]);
   const update = (patch) => {
@@ -81,20 +70,18 @@ export default function SceneReader({ scene, highlightSet }) {
   const [activeIdx, setActiveIdx] = useState(null);
   const [playingTurn, setPlayingTurn] = useState(null); // int | null
   const [loadingTurn, setLoadingTurn] = useState(null);
-  const [mode, setMode] = useState("read"); // "read" | "mine" | "run"
-  const [running, setRunning] = useState(false); // any auto-playback in progress
+  const [running, setRunning] = useState(false);
   const [ygQuery, setYgQuery] = useState(null);
-  const [readerVoices, setReaderVoices] = useState([]);
+  const [voices, setVoices] = useState([]);
   const [prefs, setPrefs] = usePersistedScenePrefs(scene?.id);
   const audioRef = useRef(null);
   const stopRef = useRef(false);
-  const skipRef = useRef(false); // Run Lines: user tapped "Skip to next"
 
-  // Load available reader voices once.
+  // Load available voices once.
   useEffect(() => {
     fetchReaderVoices()
-      .then(setReaderVoices)
-      .catch(() => setReaderVoices([]));
+      .then(setVoices)
+      .catch(() => setVoices([]));
   }, []);
 
   const stats = useMemo(() => {
@@ -147,25 +134,8 @@ export default function SceneReader({ scene, highlightSet }) {
     };
   }, [scene?.id]);
 
-  // Escape / Space handling in Run Lines: Space = skip user's line.
-  useEffect(() => {
-    if (mode !== "run" || !running) return undefined;
-    const onKey = (e) => {
-      if (e.key === " " || e.code === "Space") {
-        e.preventDefault();
-        skipRef.current = true;
-      } else if (e.key === "Escape") {
-        stopEverything();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, running]);
-
   const stopEverything = () => {
     stopRef.current = true;
-    skipRef.current = false;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
@@ -215,46 +185,14 @@ export default function SceneReader({ scene, highlightSet }) {
     stopEverything();
     stopRef.current = false;
     try {
-      await playOneTurn(turnIndex);
+      await playOneTurn(turnIndex, { voice: prefs.voice });
     } catch (e) {
       toast.error(e.friendly || "Playback failed.");
       stopEverything();
     }
   };
 
-  // Mode 2: play only the auditioning character's lines back-to-back.
   const handlePlayMyLines = async () => {
-    if (running) {
-      stopEverything();
-      return;
-    }
-    if (!prefs.character) {
-      toast.error("Pick which character you're auditioning for first.");
-      return;
-    }
-    stopEverything();
-    stopRef.current = false;
-    setRunning(true);
-    try {
-      const mine = grouped.filter((t) => t.speaker === prefs.character);
-      for (let i = 0; i < mine.length; i++) {
-        if (stopRef.current) break;
-        if (i > 0) {
-          await new Promise((r) => setTimeout(r, PAUSE_BETWEEN_MY_LINES_MS));
-          if (stopRef.current) break;
-        }
-        await playOneTurn(mine[i].index);
-      }
-    } catch (e) {
-      toast.error(e.friendly || "Playback failed.");
-    } finally {
-      setRunning(false);
-      setPlayingTurn(null);
-    }
-  };
-
-  // Mode 3: reader voice speaks other-character lines; wait during user's.
-  const handleRunLines = async () => {
     if (running) {
       stopEverything();
       return;
@@ -263,41 +201,22 @@ export default function SceneReader({ scene, highlightSet }) {
       toast.error("Pick your character first.");
       return;
     }
-    if (!prefs.reader) {
-      toast.error("Pick a reader voice for the other characters.");
-      return;
-    }
     stopEverything();
     stopRef.current = false;
-    skipRef.current = false;
     setRunning(true);
     try {
-      for (let i = 0; i < grouped.length; i++) {
+      const mine = grouped.filter((t) => t.speaker === prefs.character);
+      if (!mine.length) {
+        toast.error(`No lines found for ${prefs.character}.`);
+        return;
+      }
+      for (let i = 0; i < mine.length; i++) {
         if (stopRef.current) break;
-        const t = grouped[i];
-        const isMine = t.speaker === prefs.character;
-        if (isMine) {
-          // Waiting for the actor to say their line out loud. Highlight it,
-          // auto-advance after estimated speak time, but honor tap-to-skip.
-          setPlayingTurn(t.index);
-          const estMs = Math.max(
-            1500,
-            Math.round((t.text.length / USER_CHARS_PER_SEC) * 1000) + USER_LINE_BUFFER_MS,
-          );
-          const stepMs = 100;
-          let waited = 0;
-          skipRef.current = false;
-          while (waited < estMs && !stopRef.current && !skipRef.current) {
-            await new Promise((r) => setTimeout(r, stepMs));
-            waited += stepMs;
-          }
-          setPlayingTurn(null);
-        } else {
-          // Reader voice speaks this line.
-          await playOneTurn(t.index, { voice: prefs.reader });
+        if (i > 0) {
+          await new Promise((r) => setTimeout(r, PAUSE_BETWEEN_MY_LINES_MS));
           if (stopRef.current) break;
-          await new Promise((r) => setTimeout(r, PAUSE_AFTER_READER_MS));
         }
+        await playOneTurn(mine[i].index, { voice: prefs.voice });
       }
     } catch (e) {
       toast.error(e.friendly || "Playback failed.");
@@ -312,87 +231,45 @@ export default function SceneReader({ scene, highlightSet }) {
   return (
     <div className="flex-1 flex flex-col min-w-0 bg-paper">
       <div className="px-4 sm:px-6 lg:px-10 xl:px-14 pt-6 sm:pt-8 pb-4 sm:pb-5 border-b thin-rule">
-        <div className="flex items-start justify-between gap-6 flex-wrap">
-          <div className="min-w-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted2 mb-2">
-              The Scene
-            </div>
-            <h1
-              className="font-display text-4xl lg:text-5xl text-ink leading-tight"
-              data-testid="scene-title"
-            >
-              {scene.title}
-            </h1>
-            <div className="mt-3 font-mono text-xs text-muted2 flex flex-wrap gap-x-6 gap-y-1">
-              <span data-testid="scene-stat-words">
-                {stats.total} words
-              </span>
-              <span data-testid="scene-stat-ipa">
-                {stats.transcribed} transcribed in IPA
-              </span>
-              <span data-testid="scene-stat-turns">
-                {grouped.length} {grouped.length === 1 ? "turn" : "turns"}
-              </span>
-            </div>
+        <div className="min-w-0">
+          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted2 mb-2">
+            The Scene
+          </div>
+          <h1
+            className="font-display text-4xl lg:text-5xl text-ink leading-tight"
+            data-testid="scene-title"
+          >
+            {scene.title}
+          </h1>
+          <div className="mt-3 font-mono text-xs text-muted2 flex flex-wrap gap-x-6 gap-y-1">
+            <span data-testid="scene-stat-words">{stats.total} words</span>
+            <span data-testid="scene-stat-ipa">
+              {stats.transcribed} transcribed in IPA
+            </span>
+            <span data-testid="scene-stat-turns">
+              {grouped.length} {grouped.length === 1 ? "turn" : "turns"}
+            </span>
           </div>
         </div>
 
-        {/* Mode tabs */}
-        <div
-          className="mt-5 inline-flex border thin-rule overflow-hidden"
-          role="tablist"
-          data-testid="scene-mode-tabs"
-        >
-          {[
-            { id: "read", label: "Read", icon: BookOpen },
-            { id: "mine", label: "Play My Lines", icon: Mic },
-            { id: "run",  label: "Run Lines",     icon: Users },
-          ].map((m) => {
-            const Icon = m.icon;
-            const active = mode === m.id;
-            return (
-              <button
-                key={m.id}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                data-testid={`mode-tab-${m.id}`}
-                onClick={() => {
-                  stopEverything();
-                  setMode(m.id);
-                }}
-                className={
-                  "inline-flex items-center gap-2 px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.22em] border-r thin-rule last:border-r-0 transition-colors " +
-                  (active ? "bg-ink text-surface" : "text-ink hover:bg-paper")
-                }
-              >
-                <Icon size={12} />
-                {m.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Mode-specific controls */}
-        {(mode === "mine" || mode === "run") && speakers.length > 0 ? (
-          <div className="mt-4 flex items-center gap-3 flex-wrap">
+        {/* Practice controls: character + voice + Play My Lines. */}
+        {speakers.length > 0 ? (
+          <div className="mt-5 flex items-center gap-3 flex-wrap">
             <CharacterPicker
               speakers={speakers}
               value={prefs.character}
               onChange={(c) => setPrefs({ character: c })}
             />
-            {mode === "run" ? (
-              <ReaderVoicePicker
-                voices={readerVoices}
-                value={prefs.reader}
-                onChange={(v) => setPrefs({ reader: v })}
-              />
-            ) : null}
+            <VoicePicker
+              voices={voices}
+              value={prefs.voice}
+              onChange={(v) => setPrefs({ voice: v })}
+            />
             <button
               type="button"
               className={"btn-primary " + (running ? "!bg-rust" : "")}
-              onClick={mode === "mine" ? handlePlayMyLines : handleRunLines}
-              data-testid={mode === "mine" ? "play-my-lines-button" : "run-lines-button"}
+              onClick={handlePlayMyLines}
+              data-testid="play-my-lines-button"
             >
               {running ? (
                 <>
@@ -400,29 +277,10 @@ export default function SceneReader({ scene, highlightSet }) {
                 </>
               ) : (
                 <>
-                  <Play size={12} fill="currentColor" />{" "}
-                  {mode === "mine" ? "Play My Lines" : "Start Practicing"}
+                  <Play size={12} fill="currentColor" /> Play My Lines
                 </>
               )}
             </button>
-            {mode === "run" && running ? (
-              <button
-                type="button"
-                onClick={() => (skipRef.current = true)}
-                className="btn-secondary"
-                data-testid="run-lines-skip"
-                title="Skip to next line (or press Space)"
-              >
-                <SkipForward size={12} /> Skip
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-
-        {mode === "run" && running ? (
-          <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
-            Press <span className="text-ink">Space</span> to skip your line ·{" "}
-            <span className="text-ink">Esc</span> to stop
           </div>
         ) : null}
       </div>
@@ -433,10 +291,8 @@ export default function SceneReader({ scene, highlightSet }) {
       >
         <div className="max-w-[78ch] flex flex-col gap-8">
           {grouped.map((turn) => {
-            const isMine =
-              prefs.character && turn.speaker === prefs.character;
+            const isMine = prefs.character && turn.speaker === prefs.character;
             const dimOthers =
-              (mode === "mine" || mode === "run") &&
               prefs.character &&
               turn.speaker &&
               !isMine;
@@ -453,11 +309,6 @@ export default function SceneReader({ scene, highlightSet }) {
                 autoPlaying={running}
                 isMine={isMine}
                 dimOthers={dimOthers}
-                mode={mode}
-                waitingForUser={
-                  mode === "run" && running &&
-                  playingTurn === turn.index && isMine
-                }
                 onOpenReference={setYgQuery}
               />
             );
@@ -494,18 +345,18 @@ function CharacterPicker({ speakers, value, onChange }) {
   );
 }
 
-function ReaderVoicePicker({ voices, value, onChange }) {
+function VoicePicker({ voices, value, onChange }) {
   return (
     <label className="inline-flex items-center gap-2 border thin-rule bg-surface px-3 py-2 font-mono text-[11px] uppercase tracking-[0.22em]">
       <Volume2 size={12} className="text-muted2" />
-      <span className="text-muted2">Reader</span>
+      <span className="text-muted2">Voice</span>
       <select
         value={value || ""}
         onChange={(e) => onChange(e.target.value || null)}
         className="bg-transparent outline-none text-ink pr-1"
-        data-testid="reader-voice-picker"
+        data-testid="voice-picker"
       >
-        <option value="">— pick —</option>
+        <option value="">Default</option>
         {voices.map((v) => (
           <option key={v.key} value={v.key}>
             {v.label} ({v.gender})
@@ -528,8 +379,6 @@ function TurnBlock({
   autoPlaying,
   isMine,
   dimOthers,
-  mode,
-  waitingForUser,
   onOpenReference,
 }) {
   const isNarration = !turn.speaker;
@@ -581,7 +430,7 @@ function TurnBlock({
                 className="inline-flex items-center gap-1 text-[9px] tracking-[0.24em] text-ink bg-[#E5E1D8] px-1.5 py-0.5"
                 data-testid={`turn-you-badge-${turn.index}`}
               >
-                <Mic size={9} /> You
+                You
               </span>
             ) : null}
           </div>
@@ -590,14 +439,9 @@ function TurnBlock({
             {isNarration ? "Narration" : ""}
           </div>
         )}
-        {playing && !waitingForUser ? (
+        {playing ? (
           <span className="ml-auto inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] text-rust">
             <Volume2 size={12} /> Now speaking
-          </span>
-        ) : null}
-        {waitingForUser ? (
-          <span className="ml-auto inline-flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.22em] text-ink">
-            <Mic size={12} /> Your turn — speak now
           </span>
         ) : null}
       </div>
