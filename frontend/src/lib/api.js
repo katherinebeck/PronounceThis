@@ -71,3 +71,17 @@ export async function fetchReaderVoices() {
   const { data } = await api.get("/reader-voices");
   return data.voices; // [{ key, label, gender, description }]
 }
+
+export async function downloadMyLines(sceneId, { character, voice = null } = {}) {
+  const params = { character };
+  if (voice) params.voice = voice;
+  const response = await api.get(`/scenes/${sceneId}/download-lines`, {
+    params,
+    responseType: "blob",
+  });
+  // Filename comes from the Content-Disposition header the backend sets.
+  const disp = response.headers?.["content-disposition"] || "";
+  const match = /filename="?([^"]+)"?/i.exec(disp);
+  const filename = match?.[1] || `${character || "lines"}.zip`;
+  return { blob: response.data, filename };
+}

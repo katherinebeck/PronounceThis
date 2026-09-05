@@ -1,0 +1,42 @@
+{
+  "summary": "Tested new Download My Lines feature end-to-end. Backend: all 5 new tests pass (ZIP mime + Content-Disposition, per-file 01_..mp3 naming, valid MP3 magic bytes, per-voice cache with second call ~instant, adam vs jessica different bytes, 400 badvoice, 404 unknown character, 404 missing scene). Frontend: uploaded fixture PDF, verified download-my-lines-button visible; clicking with no character shows toast 'Pick your character first.' and no download fires; picking JANE + click triggers browser download with suggested filename 'scene_JANE.zip'; while Play My Lines is running, button has disabled attribute. Full backend regression suite: 105 passed / 1 pre-existing failure (test_reader_voices::test_turn_tts_adam_separate_cache asserts adam first-call cached=False but adam was already cached from prior test runs on the shared DB — not a regression from this iteration).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/scenes/{id}/turns/{i}/tts?voice=adam", "issue": "Pre-existing flaky assertion in test_reader_voices.py::test_turn_tts_adam_separate_cache — expects cached=False on first adam call but the shared test DB already has adam audio cached from prior iterations. Test needs to either clear the cache first or drop the cached=False assertion. Not a bug in the endpoint."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "SceneReader voice picker", "issues": ["Console hydration warning: <span> cannot be a child of <option> in VoicePicker (line ~414 of SceneReader.jsx). Cosmetic React warning, does not break functionality."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_download_lines.py",
+    "/app/test_reports/pytest/dl.xml",
+    "/app/test_reports/pytest/all.xml"
+  ],
+  "action_items": [
+    "Optional: fix pre-existing flaky test_turn_tts_adam_separate_cache (clear turn_audio_cache for the fixture scene or drop cached=False first-call assertion).",
+    "Optional: remove <span> wrapper inside <option> in VoicePicker to silence React hydration warning."
+  ],
+  "critical_code_review_comments": [
+    "download-lines endpoint correctly reuses turn_audio_cache keyed by scene_id:turn_idx[:voice] — matches Play My Lines cache keys so no double-billing (verified: second call to same voice is near-instant).",
+    "ZIP built in-memory with ZIP_STORED (uncompressed) — fine for MP3s which are already compressed.",
+    "Missing input validation: `character` query param is required by FastAPI (no default) so an empty request 422s — acceptable but consider returning 400 with a friendly message.",
+    "Filename slug logic strips non-alphanumerics; safe. Content-Disposition header uses double quotes — good.",
+    "Frontend downloadMyLines uses axios responseType='blob' and reads Content-Disposition to determine filename — correct pattern.",
+    "Button correctly disabled when downloading || running; toast fallback covers backend errors."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_download_lines.py (new)"
+  ],
+  "success_rate": {"backend": "100% for new endpoint (5/5); 105/106 regression (1 pre-existing flake)", "frontend": "100% (3/3 new flows)"},
+  "test_credentials": "N/A - no auth in this app",
+  "seed_data_creation": "Uploaded a 4-line fixture PDF (JANE/MARK dialogue) via POST /api/scenes/upload during test runs; also uploaded via frontend UI during Playwright test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Feature is fully working. If touching test_reader_voices.py's adam cache assertion, note the shared DB already has adam-cached audio from many prior iterations; either use a fresh scene per test or drop the first-call cached=False assertion."
+}

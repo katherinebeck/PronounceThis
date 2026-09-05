@@ -25,6 +25,7 @@ from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, Field
 from pypdf import PdfReader
@@ -865,6 +866,93 @@ async def caption_search(q: str, limit: int = 6, refresh: bool = False):
         raise HTTPException(status_code=400, detail="Query too long.")
     return await caption_service.search(q, limit=max(1, min(limit, 10)),
                                         force_refresh=refresh)
+
+
+@api_router.get("/scenes/{scene_id}/download-lines")
+async def download_my_lines(
+    scene_id: str,
+    character: str,
+    voice: Optional[str] = None,
+):
+    """Bundle every audio line for `character` in this scene into a single
+    ZIP so actors can drill offline. Reuses turn_audio_cache: cached lines
+    are pulled instantly; missing ones are generated (and cached) here."""
+    import zipfile
+
+    doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Scene not found")
+    doc = await _ensure_dialogue_only(doc)
+
+    voice_id: Optional[str] = None
+    voice_key: Optional[str] = None
+    if voice:
+        voice_key = voice.lower().strip()
+        if voice_key not in READER_VOICES:
+            raise HTTPException(status_code=400, detail="Unknown voice.")
+        voice_id = READER_VOICES[voice_key]
+
+    turns = doc.get("turns") or []
+    normalized_char = (character or "").strip()
+    mine = [t for t in turns if (t.get("speaker") or "").strip() == normalized_char]
+    if not mine:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No lines found for character '{character}'.",
+        )
+
+    # Build MP3s (from cache when possible) then zip them in memory.
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_STORED) as zf:
+        for i, turn in enumerate(mine, start=1):
+            turn_idx = turn.get("index", 0)
+            cache_key = (
+                f"{scene_id}:{turn_idx}"
+                + (f":{voice_key}" if voice_key else "")
+            )
+            cached = await db.turn_audio_cache.find_one(
+                {"key": cache_key}, {"_id": 0},
+            )
+            if cached and cached.get("audio_b64"):
+                audio_bytes = base64.b64decode(cached["audio_b64"])
+            else:
+                try:
+                    audio_bytes = await asyncio.to_thread(
+                        _synthesize, turn["text"], voice_id,
+                    )
+                except Exception as e:
+                    logger.exception("Download lines TTS error")
+                    raise HTTPException(
+                        status_code=502, detail=f"TTS failed: {e}",
+                    )
+                if audio_bytes:
+                    audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
+                    async with _tts_lock:
+                        await db.turn_audio_cache.update_one(
+                            {"key": cache_key},
+                            {"$set": {
+                                "key": cache_key,
+                                "audio_b64": audio_b64,
+                                "created_at": datetime.now(timezone.utc).isoformat(),
+                            }},
+                            upsert=True,
+                        )
+            if not audio_bytes:
+                continue
+            # File name: 01_first-few-words.mp3
+            preview = re.sub(r"[^A-Za-z0-9]+", "-", turn.get("text", ""))[:40].strip("-")
+            fname = f"{i:02d}_{preview or 'line'}.mp3"
+            zf.writestr(fname, audio_bytes)
+
+    zip_bytes = buf.getvalue()
+    safe_char = re.sub(r"[^A-Za-z0-9]+", "-", normalized_char).strip("-") or "lines"
+    scene_slug = re.sub(r"[^A-Za-z0-9]+", "-", doc.get("title", "scene")).strip("-") or "scene"
+    filename = f"{scene_slug}_{safe_char}.zip"
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 # --- Reader voices for "Run Lines" mode ------------------------------------

@@ -7,11 +7,12 @@ import {
   Volume2,
   User,
   ChevronDown,
+  Download,
 } from "lucide-react";
 import WordBlock from "./WordBlock";
 import YouglishModal from "./CaptionSearchModal";
 import { loadTurnAudio } from "@/lib/audio";
-import { fetchReaderVoices } from "@/lib/api";
+import { fetchReaderVoices, downloadMyLines } from "@/lib/api";
 import { toast } from "sonner";
 
 // Pause between successive "Play My Lines" lines (same character).
@@ -71,6 +72,7 @@ export default function SceneReader({ scene, highlightSet }) {
   const [playingTurn, setPlayingTurn] = useState(null); // int | null
   const [loadingTurn, setLoadingTurn] = useState(null);
   const [running, setRunning] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [ygQuery, setYgQuery] = useState(null);
   const [voices, setVoices] = useState([]);
   const [prefs, setPrefs] = usePersistedScenePrefs(scene?.id);
@@ -226,6 +228,39 @@ export default function SceneReader({ scene, highlightSet }) {
     }
   };
 
+  const handleDownloadMyLines = async () => {
+    if (!prefs.character) {
+      toast.error("Pick your character first.");
+      return;
+    }
+    setDownloading(true);
+    try {
+      const { blob, filename } = await downloadMyLines(scene.id, {
+        character: prefs.character,
+        voice: prefs.voice,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Give the browser a beat to start the download, then release the URL.
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast.success(`Downloaded ${prefs.character}'s lines.`);
+    } catch (e) {
+      const msg =
+        e?.response?.data?.detail ||
+        e.friendly ||
+        e.message ||
+        "Download failed.";
+      toast.error(msg);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (!scene) return null;
 
   return (
@@ -278,6 +313,24 @@ export default function SceneReader({ scene, highlightSet }) {
               ) : (
                 <>
                   <Play size={12} fill="currentColor" /> Play My Lines
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleDownloadMyLines}
+              data-testid="download-my-lines-button"
+              disabled={downloading || running}
+              title="Download every one of your character's lines as an MP3 zip for offline drilling"
+            >
+              {downloading ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" /> Bundling
+                </>
+              ) : (
+                <>
+                  <Download size={12} /> Download My Lines
                 </>
               )}
             </button>
