@@ -63,6 +63,13 @@
   - Filters out non-timestamped "full video" fallbacks — only cued clips shown.
   - Minimal footer: `CHANNEL · CLIP n OF N` + compact "Open on YouTube" link.
 
+## Added (Feb 5, 2026 — Production launch)
+- Deployed to production at **https://accent-coach-pro.emergent.host** ✅
+- Monthly offer configured: `https://www.katherinebeck.com/offers/tHhcLLoy`
+- Annual offer configured: `https://www.katherinebeck.com/offers/VWxogPVj`
+- Per-offer Purchase Created webhook wired for both offers (Kajabi Path A).
+- Kajabi setup guide `/app/memory/KAJABI_SETUP.md` updated with production URLs.
+
 ## Added (Feb 5, 2026 — Phase 1: Kajabi-gated subscriptions)
 - **Magic-link email auth** via Resend (`/app/backend/auth.py`, `/app/frontend/src/lib/auth.jsx`).
   - `POST /api/auth/request-magic-link` sends a 15-min one-tap link, rate-limited to 1/min per email.
