@@ -237,7 +237,7 @@ export default function LaundryListPanel({
                 <div className="grid grid-cols-2 gap-2">
                   {list.words.map((w, i) => (
                     <button
-                      key={i}
+                      key={`${i}-${w.word}`}
                       type="button"
                       className={
                         "border thin-rule px-3 py-2 flex flex-col items-start gap-0.5 hover:border-ink transition-colors min-w-0 text-left " +
@@ -250,8 +250,8 @@ export default function LaundryListPanel({
                         setPracticeIdx(i);
                         try {
                           await playWord(w.text);
-                        } catch {
-                          /* ignore */
+                        } catch (e) {
+                          console.warn("Word audio playback failed", w.text, e);
                         }
                       }}
                     >

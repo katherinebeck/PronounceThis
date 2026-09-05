@@ -49,7 +49,8 @@ function usePersistedScenePrefs(sceneId) {
       const raw = window.localStorage.getItem(key);
       if (raw) setPrefs(JSON.parse(raw));
       else setPrefs({ character: null, voice: null });
-    } catch {
+    } catch (e) {
+      console.warn("Could not load scene prefs from localStorage", e);
       setPrefs({ character: null, voice: null });
     }
   }, [key]);
@@ -59,7 +60,9 @@ function usePersistedScenePrefs(sceneId) {
       if (key) {
         try {
           window.localStorage.setItem(key, JSON.stringify(next));
-        } catch {}
+        } catch (e) {
+          console.warn("Could not persist scene prefs", e);
+        }
       }
       return next;
     });
@@ -501,7 +504,7 @@ function TurnBlock({
       <div className="scene-flow">
         {turn.tokens.map((tok, i) => (
           <WordBlock
-            key={i}
+            key={`${turn.index}:${i}:${tok.text}`}
             token={tok}
             active={activeIdx === `${turn.index}:${i}`}
             highlighted={

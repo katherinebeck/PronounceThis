@@ -36,8 +36,8 @@ function readMyScenes() {
 function writeMyScenes(list) {
   try {
     window.localStorage.setItem(MY_SCENES_KEY, JSON.stringify(list));
-  } catch {
-    // localStorage unavailable — silently drop persistence
+  } catch (e) {
+    console.warn("localStorage unavailable — scene index will not persist", e);
   }
 }
 
@@ -110,7 +110,9 @@ function App() {
     setTab(t);
     try {
       window.localStorage.setItem("activeTab", t);
-    } catch {}
+    } catch (e) {
+      console.warn("localStorage unavailable — tab selection not persisted", e);
+    }
   };
 
   const refreshScenes = useCallback(async () => {
@@ -138,6 +140,7 @@ function App() {
         }
       } catch (e) {
         // Backend unreachable on first load — the Pronounce tab still works.
+        console.warn("Initial data load failed", e);
       } finally {
         setLoading(false);
       }
@@ -148,7 +151,9 @@ function App() {
     try {
       const full = await getScene(id);
       setActiveScene(full);
-    } catch {}
+    } catch (e) {
+      console.warn("Could not load scene", id, e);
+    }
   };
 
   const handleNewScene = async (scene) => {
@@ -177,7 +182,9 @@ function App() {
       try {
         const full = await getScene(next[0].id);
         setActiveScene(full);
-      } catch {}
+      } catch (e) {
+        console.warn("Could not auto-load next scene after delete", e);
+      }
     }
   };
 
