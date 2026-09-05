@@ -244,7 +244,8 @@ class _KajabiApi:
                 return self._token
             async with httpx.AsyncClient(timeout=15.0) as client:
                 r = await client.post(
-                    f"{KAJABI_API_BASE}/oauth/token",
+                    f"{KAJABI_API_BASE}/v1/oauth/token",
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
                     data={
                         "grant_type": "client_credentials",
                         "client_id": KAJABI_API_CLIENT_ID,
