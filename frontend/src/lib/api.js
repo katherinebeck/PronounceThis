@@ -2,7 +2,26 @@ import axios from "axios";
 
 export const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-export const api = axios.create({ baseURL: API });
+// withCredentials so the httpOnly JWT session cookie flows on every request.
+export const api = axios.create({ baseURL: API, withCredentials: true });
+
+// --- Auth --------------------------------------------------------------
+export async function fetchMe() {
+  const { data } = await api.get("/auth/me");
+  return data;
+}
+export async function requestMagicLink(email) {
+  const { data } = await api.post("/auth/request-magic-link", { email });
+  return data;
+}
+export async function verifyMagicLink(token) {
+  const { data } = await api.get("/auth/verify", { params: { token } });
+  return data;
+}
+export async function logout() {
+  const { data } = await api.post("/auth/logout");
+  return data;
+}
 
 export async function uploadScene(file) {
   const fd = new FormData();

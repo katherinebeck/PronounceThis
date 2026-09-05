@@ -63,8 +63,26 @@
   - Filters out non-timestamped "full video" fallbacks — only cued clips shown.
   - Minimal footer: `CHANNEL · CLIP n OF N` + compact "Open on YouTube" link.
 
+## Added (Feb 5, 2026 — Phase 1: Kajabi-gated subscriptions)
+- **Magic-link email auth** via Resend (`/app/backend/auth.py`, `/app/frontend/src/lib/auth.jsx`).
+  - `POST /api/auth/request-magic-link` sends a 15-min one-tap link, rate-limited to 1/min per email.
+  - `GET /api/auth/verify?token=…` consumes the link and sets a httpOnly JWT session cookie.
+  - `GET /api/auth/me` returns auth state + subscription state + trial counters + Kajabi offer URLs.
+  - `POST /api/auth/logout` clears the cookie.
+- **Trial model** — every logged-in user gets 1 free word TTS + 1 free scene upload before hitting the paywall.
+- **Kajabi webhook receiver** (`/app/backend/kajabi.py`).
+  - `POST /api/kajabi/webhook?token=…` handles Purchase Created + Payment Succeeded events. Bearer-token protected (Kajabi doesn't sign webhooks). Idempotent via `webhook_events` collection.
+  - `POST /api/kajabi/cancel?token=…` receives the cancellation Automation trigger; honors `subscription_end_at`.
+  - Auto-creates a shell `users` row if a customer buys on Kajabi before signing into the app.
+- **Access gate** wired to `POST /api/tts` (word trial), `POST /api/scenes/upload` (scene trial), and `GET /api/scenes/{id}/download-lines` (subscribers only).
+- **Frontend** — `LoginModal`, `PaywallModal`, `VerifyPage`, `AccountChip`, `AuthProvider`. Global axios interceptor opens login on 401 / paywall on 402.
+- **Kajabi setup guide** at `/app/memory/KAJABI_SETUP.md` — step-by-step instructions the user can follow to create offers + hook them into our webhooks.
+
 ## Next tasks
-1. **Merriam-Webster audio integration (P0)** — waiting on user's MW API key. Layer real human recordings on top of ElevenLabs TTS.
-2. Adjustable playback speed (0.5× / 0.75× / 1×) toggle in Word + Scenes.
-3. Session Notes — coach attaches a homework note to any word/scene.
-4. Refactor `server.py` (1100+ lines) into `routes/` + `services/`.
+1. **[Waiting on user]** Create Monthly + Annual (+ optional Group Coaching) offers in Kajabi, then paste the 3 checkout URLs so we can drop them into `KAJABI_MONTHLY_OFFER_URL` / `KAJABI_ANNUAL_OFFER_URL` / `KAJABI_MEMBER_PORTAL_URL`.
+2. **[Waiting on user]** Configure the Purchase Created + Payment Succeeded webhooks + cancellation Automation in Kajabi per the setup guide.
+3. **Domain verification for Resend** — verify `katherinebeck.com` in Resend so login emails ship from `login@katherinebeck.com` (currently in Resend test mode which only delivers to the account owner).
+4. **Nightly Kajabi reconciliation job** using the Public API — catches missed cancellations/refunds. `KAJABI_API_CLIENT_ID` + `KAJABI_API_CLIENT_SECRET` already saved.
+5. **Merriam-Webster audio integration (P0)** — still waiting on MW API key.
+6. Playback speed toggles (0.5× / 0.75× / 1×).
+7. Refactor `server.py` (now ~1130 lines) into `routes/` + `services/`.

@@ -5,6 +5,12 @@ import SceneReader from "@/components/SceneReader";
 import LaundryListPanel from "@/components/LaundryListPanel";
 import UploadDropzone from "@/components/UploadDropzone";
 import PronouncePage from "@/components/PronouncePage";
+import LoginModal from "@/components/LoginModal";
+import PaywallModal from "@/components/PaywallModal";
+import VerifyPage from "@/components/VerifyPage";
+import AccountChip from "@/components/AccountChip";
+import { AuthProvider, useAuth } from "@/lib/auth";
+import { api } from "@/lib/api";
 import {
   getScene,
   fetchSoundCategories,
@@ -18,10 +24,6 @@ const TABS = [
 
 const MY_SCENES_KEY = "myScenes";
 
-// Read the ids of scenes uploaded from THIS browser. Scenes on the server
-// are visible to whoever knows the id, but the sidebar only ever lists the
-// ones this browser has seen — so people don't see what someone else
-// searched or uploaded.
 function readMyScenes() {
   try {
     const raw = window.localStorage.getItem(MY_SCENES_KEY);
@@ -39,7 +41,58 @@ function writeMyScenes(list) {
   }
 }
 
-export default function App() {
+export default function AppRoot() {
+  // Show the magic-link verify page if we're on /auth/verify. Kept outside
+  // the AuthProvider tree of the main app so the verify page can run its
+  // own tiny lifecycle without interfering with the main data loads.
+  const path = typeof window !== "undefined" ? window.location.pathname : "/";
+  return (
+    <AuthProvider>
+      <Toaster
+        position="top-center"
+        toastOptions={{
+          style: {
+            background: "#1C1B1A",
+            color: "#FDFDFB",
+            borderRadius: 0,
+            fontFamily: "IBM Plex Mono, monospace",
+            fontSize: "12px",
+            letterSpacing: "0.05em",
+          },
+        }}
+      />
+      <LoginModal />
+      <PaywallModal />
+      {path.startsWith("/auth/verify") ? <VerifyPage /> : <App />}
+    </AuthProvider>
+  );
+}
+
+function App() {
+  const auth = useAuth();
+
+  // Global 401 → open login, 402 → open paywall. Attached once per mount.
+  useEffect(() => {
+    const id = api.interceptors.response.use(
+      (r) => r,
+      (err) => {
+        const status = err?.response?.status;
+        if (status === 401) {
+          auth.openLogin();
+        } else if (status === 402) {
+          const detail = err?.response?.data?.detail;
+          const kind =
+            (detail && typeof detail === "object" && detail.kind) ||
+            "subscription";
+          auth.openPaywall(kind);
+        }
+        return Promise.reject(err);
+      }
+    );
+    return () => api.interceptors.response.eject(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const [tab, setTab] = useState(() => {
     try {
       return window.localStorage.getItem("activeTab") || "pronounce";
@@ -57,15 +110,10 @@ export default function App() {
     setTab(t);
     try {
       window.localStorage.setItem("activeTab", t);
-    } catch {
-      // localStorage not available (private mode) — ignore.
-    }
+    } catch {}
   };
 
   const refreshScenes = useCallback(async () => {
-    // Only list scenes this browser has uploaded. `listScenes()` on the
-    // server returns every scene — we no longer call it, so users don't see
-    // each other's uploads.
     const mine = readMyScenes();
     setScenes(mine);
     return mine;
@@ -83,15 +131,13 @@ export default function App() {
             const full = await getScene(mine[0].id);
             setActiveScene(full);
           } catch {
-            // Scene was deleted server-side — drop it from the local index.
             const filtered = mine.slice(1);
             writeMyScenes(filtered);
             setScenes(filtered);
           }
         }
       } catch (e) {
-        // Backend unreachable on first load — the Pronounce tab still works
-        // for cached tokens or once the network recovers.
+        // Backend unreachable on first load — the Pronounce tab still works.
       } finally {
         setLoading(false);
       }
@@ -102,14 +148,11 @@ export default function App() {
     try {
       const full = await getScene(id);
       setActiveScene(full);
-    } catch {
-      // ignore — sidebar highlight will simply not change
-    }
+    } catch {}
   };
 
   const handleNewScene = async (scene) => {
     setActiveScene(scene);
-    // Prepend the newly uploaded scene to this browser's private index.
     const summary = {
       id: scene.id,
       title: scene.title,
@@ -121,6 +164,8 @@ export default function App() {
     writeMyScenes(next);
     setScenes(next);
     switchTab("scenes");
+    // Refresh trial counter after a successful upload.
+    auth.refresh();
   };
 
   const handleDeleted = async (id) => {
@@ -132,27 +177,12 @@ export default function App() {
       try {
         const full = await getScene(next[0].id);
         setActiveScene(full);
-      } catch {
-        // ignore
-      }
+      } catch {}
     }
   };
 
   return (
     <div className="App min-h-screen flex flex-col">
-      <Toaster
-        position="top-center"
-        toastOptions={{
-          style: {
-            background: "#1C1B1A",
-            color: "#FDFDFB",
-            borderRadius: 0,
-            fontFamily: "IBM Plex Mono, monospace",
-            fontSize: "12px",
-            letterSpacing: "0.05em",
-          },
-        }}
-      />
       <Header tab={tab} onSwitchTab={switchTab} />
 
       {tab === "pronounce" ? (
@@ -232,9 +262,7 @@ function Header({ tab, onSwitchTab }) {
           );
         })}
       </nav>
-      <div className="hidden lg:block font-mono text-[10px] uppercase tracking-[0.25em] text-muted2">
-        IPA · ElevenLabs
-      </div>
+      <AccountChip />
     </header>
   );
 }

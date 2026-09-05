@@ -1,0 +1,32 @@
+{
+  "summary": "Backend tests for the new Kajabi-gated magic-link subscription layer. 18/18 pytest cases pass covering /api/auth/me, magic-link request/verify (valid, reuse, expired, rate-limit, invalid email), 401 gating on /api/tts, /api/scenes/upload, /api/scenes/{id}/download-lines, trial exhaustion (402 with detail.code=trial_exhausted, kind=word|scene), active-membership bypass with counters not incrementing, Kajabi /webhook (missing/wrong token 401, purchase creates membership + shell user + webhook_events row, replay returns duplicate:true and does not create a second membership, payment_succeeded refreshes last_payment_at + last_event), and /kajabi/cancel with future vs past subscription_end_at flipping /api/auth/me subscription_status between active and none. /api/caption-search remains ungated. Test data cleaned up in module teardown.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/auth/request-magic-link", "issue": "Invalid-email requests return 422 (Pydantic EmailStr) instead of the spec-stated 400 invalid_email; the explicit regex/HTTPException(400) branch is unreachable because Pydantic validates first. Cosmetic — either accept the 422 in docs or switch the model field to str and rely on EMAIL_RE."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_subscription_auth.py",
+    "/app/test_reports/pytest/subscription_auth.xml"
+  ],
+  "action_items": [
+    "Optional: align invalid-email response to 400 invalid_email (currently 422 from Pydantic EmailStr) if the frontend/spec expects that exact contract."
+  ],
+  "critical_code_review_comments": [
+    "auth.py: EMAIL_RE validation after Pydantic EmailStr is dead code — EmailStr already rejects malformed input with 422 before the regex runs.",
+    "auth.py ensure_indexes(): TTL index is created on `expires_at_dt` but magic_links documents only store `expires_at` (ISO string) — TTL never fires, magic_links will grow forever. Either write a real BSON date field or use a background cleanup.",
+    "kajabi.py webhook: token is read from a query parameter; if a proxy strips query strings on POST or logs them, the secret can leak. Consider also accepting a header (e.g. X-Webhook-Token) since Kajabi's URL is user-configurable.",
+    "kajabi.py webhook: DuplicateKeyError detection uses class-name string match (exc.__class__.__name__). Prefer `from pymongo.errors import DuplicateKeyError` and `except DuplicateKeyError` for clarity/robustness.",
+    "server.py > 1100 lines — recommend splitting scenes/tts/turns routes into separate modules for maintainability."
+  ],
+  "updated_files": ["/app/backend/tests/test_subscription_auth.py"],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only request)"},
+  "test_credentials": "Magic-link tokens seeded directly into db.magic_links; test emails use TEST_*@example.org prefix.",
+  "seed_data_creation": "Per-test TEST_*@example.org users, memberships, magic_links, and webhook_events rows — all cleaned up in module-scope teardown.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_subscription_auth.py is idempotent, uses direct pymongo writes for magic-link tokens (Resend test-mode friendly), cleans up TEST_ data, and covers all 18 review scenarios. Rerun with `pytest backend/tests/test_subscription_auth.py -v`.",
+  "rca of the issue": "N/A — no failures."
+}

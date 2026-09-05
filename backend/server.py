@@ -24,12 +24,15 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, BackgroundTasks, FastAPI, File, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, ConfigDict, Field
 from pypdf import PdfReader
 from starlette.middleware.cors import CORSMiddleware
+
+ROOT_DIR = Path(__file__).parent
+load_dotenv(ROOT_DIR / ".env")
 
 from phonetics import (
     SOUND_CATEGORIES,
@@ -40,9 +43,15 @@ from phonetics import (
     transcribe_word,
 )
 from caption_search import CaptionSearchService
-
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / ".env")
+from auth import (
+    create_auth_router,
+    require_access,
+    require_login,
+    require_subscriber,
+    consume_trial,
+    ensure_indexes as ensure_auth_indexes,
+)
+from kajabi import create_kajabi_router
 
 # --- DB ---------------------------------------------------------------------
 mongo_url = os.environ["MONGO_URL"]
@@ -617,10 +626,14 @@ async def pronounce(word: str):
 
 @api_router.post("/scenes/upload", response_model=Scene)
 async def upload_scene(
+    request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: Optional[str] = None,
 ):
+    # Gate: subscribers unlimited; trial users get 1 scene upload.
+    actor = await require_access(request, db, kind="scene")
+
     if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Please upload a PDF file.")
 
@@ -668,6 +681,7 @@ async def upload_scene(
     if proper_nouns:
         background_tasks.add_task(_prewarm_proper_nouns, proper_nouns)
 
+    await consume_trial(db, actor)
     return Scene(**doc)
 
 
@@ -815,14 +829,18 @@ def _eleven_client():
 
 
 @api_router.post("/tts", response_model=TTSResponse)
-async def tts(req: TTSRequest):
+async def tts(req: TTSRequest, request: Request):
     word = (req.word or "").strip()
     if not word:
         raise HTTPException(status_code=400, detail="word is required")
 
+    # Gate: subscribers unlimited; trial users get 1 word audio.
+    actor = await require_access(request, db, kind="word")
+
     cache_key = word.lower()
     cached = await db.audio_cache.find_one({"word": cache_key}, {"_id": 0})
     if cached and cached.get("audio_b64"):
+        await consume_trial(db, actor)
         return TTSResponse(word=word, audio_b64=cached["audio_b64"], cached=True)
 
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
@@ -861,6 +879,7 @@ async def tts(req: TTSRequest):
                       "created_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,
         )
+    await consume_trial(db, actor)
     return TTSResponse(word=word, audio_b64=audio_b64, cached=False)
 
 
@@ -897,11 +916,14 @@ async def caption_search(q: str, limit: int = 6, refresh: bool = False):
 
 @api_router.get("/scenes/{scene_id}/download-lines")
 async def download_my_lines(
+    request: Request,
     scene_id: str,
     character: str,
     voice: Optional[str] = None,
     gap_ms: int = 2000,
 ):
+    # Bundled-MP3 download is a subscriber perk.
+    await require_subscriber(request, db)
     """Return a single MP3 containing every one of `character`'s lines
     concatenated with a short silent gap between them (default 2s — the
     beat where the other character would speak). Reuses turn_audio_cache
@@ -1086,6 +1108,8 @@ async def tts_turn(scene_id: str, turn_index: int, voice: Optional[str] = None):
 
 
 # --- Mount ------------------------------------------------------------------
+api_router.include_router(create_auth_router(db))
+api_router.include_router(create_kajabi_router(db))
 app.include_router(api_router)
 
 app.add_middleware(
@@ -1095,6 +1119,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _startup_indexes():
+    await ensure_auth_indexes(db)
 
 
 @app.on_event("shutdown")
