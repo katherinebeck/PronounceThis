@@ -47,7 +47,7 @@ MAGIC_LINK_RATE_LIMIT_MIN = 1       # 1 magic link per minute per email
 TRIAL_WORD_LIMIT = 1
 TRIAL_SCENE_LIMIT = 1
 
-APP_PUBLIC_URL = os.environ["APP_PUBLIC_URL"].rstrip("/")
+APP_PUBLIC_URL = (os.environ.get("APP_PUBLIC_URL") or "").rstrip("/")
 SENDER_EMAIL = os.environ["SENDER_EMAIL"]
 SENDER_NAME = os.environ.get("SENDER_NAME", "Accent Coach")
 FROM_HEADER = f"{SENDER_NAME} <{SENDER_EMAIL}>"
@@ -220,7 +220,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return doc
 
     @router.post("/request-magic-link")
-    async def request_magic_link(body: RequestMagicLinkBody):
+    async def request_magic_link(body: RequestMagicLinkBody, request: Request):
         email = _normalize_email(body.email)
         if not EMAIL_RE.match(email):
             raise HTTPException(status_code=400, detail="invalid_email")
@@ -248,7 +248,19 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "consumed": False,
         })
 
-        login_url = f"{APP_PUBLIC_URL}/auth/verify?token={token}"
+        # Build the login URL from the request's origin so magic links work
+        # on whatever domain the app is deployed to (preview or production).
+        # Fall back to APP_PUBLIC_URL env only if the request has no Origin
+        # header (e.g. server-to-server invocation).
+        origin = request.headers.get("origin") or request.headers.get("referer")
+        if origin:
+            # Origin is like "https://foo.com"; Referer may include a path.
+            from urllib.parse import urlparse
+            u = urlparse(origin)
+            base = f"{u.scheme}://{u.netloc}"
+        else:
+            base = APP_PUBLIC_URL
+        login_url = f"{base}/auth/verify?token={token}"
         await _send_magic_link_email(email, login_url)
         return {"ok": True}
 
