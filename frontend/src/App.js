@@ -12,7 +12,7 @@ import {
 import "@/App.css";
 
 const TABS = [
-  { id: "pronounce", label: "Pronounce It" },
+  { id: "pronounce", label: "Word" },
   { id: "scenes", label: "Scenes" },
 ];
 

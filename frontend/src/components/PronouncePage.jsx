@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Volume2, Loader2, Search, Book, FileText, ArrowRight } from "lucide-react";
+import { Volume2, Loader2, Search, Book, ArrowRight } from "lucide-react";
 import { pronounceWord, fetchSoundCategories } from "@/lib/api";
 import { playWord } from "@/lib/audio";
 import YouglishModal from "./CaptionSearchModal";
@@ -62,34 +62,11 @@ export default function PronouncePage({ onGoToScenes }) {
           </div>
           <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl text-ink leading-[0.98]">
             Pronounce it.
-            <br />
-            <em className="not-italic text-rust">One word at a time.</em>
           </h1>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Type any word, character name or location to see it written
             phonetically (IPA) and hear it spoken in an American accent.
           </p>
-          <button
-            type="button"
-            onClick={() => onGoToScenes?.()}
-            className="mt-6 sm:mt-8 w-full text-left border thin-rule bg-surface hover:border-ink transition-colors group flex items-start gap-3 sm:gap-4 p-4 sm:p-5"
-            data-testid="scenes-promo-banner"
-          >
-            <FileText size={18} className="mt-1 shrink-0 text-rust" />
-            <div className="min-w-0 flex-1">
-              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
-                Got an audition scene?
-              </div>
-              <div className="font-serif text-base sm:text-base text-ink leading-snug">
-                Import your scene and get a full IPA transcription, sound
-                cues for every word, plus word lists pulled from your scene
-                for sound practice drills.
-              </div>
-            </div>
-            <span className="hidden sm:inline-flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 group-hover:text-rust shrink-0 mt-1">
-              Open Scenes <ArrowRight size={12} />
-            </span>
-          </button>
         </div>
 
         <form
@@ -203,6 +180,27 @@ export default function PronouncePage({ onGoToScenes }) {
             ) : null}
           </div>
         ) : null}
+
+        {/* Audition scene invitation — same visual weight as the main hero
+            so it reads as a second, equally-important on-ramp. */}
+        <div className="mt-14 sm:mt-20 pt-10 sm:pt-14 border-t thin-rule">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
+            Audition Scene · Full IPA Transcription
+          </div>
+          <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl text-ink leading-[0.98]">
+            Pronounce it.
+            <br />
+            <em className="not-italic text-rust">One U.S. audition scene at a time.</em>
+          </h2>
+          <button
+            type="button"
+            onClick={() => onGoToScenes?.()}
+            className="mt-6 sm:mt-8 inline-flex items-center gap-2 bg-ink text-surface font-mono text-[11px] sm:text-[12px] uppercase tracking-[0.22em] px-6 py-3 sm:px-7 sm:py-3.5 hover:bg-rust transition-colors"
+            data-testid="scenes-promo-banner"
+          >
+            Audition Scene <ArrowRight size={13} />
+          </button>
+        </div>
       </div>
       <YouglishModal
         open={Boolean(ygQuery)}
