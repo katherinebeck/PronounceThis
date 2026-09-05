@@ -243,18 +243,6 @@ function ScenesEmptyState({ onUploaded }) {
   return (
     <div className="flex-1 overflow-auto bg-paper">
       <div className="max-w-4xl mx-auto px-5 sm:px-8 py-8 sm:py-16 lg:py-24">
-        <div className="mb-8 sm:mb-12">
-          <h1 className="font-display text-4xl sm:text-6xl lg:text-7xl text-ink leading-[0.95]">
-            Every word.
-            <br />
-            <em className="not-italic text-rust">In the right sound.</em>
-          </h1>
-          <p className="mt-4 sm:mt-6 text-lg sm:text-xl text-muted2 font-serif leading-relaxed max-w-2xl">
-            Drop a PDF of an audition scene. Read every line in American IPA,
-            click any word to hear it, and isolate sounds into focused
-            practice lists.
-          </p>
-        </div>
         <UploadDropzone onUploaded={onUploaded} />
       </div>
     </div>

@@ -48,13 +48,10 @@ export default function UploadDropzone({ onUploaded }) {
       }}
     >
       <div className="flex flex-col items-start gap-6 max-w-xl">
-        <div className="font-mono text-xs uppercase tracking-[0.22em] text-muted2">
-          Step 01 — Bring in a scene
-        </div>
-        <h2 className="font-display text-5xl lg:text-6xl leading-[1.05] text-ink">
-          Drop a script.
+        <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.05] text-ink">
+          Upload your audition scene.
           <br />
-          <em className="not-italic text-rust">Hear every syllable.</em>
+          <em className="not-italic text-rust">Hear how to pronounce every word.</em>
         </h2>
         <p className="text-lg text-muted2 leading-relaxed font-serif">
           Upload an audition scene as a PDF. Each word will be transcribed in

@@ -188,10 +188,13 @@ export default function PronouncePage({ onGoToScenes }) {
             Audition Scene · Full IPA Transcription
           </div>
           <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl text-ink leading-[0.98]">
-            Pronounce it.
-            <br />
-            <em className="not-italic text-rust">One U.S. audition scene at a time.</em>
+            Audition scene preparation.
           </h2>
+          <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
+            Drop a PDF of an audition scene. Read every line in American IPA,
+            click any word to hear it, and isolate sounds into focused
+            practice lists.
+          </p>
           <button
             type="button"
             onClick={() => onGoToScenes?.()}
