@@ -57,9 +57,17 @@ export async function captionSearch(query, { limit = 6, refresh = false } = {}) 
   return data; // { query, results: [{ video_id, title, channel_title, offset_seconds, snippet, youtube_url, thumbnail }], cached }
 }
 
-export async function fetchTurnTTS(sceneId, turnIndex) {
+export async function fetchTurnTTS(sceneId, turnIndex, { voice = null } = {}) {
+  const params = voice ? { voice } : {};
   const { data } = await api.post(
-    `/scenes/${sceneId}/turns/${turnIndex}/tts`
+    `/scenes/${sceneId}/turns/${turnIndex}/tts`,
+    null,
+    { params }
   );
   return data; // { scene_id, turn_index, speaker, audio_b64, mime, cached }
+}
+
+export async function fetchReaderVoices() {
+  const { data } = await api.get("/reader-voices");
+  return data.voices; // [{ key, label, gender, description }]
 }

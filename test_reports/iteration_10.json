@@ -1,0 +1,29 @@
+{
+  "summary": "Tested Scenes tab Run Lines feature end-to-end. Backend: added /app/backend/tests/test_reader_voices.py with 5 tests covering GET /api/reader-voices, regression on turn TTS (no voice), voice=jessica caching, voice=adam separate cache with different audio bytes, and unknown voice 400. All 5 new tests pass, plus 96/96 pre-existing tests pass. Frontend: uploaded a 4-turn PDF via UI, verified: (a) three mode tabs (mode-tab-read/mine/run) render and switch active state, (b) character-picker visible in mine+run modes only, (c) reader-voice-picker with 'jessica' and 'adam' options visible ONLY in run mode, (d) after picking JANE, MARK's 2 turns become dimmed (opacity-45) and JANE's 2 turns get 'You' badges (turn-you-badge-*), (e) play-my-lines-button and run-lines-button appear appropriately, (f) run-lines-button starts practice — screenshot confirms JANE's line highlighted with 'YOUR TURN — SPEAK NOW' indicator while previous MARK line played through audio, and Escape stops playback returning button to 'Start Practicing'. localStorage scene_prefs::{id} persistence path in code reviewed OK.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "SceneReader ReaderVoicePicker", "issues": ["React dev-mode hydration warning: '<span> cannot be a child of <option>'. Caused by Emergent's dev source-map overlay injecting <span> wrappers into <option>{v.label}</option> at SceneReader.jsx:510. Not a functional bug (dropdown works), but produces console noise in dev. Optionally avoid interpolated JSX inside <option> or wrap label plainly (already plain — the injection is by dev tooling). Safe to ignore for prod."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_reader_voices.py",
+    "/app/test_reports/pytest/reader_voices.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py: turn TTS cache_key correctly includes voice suffix — good separation. READER_VOICES whitelist server-side prevents arbitrary voice_id abuse. Consistent 400 for unknown voice.",
+    "SceneReader.jsx (~620 lines) is getting large; consider extracting CharacterPicker/ReaderVoicePicker/TurnBlock into their own files for maintainability.",
+    "handleRunLines uses time-based auto-advance (chars/sec estimate). Works, but consider Web Speech API silence detection later for tighter cueing.",
+    "Space keydown handler prevents default globally while running — fine, but if a coach focuses an input mid-practice they can't type spaces; document or scope to non-input targets."
+  ],
+  "updated_files": ["/app/backend/tests/test_reader_voices.py"],
+  "success_rate": {"backend": "100% (5/5 new + 96/96 regression)", "frontend": "100%"},
+  "test_credentials": "N/A — no auth",
+  "seed_data_creation": "Uploaded /tmp/test_scene.pdf (JANE/MARK 4-turn dialogue) via UI to exercise Run Lines. Backend DB also had prior scenes from earlier iterations.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Scenes are session-scoped in the frontend (Scene Library shows 'No scenes yet' on a fresh browser session even if DB has scenes). To test Scenes UI, upload a PDF via the file input first. Reader voices endpoint returns jessica + adam keys; per-voice cache works and different voices produce different audio bytes as verified."
+}

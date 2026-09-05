@@ -847,13 +847,13 @@ async def tts(req: TTSRequest):
     return TTSResponse(word=word, audio_b64=audio_b64, cached=False)
 
 
-def _synthesize(text: str) -> bytes:
+def _synthesize(text: str, voice_id: Optional[str] = None) -> bytes:
     """Blocking ElevenLabs synthesis for an arbitrary line of text."""
     client = _eleven_client()
-    voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+    vid = voice_id or os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
     stream = client.text_to_speech.convert(
         text=text,
-        voice_id=voice_id,
+        voice_id=vid,
         model_id="eleven_multilingual_v2",
         output_format="mp3_44100_128",
     )
@@ -878,14 +878,38 @@ async def caption_search(q: str, limit: int = 6, refresh: bool = False):
                                         force_refresh=refresh)
 
 
+# --- Reader voices for "Run Lines" mode ------------------------------------
+# Whitelist of voices coaches can pick as the scene-partner voice. Keeps the
+# server in charge of which voices are permissible (never trust an arbitrary
+# id from the client) and gives us stable IDs the frontend can display.
+READER_VOICES = {
+    "jessica": "r1KmysJdVYZjJCm4mL3b",  # female US
+    "adam":    "pNInz6obpgDQGcFmaJgB",  # male US
+}
+
+READER_VOICE_META = [
+    {"key": "jessica", "label": "Jessica", "gender": "female",
+     "description": "American English, warm, natural"},
+    {"key": "adam",    "label": "Adam",    "gender": "male",
+     "description": "American English, deep, natural"},
+]
+
+
+@api_router.get("/reader-voices")
+async def list_reader_voices():
+    """Which voices the Run Lines partner can use. Voice IDs live server-side."""
+    return {"voices": READER_VOICE_META}
+
+
 @api_router.post("/scenes/{scene_id}/turns/{turn_index}/tts",
                  response_model=TurnTTSResponse)
-async def tts_turn(scene_id: str, turn_index: int):
+async def tts_turn(scene_id: str, turn_index: int, voice: Optional[str] = None):
     """Generate (and cache) audio for one continuous speaker turn.
 
-    Uses the persisted dialogue-only turns on the scene doc so the audio
-    always matches exactly what the UI shows for the same index. Legacy
-    scenes are migrated on the fly.
+    `voice` is an optional key from READER_VOICES (e.g. "jessica" or "adam")
+    used by the Run Lines mode to synthesize other characters in a different
+    voice. Cache is keyed per (scene, turn, voice) so switching voices only
+    costs a fresh synthesis for the new voice — previous voices stay warm.
     """
     doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
     if not doc:
@@ -897,7 +921,15 @@ async def tts_turn(scene_id: str, turn_index: int):
         raise HTTPException(status_code=404, detail="Turn not found")
     turn = turns[turn_index]
 
-    cache_key = f"{scene_id}:{turn_index}"
+    voice_id: Optional[str] = None
+    voice_key: Optional[str] = None
+    if voice:
+        voice_key = voice.lower().strip()
+        if voice_key not in READER_VOICES:
+            raise HTTPException(status_code=400, detail="Unknown voice.")
+        voice_id = READER_VOICES[voice_key]
+
+    cache_key = f"{scene_id}:{turn_index}" + (f":{voice_key}" if voice_key else "")
     cached = await db.turn_audio_cache.find_one({"key": cache_key}, {"_id": 0})
     if cached and cached.get("audio_b64"):
         return TurnTTSResponse(
@@ -907,7 +939,7 @@ async def tts_turn(scene_id: str, turn_index: int):
         )
 
     try:
-        audio_bytes = await asyncio.to_thread(_synthesize, turn["text"])
+        audio_bytes = await asyncio.to_thread(_synthesize, turn["text"], voice_id)
     except Exception as e:
         logger.exception("ElevenLabs turn TTS error")
         raise HTTPException(status_code=502, detail=f"TTS failed: {e}")

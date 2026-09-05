@@ -41,13 +41,13 @@ export async function playWord(word) {
   return audio;
 }
 
-export async function loadTurnAudio(sceneId, turnIndex) {
-  const key = `${sceneId}:${turnIndex}`;
+export async function loadTurnAudio(sceneId, turnIndex, { voice = null } = {}) {
+  const key = `${sceneId}:${turnIndex}` + (voice ? `:${voice}` : "");
   let url = turnCache.get(key);
   if (url) return url;
   let resp;
   try {
-    resp = await fetchTurnTTS(sceneId, turnIndex);
+    resp = await fetchTurnTTS(sceneId, turnIndex, { voice });
   } catch (e) {
     const err = new Error(friendlyError(e, "Unable to generate line audio."));
     err.friendly = err.message;
@@ -60,8 +60,8 @@ export async function loadTurnAudio(sceneId, turnIndex) {
 
 /** Play one speaker turn. Returns the HTMLAudioElement so caller can wire
  * 'ended' or 'pause' events for sequencing. */
-export async function playTurn(sceneId, turnIndex) {
-  const url = await loadTurnAudio(sceneId, turnIndex);
+export async function playTurn(sceneId, turnIndex, opts = {}) {
+  const url = await loadTurnAudio(sceneId, turnIndex, opts);
   const audio = new Audio(url);
   audio.preload = "auto";
   await audio.play().catch(() => {});
