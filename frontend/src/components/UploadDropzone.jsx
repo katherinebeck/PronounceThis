@@ -55,10 +55,9 @@ export default function UploadDropzone({ onUploaded }) {
         </h2>
         <p className="text-lg text-muted2 leading-relaxed font-serif">
           Upload an audition scene as a PDF. Each word will be transcribed in
-          American IPA, click any word to hear it spoken aloud, and pull
-          laundry lists by sound for targeted practice. When you're ready to
-          rehearse, download your character's dialogue as a single MP3 so you
-          can practice along with the native-speaker read.
+          American IPA, click any word to hear it spoken aloud, pull laundry
+          lists by sound to practice tricky sounds and download an audio
+          sample of your character's dialogue for practice.
         </p>
         <div className="flex gap-3 items-center">
           <button
