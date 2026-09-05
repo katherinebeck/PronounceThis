@@ -38,6 +38,98 @@ VOWEL_ARPA = {
 DIPHTHONG_ARPA = {"AW", "AY", "EY", "OW", "OY"}
 
 
+# ---- ARPABET -> "read-me-like-English" respelling --------------------------
+# Used to nudge ElevenLabs into the right pronunciation for words it
+# regularly misreads from the spelling (e.g. "direction" → "dye-rection"
+# instead of "duh-REK-shun"). We send the respelling in place of the word;
+# ElevenLabs reads it phonetically because SSML <phoneme> tags aren't
+# supported by the multilingual_v2 model.
+ARPA_TO_RESPELL = {
+    # Vowels
+    "AA": "ah",   # father
+    "AE": "a",    # cat
+    "AH": "uh",   # sun / schwa (unstressed reduces below)
+    "AO": "aw",   # thought
+    "AW": "ow",   # cow
+    "AY": "eye",  # my
+    "EH": "eh",   # bet
+    "ER": "er",   # her
+    "EY": "ay",   # say
+    "IH": "ih",   # sit
+    "IY": "ee",   # see
+    "OW": "oh",   # go
+    "OY": "oy",   # boy
+    "UH": "uu",   # book
+    "UW": "oo",   # boot
+    # Consonants
+    "B": "b", "CH": "ch", "D": "d", "DH": "th",
+    "F": "f", "G": "g", "HH": "h",
+    "JH": "j", "K": "k", "L": "l", "M": "m",
+    "N": "n", "NG": "ng", "P": "p", "R": "r",
+    "S": "s", "SH": "sh", "T": "t", "TH": "th",
+    "V": "v", "W": "w", "Y": "y", "Z": "z", "ZH": "zh",
+}
+
+
+def arpabet_to_respelling(arp: List[str]) -> str:
+    """Convert an ARPABET phoneme sequence to an English-readable respelling
+    like ``duh-REK-shun``. Syllables split around vowels; the primary-stressed
+    syllable is UPPERCASE so ElevenLabs places the accent correctly."""
+    if not arp:
+        return ""
+
+    # Split phonemes into syllables: each vowel anchors a syllable, with the
+    # preceding consonants as the onset. Trailing consonants attach to the
+    # last vowel.
+    syllables: List[List[str]] = []
+    current: List[str] = []
+    for ph in arp:
+        base = re.sub(r"\d", "", ph)
+        stress = ph[-1] if ph[-1].isdigit() else ""
+        if base in VOWEL_ARPA:
+            if current:
+                syllables.append(current)
+            current = [ph]
+        else:
+            current.append(ph)
+    if current:
+        syllables.append(current)
+
+    # If we still have a leading consonant-only chunk, glue it to syllable 1.
+    if len(syllables) >= 2:
+        first_base = re.sub(r"\d", "", syllables[0][0])
+        if first_base not in VOWEL_ARPA:
+            syllables[1] = syllables[0] + syllables[1]
+            syllables.pop(0)
+
+    def _syllable_text(phs: List[str]) -> Tuple[str, int]:
+        """Render one syllable and return (text, stress_level 0|1|2)."""
+        letters: List[str] = []
+        stress = 0
+        for ph in phs:
+            base = re.sub(r"\d", "", ph)
+            if ph[-1].isdigit():
+                stress = max(stress, int(ph[-1]))
+            # Schwa: unstressed AH becomes "uh" (already), but a truly reduced
+            # AH0 sounds most natural as "uh".
+            letters.append(ARPA_TO_RESPELL.get(base, base.lower()))
+        return "".join(letters), stress
+
+    rendered = [_syllable_text(s) for s in syllables]
+    if not rendered:
+        return ""
+
+    # Locate primary stress. If none marked, fall back to the first syllable.
+    stressed_idx = next(
+        (i for i, (_, s) in enumerate(rendered) if s == 1),
+        0,
+    )
+    parts: List[str] = []
+    for i, (text, _) in enumerate(rendered):
+        parts.append(text.upper() if i == stressed_idx else text)
+    return "-".join(parts)
+
+
 def strip_stress(phone: str) -> str:
     """Remove the trailing 0/1/2 stress marker from an ARPABET phone."""
     return re.sub(r"\d", "", phone)

@@ -1,0 +1,24 @@
+{
+  "summary": "Iteration 9 backend testing for the ARPABET-respelling fix to /api/tts. Verified the SSML-silent regression is gone: 'direction' and 8 other CMU-known words now return >12KB decoded MP3s (real audio). CMU-unknown words fall through gracefully with >4KB audio. Cache regression works. Full backend test suite (96 tests) passes.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_tts_respelling.py",
+    "/app/test_reports/pytest/tts_respelling_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 948 lines — approaching the 700-line split threshold; consider modularizing TTS/phonetics/dialogue routes.",
+    "The other backend test files (test_accent_coach.py, test_caption_search.py, test_dialogue_only.py, test_pronounce.py, test_proper_nouns_and_tts_turn.py) don't call load_dotenv() like test_tts_pronunciation.py does — they crash at collection time unless REACT_APP_BACKEND_URL is exported. Minor DRY/setup consistency issue; adding a conftest.py that loads /app/frontend/.env would fix all of them.",
+    "arpabet_to_respelling: schwa (AH0) is currently rendered 'uh' (same as stressed AH). Fine for TTS but consider a distinct schwa symbol if fine-tuning is needed later."
+  ],
+  "updated_files": ["/app/backend/tests/test_tts_respelling.py"],
+  "success_rate": {"backend": "100% (96/96)", "frontend": "not tested"},
+  "test_credentials": "N/A",
+  "seed_data_creation": "None. audio_cache in test_database is warmed with the tested words after this run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "New file /app/backend/tests/test_tts_respelling.py covers the iteration-9 respelling fix with 16 tests: unit tests for phonetics.arpabet_to_respelling, primary >12KB size assertion for 9 CMU-known words, >4KB fallback for CMU-unknown words, and cache regression. Run with: `export $(grep -v ^# /app/frontend/.env | xargs) && MONGO_URL='mongodb://localhost:27017' DB_NAME='test_database' pytest /app/backend/tests/ --tb=short`. Older sibling test files (test_accent_coach.py etc.) rely on REACT_APP_BACKEND_URL being in the process env — they don't load .env themselves.",
+  "rca of the issue": "Iteration 8's SSML <phoneme alphabet='ipa' ph='...'> approach was silently broken because ElevenLabs' eleven_multilingual_v2 model does not parse SSML phoneme tags — it emitted 6-7KB truncated/silent MP3s. Iteration 9 replaces SSML with a plain-text ARPABET respelling (e.g. 'der-EHKSH-uhn' for 'direction') that multilingual_v2 reads phonetically, producing full-length (>12KB) audio. Verified by decoding audio_b64 and asserting byte length."
+}
