@@ -51,7 +51,7 @@ export default function UploadDropzone({ onUploaded }) {
         <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl leading-[1.05] text-ink">
           Prepare for your next American accent audition.
           <br />
-          <em className="not-italic text-rust">Hear how to pronounce every word.</em>
+          <em className="not-italic text-rust text-2xl sm:text-3xl lg:text-4xl">Hear how to pronounce every word.</em>
         </h2>
         <p className="text-lg text-muted2 leading-relaxed font-serif">
           Upload an audition scene as a PDF. Each word will be transcribed in
