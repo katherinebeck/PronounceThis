@@ -16,6 +16,8 @@ Endpoints:
 from __future__ import annotations
 
 import base64
+import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -60,6 +62,10 @@ class DeleteOverrideBody(BaseModel):
 
 
 class StripeSyncBody(BaseModel):
+    email: EmailStr
+
+
+class MagicLinkBody(BaseModel):
     email: EmailStr
 
 
@@ -300,5 +306,64 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         await require_admin(request, db)
         result = await sync_from_stripe_customer(db, body.email.strip().lower())
         return result
+
+    @router.post("/magic-link")
+    async def issue_magic_link(body: MagicLinkBody, request: Request):
+        """Admin utility: mint a one-time sign-in URL for a student and
+        return it (no email sent). Handy for in-person lessons or hand-offs
+        where the coach wants to log the student in without waiting on
+        Resend delivery.
+
+        Behaves exactly like the public /auth/request-magic-link path, but
+        returns the URL directly. Link expires in 15 minutes and is
+        single-use, same as an emailed link.
+        """
+        await require_admin(request, db)
+        email = body.email.strip().lower()
+
+        # Auto-create the user shell so the link lands them in a valid
+        # session on first click.
+        now = datetime.now(timezone.utc)
+        await db.users.update_one(
+            {"email": email},
+            {"$setOnInsert": {
+                "email": email,
+                "trial_word_used": 0,
+                "trial_scene_used": 0,
+                "created_at": now.isoformat(),
+                "last_login_at": None,
+            }},
+            upsert=True,
+        )
+
+        token = secrets.token_urlsafe(32)
+        expires_at = now + timedelta(minutes=15)
+        await db.magic_links.insert_one({
+            "token": token,
+            "email": email,
+            "created_at": now.isoformat(),
+            "expires_at": expires_at.isoformat(),
+            "expires_at_dt": expires_at,
+            "consumed": False,
+            "source": "admin_issued",
+        })
+
+        # Build the sign-in URL from the request's origin so the link works
+        # on whatever domain the admin is signed in from (preview or prod).
+        origin = request.headers.get("origin") or request.headers.get("referer")
+        if origin:
+            from urllib.parse import urlparse
+            u = urlparse(origin)
+            base = f"{u.scheme}://{u.netloc}"
+        else:
+            base = (os.environ.get("APP_PUBLIC_URL") or "").rstrip("/")
+        login_url = f"{base}/auth/verify?token={token}"
+
+        return {
+            "ok": True,
+            "email": email,
+            "login_url": login_url,
+            "expires_at": expires_at.isoformat(),
+        }
 
     return router

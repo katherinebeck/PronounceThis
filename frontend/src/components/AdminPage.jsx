@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw } from "lucide-react";
+import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Check } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -118,6 +118,28 @@ export default function AdminPage() {
       toast.error(err?.response?.data?.detail || "Sync failed");
     } finally {
       setSyncing(false);
+    }
+  };
+
+  // ------------------------ Copy magic link ------------------------------
+  // Track which email row just had its link copied so we can flash a Check
+  // icon instead of the link icon for a second.
+  const [copiedEmail, setCopiedEmail] = useState(null);
+
+  const copyMagicLink = async (email) => {
+    try {
+      const res = await api.post("/admin/magic-link", { email });
+      const url = res?.data?.login_url;
+      if (!url) throw new Error("no url");
+      await navigator.clipboard.writeText(url);
+      setCopiedEmail(email);
+      toast.success(`Sign-in link copied — expires in 15 min`);
+      setTimeout(
+        () => setCopiedEmail((cur) => (cur === email ? null : cur)),
+        1800
+      );
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Couldn't copy link");
     }
   };
 
@@ -422,17 +444,38 @@ export default function AdminPage() {
                           {u.trial_word_used}w · {u.trial_scene_used}s
                         </td>
                         <td className="px-4 py-3 text-right">
-                          {active ? (
+                          <div className="inline-flex items-center gap-2 justify-end">
                             <button
                               type="button"
-                              onClick={() => cancel(u.email)}
-                              className="font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 border thin-rule hover:bg-rust hover:text-surface hover:border-rust transition-colors inline-flex items-center gap-1.5"
-                              data-testid={`admin-cancel-${u.email}`}
+                              onClick={() => copyMagicLink(u.email)}
+                              className="font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 border thin-rule hover:bg-ink hover:text-surface hover:border-ink transition-colors inline-flex items-center gap-1.5"
+                              data-testid={`admin-copy-link-${u.email}`}
+                              title="Copy a one-time sign-in link for this user (expires in 15 min)"
                             >
-                              <UserX size={11} />
-                              Cancel
+                              {copiedEmail === u.email ? (
+                                <>
+                                  <Check size={11} />
+                                  Copied
+                                </>
+                              ) : (
+                                <>
+                                  <Link2 size={11} />
+                                  Copy link
+                                </>
+                              )}
                             </button>
-                          ) : null}
+                            {active ? (
+                              <button
+                                type="button"
+                                onClick={() => cancel(u.email)}
+                                className="font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 border thin-rule hover:bg-rust hover:text-surface hover:border-rust transition-colors inline-flex items-center gap-1.5"
+                                data-testid={`admin-cancel-${u.email}`}
+                              >
+                                <UserX size={11} />
+                                Cancel
+                              </button>
+                            ) : null}
+                          </div>
                         </td>
                       </tr>
                     );
