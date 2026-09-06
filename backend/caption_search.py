@@ -562,6 +562,7 @@ class CaptionSearchService:
                 {"$set": {
                     "video_id": video_id,
                     "transcript": transcript or [],
+                    "full_text": self._flatten_transcript(transcript or []),
                     "has_transcript": bool(transcript),
                     "expires_at": time.time() + ttl,
                     "cached_at": time.time(),
@@ -573,6 +574,178 @@ class CaptionSearchService:
         if not transcript:
             return None
         return self._find_word_in_transcript(transcript, query)
+
+    @staticmethod
+    def _flatten_transcript(transcript: List[Dict[str, Any]]) -> str:
+        """Join a transcript's caption chunks into one plain-text blob so
+        Mongo's text index can search across it."""
+        parts: List[str] = []
+        for entry in transcript or []:
+            text = entry.get("text") or ""
+            if text:
+                parts.append(text)
+        return " ".join(parts)
+
+    async def search_local_transcripts(
+        self, query: str, limit: int = 6
+    ) -> List[Dict[str, Any]]:
+        """Query our own Mongo transcript index for videos whose captions
+        contain the word/phrase. Instant, offline of YouTube's API.
+
+        Falls back to nothing if no matches — caller decides whether to
+        run the live YouTube search next.
+        """
+        query = (query or "").strip()
+        if not query:
+            return []
+        # Mongo text search on full_text. Requires a text index on the
+        # caption_transcript_cache.full_text field (see ensure_indexes).
+        # Also self-heal: score-sort by textScore for best matches.
+        cursor = self.db.caption_transcript_cache.find(
+            {"$text": {"$search": f'"{query}"'},
+             "has_transcript": True},
+            {"_id": 0, "score": {"$meta": "textScore"}},
+        ).sort([("score", {"$meta": "textScore"})]).limit(limit * 3)
+        results: List[Dict[str, Any]] = []
+        target = query.lower()
+        target_words = WORD_RE.findall(target)
+        async for doc in cursor:
+            hit = self._find_word_in_transcript(
+                doc.get("transcript") or [], query
+            )
+            if not hit:
+                continue
+            meta = doc.get("channel_meta") or {}
+            results.append({
+                "video_id": doc["video_id"],
+                "title": meta.get("title") or doc.get("title") or "",
+                "channel_id": meta.get("channel_id") or doc.get("channel_id") or "",
+                "channel_title": meta.get("channel_title") or doc.get("channel_title") or "",
+                "thumbnail": meta.get("thumbnail", ""),
+                "offset_seconds": max(0.0, float(hit["offset"])),
+                "snippet": hit["snippet"],
+                "youtube_url": (
+                    f"https://www.youtube.com/watch?v={doc['video_id']}"
+                    f"&t={int(hit['offset'])}s"
+                ),
+                "has_timestamp": True,
+                "source": "local_index",
+            })
+            if len(results) >= limit:
+                break
+        # Silence lint on unused variable (kept for future scoring).
+        _ = target_words
+        return results
+
+    async def ingest_channel_videos(
+        self, channel_id: str, per_channel_limit: int = 50
+    ) -> Dict[str, int]:
+        """Fetch recent uploads for one channel and cache their transcripts
+        into caption_transcript_cache. Idempotent — skips videos we already
+        have a fresh transcript for.
+
+        Returns {"ingested": N, "skipped": M, "failed": K}.
+        """
+        if not self.api_key:
+            return {"ingested": 0, "skipped": 0, "failed": 0,
+                    "error": "no_api_key"}
+        # Uploads playlist id = channel_id with 'UC' → 'UU'
+        uploads_id = "UU" + channel_id[2:] if channel_id.startswith("UC") else None
+        if not uploads_id:
+            return {"ingested": 0, "skipped": 0, "failed": 0,
+                    "error": "bad_channel_id"}
+
+        # Enumerate videos in the uploads playlist. Uses 1 quota unit per
+        # request × up to 5 pages of 50 = ~5 quota units per channel.
+        video_ids: List[Dict[str, Any]] = []
+        page_token: Optional[str] = None
+        try:
+            async with httpx.AsyncClient(timeout=20) as client:
+                while len(video_ids) < per_channel_limit:
+                    params = {
+                        "part": "snippet,contentDetails",
+                        "playlistId": uploads_id,
+                        "maxResults": min(50, per_channel_limit - len(video_ids)),
+                        "key": self.api_key,
+                    }
+                    if page_token:
+                        params["pageToken"] = page_token
+                    r = await client.get(
+                        f"{YOUTUBE_API_BASE}/playlistItems", params=params
+                    )
+                    if r.status_code in (403, 429):
+                        return {"ingested": 0, "skipped": 0, "failed": 0,
+                                "error": "quota_or_auth"}
+                    r.raise_for_status()
+                    data = r.json()
+                    for it in data.get("items", []):
+                        snip = it.get("snippet") or {}
+                        cd = it.get("contentDetails") or {}
+                        vid = cd.get("videoId")
+                        if not vid:
+                            continue
+                        video_ids.append({
+                            "video_id": vid,
+                            "title": snip.get("title", ""),
+                            "channel_id": channel_id,
+                            "channel_title": snip.get("channelTitle", ""),
+                            "thumbnail": (snip.get("thumbnails", {})
+                                          .get("medium") or {}).get("url", ""),
+                        })
+                    page_token = data.get("nextPageToken")
+                    if not page_token:
+                        break
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("ingest playlist failed for %s: %s", channel_id, exc)
+            return {"ingested": 0, "skipped": 0, "failed": 0,
+                    "error": str(exc)[:200]}
+
+        # For each video, check cache; if stale/missing, fetch + store.
+        ingested = 0
+        skipped = 0
+        failed = 0
+        for meta in video_ids:
+            existing = await self.db.caption_transcript_cache.find_one(
+                {"video_id": meta["video_id"]}, {"expires_at": 1, "_id": 0}
+            )
+            if existing and existing.get("expires_at", 0) > time.time():
+                skipped += 1
+                continue
+            transcript = await asyncio.to_thread(
+                self._fetch_transcript_sync, meta["video_id"]
+            )
+            has_t = bool(transcript)
+            ttl = self.RESULT_TTL if has_t else self.MISS_TTL
+            await self.db.caption_transcript_cache.update_one(
+                {"video_id": meta["video_id"]},
+                {"$set": {
+                    "video_id": meta["video_id"],
+                    "transcript": transcript or [],
+                    "full_text": self._flatten_transcript(transcript or []),
+                    "has_transcript": has_t,
+                    "channel_meta": meta,  # persist title/channel for search hits
+                    "expires_at": time.time() + ttl,
+                    "cached_at": time.time(),
+                }},
+                upsert=True,
+            )
+            if has_t:
+                ingested += 1
+            else:
+                failed += 1
+            # Be gentle on the transcript endpoint.
+            await asyncio.sleep(1.2)
+        return {"ingested": ingested, "skipped": skipped, "failed": failed}
+
+    async def ensure_local_indexes(self) -> None:
+        """Create the Mongo text index on caption transcripts. Idempotent."""
+        try:
+            await self.db.caption_transcript_cache.create_index(
+                [("full_text", "text")], default_language="english",
+                name="caption_fulltext",
+            )
+        except Exception as exc:
+            logger.warning("caption text index create failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Public entry
@@ -604,6 +777,29 @@ class CaptionSearchService:
                     "cached": True,
                 }
 
+        # PATH 1 — local transcript index (instant). Only when we already
+        # have enough curated-channel videos ingested for this term.
+        local_hits = await self.search_local_transcripts(query, limit=limit)
+        if len(local_hits) >= limit:
+            await self.db.caption_search_cache.update_one(
+                {"query": cache_key},
+                {"$set": {
+                    "query": cache_key,
+                    "results": local_hits,
+                    "expires_at": time.time() + self.RESULT_TTL,
+                    "cached_at": time.time(),
+                }},
+                upsert=True,
+            )
+            return {
+                "query": query,
+                "results": local_hits,
+                "cached": False,
+                "source": "local_index",
+            }
+
+        # PATH 2 — live YouTube search (existing flow). Merge with any
+        # partial local hits at the top so we never regress result count.
         curated_ids = set(await self._get_curated_channel_ids())
         search_data = await self._youtube_search(query)
         items = search_data["items"]
@@ -686,15 +882,26 @@ class CaptionSearchService:
                 if not t.done():
                     t.cancel()
 
-        # Build final results: precise (timestamped) hits first, then
-        # untimestamped fallbacks for videos we couldn't scan. Every result is
-        # from a curated American-speaker channel either way.
-        results = list(precise)
-        precise_ids = {r["video_id"] for r in precise}
+        # Build final results: local index hits first (they're guaranteed
+        # to be curated + word-in-caption), then live-search precise
+        # (timestamped) hits, then untimestamped fallbacks.
+        results: List[Dict[str, Any]] = []
+        seen_result_ids: set = set()
+        for h in local_hits:
+            if h["video_id"] in seen_result_ids:
+                continue
+            seen_result_ids.add(h["video_id"])
+            results.append(h)
+        for p in precise:
+            if p["video_id"] in seen_result_ids:
+                continue
+            seen_result_ids.add(p["video_id"])
+            results.append(p)
         if len(results) < limit:
             for cand in fallback_pool:
-                if cand["video_id"] in precise_ids:
+                if cand["video_id"] in seen_result_ids:
                     continue
+                seen_result_ids.add(cand["video_id"])
                 results.append({
                     **cand,
                     "offset_seconds": 0.0,
@@ -704,6 +911,7 @@ class CaptionSearchService:
                 })
                 if len(results) >= limit:
                     break
+        results = results[:limit]
 
         # Mark precise entries too so the client can style differently.
         for r in results:

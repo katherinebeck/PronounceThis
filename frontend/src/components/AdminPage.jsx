@@ -163,6 +163,8 @@ export default function AdminPage() {
   // ------------------------ Prewarm caption cache ------------------------
   const [prewarmStatus, setPrewarmStatus] = useState(null);
   const [prewarmStarting, setPrewarmStarting] = useState(false);
+  const [ingestStatus, setIngestStatus] = useState(null);
+  const [ingestStarting, setIngestStarting] = useState(false);
 
   const loadPrewarmStatus = useCallback(async () => {
     if (!authorized) return;
@@ -171,6 +173,12 @@ export default function AdminPage() {
       setPrewarmStatus(data);
     } catch {
       setPrewarmStatus(null);
+    }
+    try {
+      const { data } = await api.get("/admin/ingest/status");
+      setIngestStatus(data);
+    } catch {
+      setIngestStatus(null);
     }
   }, [authorized]);
 
@@ -191,6 +199,25 @@ export default function AdminPage() {
       toast.error(err?.response?.data?.detail || "Could not start prewarm");
     } finally {
       setPrewarmStarting(false);
+      setTimeout(loadPrewarmStatus, 2000);
+    }
+  };
+
+  const startIngest = async () => {
+    setIngestStarting(true);
+    try {
+      const { data } = await api.post("/admin/ingest/channels/start");
+      if (data?.already_running) {
+        toast.info("Channel ingest already running");
+      } else {
+        toast.success(
+          "Channel ingest started — fetches all 81 channels' recent videos"
+        );
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Could not start ingest");
+    } finally {
+      setIngestStarting(false);
       setTimeout(loadPrewarmStatus, 2000);
     }
   };
@@ -529,6 +556,76 @@ export default function AdminPage() {
             {prewarmStatus?.pending
               ? `Prewarm ${prewarmStatus.pending} pending words`
               : "Prewarm all words"}
+          </button>
+        </section>
+
+        {/* Bulk ingest full transcripts from all curated channels */}
+        <section className="bg-surface border thin-rule p-6" data-testid="admin-ingest">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
+            Real Speakers · deep index
+          </div>
+          <h2 className="font-display text-2xl text-ink mb-4">
+            Bulk ingest channel transcripts
+          </h2>
+          <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
+            Walks every one of our 81 curated American-speaker YouTube
+            channels, fetches up to 50 recent videos each (~4,000 videos
+            total), and stores their full transcripts locally. Once
+            complete, ANY word ever spoken in these channels is instantly
+            searchable — no more "no video found" for common words like
+            "dog", "summer", "winter". Runs in the background for several
+            hours; safe to run repeatedly (skips already-indexed videos).
+          </p>
+          {ingestStatus ? (
+            <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3 mb-4">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
+                  Videos indexed
+                </div>
+                <div className="font-display text-2xl text-ink">
+                  {ingestStatus.videos_indexed ?? 0}
+                </div>
+              </div>
+              {ingestStatus.job ? (
+                <>
+                  <div>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
+                      Channels
+                    </div>
+                    <div className="font-display text-2xl text-ink">
+                      {ingestStatus.job.channels_done ?? 0}
+                      <span className="font-mono text-sm text-muted2 ml-1">
+                        / {ingestStatus.job.channels_total ?? 0}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
+                      Status
+                    </div>
+                    <div className={"font-display text-lg " + (ingestStatus.job.running ? "text-rust" : "text-ink")}>
+                      {ingestStatus.job.running ? "Running…" : "Idle"}
+                    </div>
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={startIngest}
+            disabled={ingestStarting || ingestStatus?.job?.running}
+            className="btn-primary"
+            data-testid="admin-ingest-start"
+          >
+            {ingestStarting || ingestStatus?.job?.running ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            {ingestStatus?.job?.running
+              ? "Ingest running"
+              : "Ingest all channels now"}
           </button>
         </section>
 

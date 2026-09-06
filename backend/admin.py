@@ -577,4 +577,106 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "percent": round((cached / total) * 100) if total else 0,
         }
 
+    @router.post("/ingest/channels/start")
+    async def ingest_channels_start(request: Request):
+        """Kick off a background ingestion of transcripts from every
+        curated YouTube channel. Walks each channel's uploads playlist,
+        fetches transcripts, and stores them in caption_transcript_cache
+        with a `full_text` field so word-in-caption search works locally
+        (instant, no YouTube API on every query).
+
+        Runs in the background — response is instant. Progress is stamped
+        onto a Mongo doc under `ingest_status`.
+        """
+        import asyncio as _asyncio
+        await require_admin(request, db)
+
+        # Guard against overlapping runs.
+        status = await db.ingest_status.find_one(
+            {"job": "channels"}, {"_id": 0}
+        )
+        if status and status.get("running"):
+            return {"ok": True, "already_running": True, "status": status}
+
+        await db.ingest_status.update_one(
+            {"job": "channels"},
+            {"$set": {
+                "job": "channels",
+                "running": True,
+                "started_at": _now_iso(),
+                "channels_done": 0,
+                "channels_total": 0,
+                "totals": {"ingested": 0, "skipped": 0, "failed": 0},
+                "last_channel": None,
+                "error": None,
+            }},
+            upsert=True,
+        )
+
+        async def _run():
+            try:
+                from server import caption_service
+                from caption_search import CURATED_HANDLES
+                await caption_service.ensure_local_indexes()
+                # Resolve every curated handle to a channel id.
+                ch_ids = await caption_service._get_curated_channel_ids()
+                # We need handle+label metadata too so results have context.
+                await db.ingest_status.update_one(
+                    {"job": "channels"},
+                    {"$set": {"channels_total": len(ch_ids)}},
+                )
+                totals = {"ingested": 0, "skipped": 0, "failed": 0}
+                for i, cid in enumerate(ch_ids, start=1):
+                    r = await caption_service.ingest_channel_videos(
+                        cid, per_channel_limit=50
+                    )
+                    for k in totals:
+                        totals[k] = totals.get(k, 0) + int(r.get(k, 0) or 0)
+                    await db.ingest_status.update_one(
+                        {"job": "channels"},
+                        {"$set": {
+                            "channels_done": i,
+                            "last_channel": cid,
+                            "totals": totals,
+                            "updated_at": _now_iso(),
+                        }},
+                    )
+            except Exception as exc:
+                await db.ingest_status.update_one(
+                    {"job": "channels"},
+                    {"$set": {"error": str(exc)[:300]}},
+                )
+            finally:
+                await db.ingest_status.update_one(
+                    {"job": "channels"},
+                    {"$set": {
+                        "running": False,
+                        "finished_at": _now_iso(),
+                    }},
+                )
+
+        _asyncio.create_task(_run())
+        return {
+            "ok": True,
+            "note": (
+                "Ingestion running in background. Poll "
+                "GET /api/admin/ingest/status. Expect several hours to "
+                "complete — fetches ~1 transcript/second, gated to be "
+                "gentle on YouTube. ~4000 videos total (81 channels × 50)."
+            ),
+        }
+
+    @router.get("/ingest/status")
+    async def ingest_status(request: Request):
+        await require_admin(request, db)
+        s = await db.ingest_status.find_one(
+            {"job": "channels"}, {"_id": 0}
+        )
+        # Also return a quick count of videos currently in the transcript
+        # cache with usable captions.
+        indexed = await db.caption_transcript_cache.count_documents(
+            {"has_transcript": True}
+        )
+        return {"job": s, "videos_indexed": indexed}
+
     return router

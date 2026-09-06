@@ -1174,6 +1174,79 @@ app.add_middleware(
 @app.on_event("startup")
 async def _startup_indexes():
     await ensure_auth_indexes(db)
+    # Ensure the caption_transcript_cache text index exists so the local
+    # word-in-caption search works. Idempotent.
+    try:
+        await caption_service.ensure_local_indexes()
+    except Exception as exc:
+        logger.warning("caption local index bootstrap failed: %s", exc)
+
+    # Auto-kick channel ingest on cold start IF the transcript cache is
+    # nearly empty. Runs in the background — doesn't block startup.
+    # Idempotent: if another instance already started it, the job row will
+    # be marked running and this will short-circuit.
+    async def _maybe_kick_ingest():
+        try:
+            # Give the pod a beat to finish booting.
+            await asyncio.sleep(20)
+            indexed = await db.caption_transcript_cache.count_documents(
+                {"has_transcript": True}
+            )
+            if indexed >= 200:
+                return  # Cache is already substantially populated
+            status = await db.ingest_status.find_one(
+                {"job": "channels"}, {"_id": 0}
+            )
+            if status and status.get("running"):
+                return
+            logger.info("auto-kick channel ingest (indexed=%d)", indexed)
+            await db.ingest_status.update_one(
+                {"job": "channels"},
+                {"$set": {
+                    "job": "channels",
+                    "running": True,
+                    "started_at": datetime.now(timezone.utc).isoformat(),
+                    "channels_done": 0,
+                    "channels_total": 0,
+                    "totals": {"ingested": 0, "skipped": 0, "failed": 0},
+                    "auto_kicked": True,
+                }},
+                upsert=True,
+            )
+            from caption_search import CURATED_HANDLES  # noqa: F401
+            ch_ids = await caption_service._get_curated_channel_ids()
+            await db.ingest_status.update_one(
+                {"job": "channels"},
+                {"$set": {"channels_total": len(ch_ids)}},
+            )
+            totals = {"ingested": 0, "skipped": 0, "failed": 0}
+            for i, cid in enumerate(ch_ids, start=1):
+                r = await caption_service.ingest_channel_videos(
+                    cid, per_channel_limit=50
+                )
+                for k in totals:
+                    totals[k] = totals.get(k, 0) + int(r.get(k, 0) or 0)
+                await db.ingest_status.update_one(
+                    {"job": "channels"},
+                    {"$set": {
+                        "channels_done": i,
+                        "last_channel": cid,
+                        "totals": totals,
+                        "updated_at": datetime.now(timezone.utc).isoformat(),
+                    }},
+                )
+        except Exception as exc:
+            logger.warning("auto-ingest failed: %s", exc)
+        finally:
+            await db.ingest_status.update_one(
+                {"job": "channels"},
+                {"$set": {
+                    "running": False,
+                    "finished_at": datetime.now(timezone.utc).isoformat(),
+                }},
+            )
+
+    asyncio.create_task(_maybe_kick_ingest())
 
 
 @app.on_event("shutdown")
