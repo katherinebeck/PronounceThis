@@ -371,9 +371,18 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         """Admin diagnostic — dumps everything we know about one user across
         our DB and Stripe. Used to figure out why a paying customer isn't
         being recognized as a member."""
+        import json
         import stripe
         await require_admin(request, db)
         email = email.strip().lower()
+
+        def _stripe_to_dict(obj):
+            if obj is None:
+                return None
+            try:
+                return json.loads(str(obj))
+            except Exception:
+                return {"_repr": repr(obj)[:200]}
 
         user = await db.users.find_one({"email": email}, {"_id": 0})
         memberships = await db.memberships.find(
@@ -388,37 +397,48 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             stored_cust_id = (user or {}).get("stripe_customer_id")
             if stored_cust_id:
                 try:
-                    c = stripe.Customer.retrieve(stored_cust_id)
+                    c = _stripe_to_dict(stripe.Customer.retrieve(stored_cust_id))
                     stripe_info["customer_by_stored_id"] = {
-                        "id": c.id, "email": c.email, "deleted": c.get("deleted"),
+                        "id": c.get("id"), "email": c.get("email"),
+                        "deleted": c.get("deleted"),
                     }
                 except Exception as exc:
-                    stripe_info["customer_by_stored_id_error"] = str(exc)
-            by_email = stripe.Customer.list(email=email, limit=5).data
+                    stripe_info["customer_by_stored_id_error"] = f"{type(exc).__name__}: {exc}"
+            by_email_raw = stripe.Customer.list(email=email, limit=5).data
+            by_email = [_stripe_to_dict(c) for c in by_email_raw]
             stripe_info["customers_by_email"] = [
-                {"id": c.id, "email": c.email, "created": c.created}
+                {"id": c.get("id"), "email": c.get("email"),
+                 "created": c.get("created")}
                 for c in by_email
             ]
-            # Pull subs for every customer we found.
             cust_ids = set()
             if stored_cust_id:
                 cust_ids.add(stored_cust_id)
             for c in by_email:
-                cust_ids.add(c.id)
+                if c.get("id"):
+                    cust_ids.add(c["id"])
             for cid in cust_ids:
-                subs = stripe.Subscription.list(customer=cid, status="all", limit=5).data
-                for s in subs:
-                    stripe_info["subscriptions"].append({
-                        "customer_id": cid,
-                        "id": s.id,
-                        "status": s.status,
-                        "cancel_at_period_end": s.get("cancel_at_period_end"),
-                        "cancel_at": s.get("cancel_at"),
-                        "current_period_end": s.get("current_period_end"),
-                        "metadata": dict(s.get("metadata") or {}),
-                    })
+                try:
+                    subs_raw = stripe.Subscription.list(
+                        customer=cid, status="all", limit=10
+                    ).data
+                    for s_raw in subs_raw:
+                        s = _stripe_to_dict(s_raw)
+                        stripe_info["subscriptions"].append({
+                            "customer_id": cid,
+                            "id": s.get("id"),
+                            "status": s.get("status"),
+                            "cancel_at_period_end": s.get("cancel_at_period_end"),
+                            "cancel_at": s.get("cancel_at"),
+                            "current_period_end": s.get("current_period_end"),
+                            "metadata": s.get("metadata", {}),
+                        })
+                except Exception as exc:
+                    stripe_info.setdefault("subscription_errors", []).append(
+                        f"{cid}: {type(exc).__name__}: {exc}"
+                    )
         except Exception as exc:
-            stripe_info["error"] = str(exc)
+            stripe_info["error"] = f"{type(exc).__name__}: {exc}"
 
         return {
             "email": email,

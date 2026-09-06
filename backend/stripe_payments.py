@@ -20,6 +20,7 @@ Design:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -37,6 +38,25 @@ logger = logging.getLogger(__name__)
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY") or "sk_test_emergent"
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+
+
+def _to_dict(obj) -> dict:
+    """Convert a Stripe SDK object to a plain nested dict.
+
+    Stripe Python SDK v15 removed dict-style `.get()` from StripeObject, so
+    every function that receives a Stripe object needs to normalize it or
+    else silent AttributeError kills the flow. json.loads(str(obj)) gives
+    us a fully-nested plain dict because StripeObject.__str__ emits JSON.
+    """
+    if obj is None:
+        return {}
+    if isinstance(obj, dict) and not hasattr(obj, "_data"):
+        return obj  # already a plain dict
+    try:
+        return json.loads(str(obj))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"_to_dict fallback failed: {exc}")
+        return {}
 
 
 def _now_iso() -> str:
@@ -119,14 +139,15 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(404, "not_found")
         if record.get("payment_status") != "paid":
             try:
-                s = stripe.checkout.Session.retrieve(session_id)
-                if s.payment_status == "paid" or s.status == "complete":
+                raw = stripe.checkout.Session.retrieve(session_id)
+                s = _to_dict(raw)
+                if s.get("payment_status") == "paid" or s.get("status") == "complete":
                     await db.payment_transactions.update_one(
                         {"session_id": session_id, "payment_status": {"$ne": "paid"}},
                         {"$set": {
                             "status": "completed",
                             "payment_status": "paid",
-                            "stripe_subscription_id": s.subscription,
+                            "stripe_subscription_id": s.get("subscription"),
                             "updated_at": _now_iso(),
                         }},
                     )
@@ -176,12 +197,12 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 "external_event_id": event["id"],
                 "event": event["type"],
                 "received_at": _now_iso(),
-                "body": event.to_dict() if hasattr(event, "to_dict") else dict(event),
+                "body": _to_dict(event),
             })
         except DuplicateKeyError:
             return {"ok": True, "duplicate": True}
 
-        obj = event["data"]["object"]
+        obj = _to_dict(event["data"]["object"])
         t = event["type"]
 
         if t == "checkout.session.completed":
@@ -229,6 +250,7 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
     """Given a Stripe Checkout Session (subscription mode), flip the user's
     membership to active. Called from both /status poll (as a fallback) and
     the checkout.session.completed webhook."""
+    session = _to_dict(session)
     email = (
         (session.get("metadata") or {}).get("app_user_email")
         or session.get("client_reference_id")
@@ -289,6 +311,7 @@ async def _sync_subscription(
     app-user email when the subscription's metadata wasn't populated by
     our checkout flow.
     """
+    sub = _to_dict(sub)
     metadata = sub.get("metadata") or {}
     email = (email_override or metadata.get("app_user_email") or "").strip().lower()
     if not email:
@@ -328,6 +351,7 @@ async def _sync_subscription(
 
 async def _mark_cancelled(db: AsyncIOMotorDatabase, sub) -> None:
     """subscription.deleted → the subscription has fully ended. Cut access now."""
+    sub = _to_dict(sub)
     sub_id = sub.get("id")
     result = await db.memberships.update_many(
         {"stripe_subscription_id": sub_id},
@@ -366,22 +390,24 @@ async def sync_from_stripe_customer(
     # create-checkout flow).
     if not cust_id:
         try:
-            customers = await asyncio.to_thread(
+            raw = await asyncio.to_thread(
                 lambda: stripe.Customer.list(email=email, limit=1).data
             )
+            customers = [_to_dict(c) for c in raw]
             if customers:
-                cust_id = customers[0].id
-                await db.users.update_one(
-                    {"email": email},
-                    {"$setOnInsert": {
-                        "email": email,
-                        "trial_word_used": 0,
-                        "trial_scene_used": 0,
-                        "created_at": _now_iso(),
-                    },
-                     "$set": {"stripe_customer_id": cust_id}},
-                    upsert=True,
-                )
+                cust_id = customers[0].get("id")
+                if cust_id:
+                    await db.users.update_one(
+                        {"email": email},
+                        {"$setOnInsert": {
+                            "email": email,
+                            "trial_word_used": 0,
+                            "trial_scene_used": 0,
+                            "created_at": _now_iso(),
+                        },
+                         "$set": {"stripe_customer_id": cust_id}},
+                        upsert=True,
+                    )
         except stripe.error.StripeError as exc:
             logger.warning(f"stripe customer lookup failed for {email}: {exc}")
             return {"ok": False, "reason": "stripe_error",
@@ -391,11 +417,12 @@ async def sync_from_stripe_customer(
         return {"ok": True, "reason": "no_stripe_customer", "synced": 0}
 
     try:
-        subs = await asyncio.to_thread(
+        raw_subs = await asyncio.to_thread(
             lambda: stripe.Subscription.list(
                 customer=cust_id, status="all", limit=10
             ).data
         )
+        subs = [_to_dict(s) for s in raw_subs]
     except stripe.error.StripeError as exc:
         logger.warning(f"stripe subscription list failed for {email}: {exc}")
         return {"ok": False, "reason": "stripe_error",
@@ -404,9 +431,6 @@ async def sync_from_stripe_customer(
     synced = 0
     active_found = False
     for sub in subs:
-        # Pass the email explicitly rather than trying to mutate the Stripe
-        # SDK object's metadata (which behaves like a dict but may not
-        # persist writes reliably across SDK versions).
         await _sync_subscription(db, sub, email_override=email)
         synced += 1
         if sub.get("status") in ("active", "trialing"):
