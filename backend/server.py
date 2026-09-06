@@ -1183,24 +1183,21 @@ async def _startup_indexes():
         logger.warning("caption local index bootstrap failed: %s", exc)
 
     # Auto-kick channel ingest on cold start IF the transcript cache is
-    # nearly empty. Runs in the background — doesn't block startup.
+    # nearly empty, AND run a weekly refresh forever after so new uploads
+    # keep flowing in. Runs in the background — doesn't block startup.
     # Idempotent: if another instance already started it, the job row will
     # be marked running and this will short-circuit.
-    async def _maybe_kick_ingest():
+    WEEKLY_INTERVAL_SECONDS = 7 * 24 * 3600     # 7 days
+    DAILY_CHECK_SECONDS = 24 * 3600             # check every 24h
+
+    async def _run_full_ingest() -> None:
+        """One pass over all curated channels. Non-overlapping."""
+        status = await db.ingest_status.find_one(
+            {"job": "channels"}, {"_id": 0}
+        )
+        if status and status.get("running"):
+            return
         try:
-            # Give the pod a beat to finish booting.
-            await asyncio.sleep(20)
-            indexed = await db.caption_transcript_cache.count_documents(
-                {"has_transcript": True}
-            )
-            if indexed >= 200:
-                return  # Cache is already substantially populated
-            status = await db.ingest_status.find_one(
-                {"job": "channels"}, {"_id": 0}
-            )
-            if status and status.get("running"):
-                return
-            logger.info("auto-kick channel ingest (indexed=%d)", indexed)
             await db.ingest_status.update_one(
                 {"job": "channels"},
                 {"$set": {
@@ -1210,11 +1207,9 @@ async def _startup_indexes():
                     "channels_done": 0,
                     "channels_total": 0,
                     "totals": {"ingested": 0, "skipped": 0, "failed": 0},
-                    "auto_kicked": True,
                 }},
                 upsert=True,
             )
-            from caption_search import CURATED_HANDLES  # noqa: F401
             ch_ids = await caption_service._get_curated_channel_ids()
             await db.ingest_status.update_one(
                 {"job": "channels"},
@@ -1236,18 +1231,66 @@ async def _startup_indexes():
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     }},
                 )
-        except Exception as exc:
-            logger.warning("auto-ingest failed: %s", exc)
         finally:
             await db.ingest_status.update_one(
                 {"job": "channels"},
                 {"$set": {
                     "running": False,
                     "finished_at": datetime.now(timezone.utc).isoformat(),
+                    "last_full_finished_at": datetime.now(timezone.utc).isoformat(),
                 }},
             )
 
-    asyncio.create_task(_maybe_kick_ingest())
+    async def _ingest_supervisor():
+        """Runs forever. On boot: if cache is thin, ingest right away.
+        Then every 24h: if last full ingest was > 7 days ago, run again.
+        """
+        try:
+            await asyncio.sleep(20)  # let pod finish booting
+            indexed = await db.caption_transcript_cache.count_documents(
+                {"has_transcript": True}
+            )
+            if indexed < 200:
+                logger.info(
+                    "ingest supervisor: cold-start ingest (indexed=%d)", indexed
+                )
+                try:
+                    await _run_full_ingest()
+                except Exception as exc:
+                    logger.warning("cold-start ingest failed: %s", exc)
+
+            # Weekly refresh loop.
+            while True:
+                await asyncio.sleep(DAILY_CHECK_SECONDS)
+                try:
+                    status = await db.ingest_status.find_one(
+                        {"job": "channels"}, {"_id": 0}
+                    )
+                    last_finished = (status or {}).get("last_full_finished_at")
+                    now = datetime.now(timezone.utc)
+                    due = True
+                    if last_finished:
+                        try:
+                            last_dt = datetime.fromisoformat(
+                                last_finished.replace("Z", "+00:00")
+                            )
+                            due = (now - last_dt).total_seconds() >= WEEKLY_INTERVAL_SECONDS
+                        except Exception:
+                            due = True
+                    if due:
+                        logger.info("ingest supervisor: weekly refresh due")
+                        try:
+                            await _run_full_ingest()
+                        except Exception as exc:
+                            logger.warning(
+                                "weekly refresh ingest failed: %s", exc
+                            )
+                except Exception as exc:
+                    logger.warning("ingest supervisor tick failed: %s", exc)
+        except asyncio.CancelledError:
+            return
+
+    asyncio.create_task(_ingest_supervisor())
 
 
 @app.on_event("shutdown")
