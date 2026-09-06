@@ -630,10 +630,13 @@ class CaptionSearchService:
                 "thumbnail": (snip.get("thumbnails", {}).get("medium") or {}).get("url", ""),
             })
 
-        # Scan captions serially to stay well under YouTube's rate limits.
-        # Once a transcript is cached in Mongo, subsequent scans are instant.
+        # Scan captions with limited parallelism. YouTube's transcript
+        # endpoint tolerates small bursts; 4 concurrent scans get us the
+        # first hits ~4× faster than serial while staying well under
+        # per-IP rate ceilings. Once a transcript is cached in Mongo,
+        # subsequent scans of the same video are instant.
         results: List[Dict[str, Any]] = []
-        sem = asyncio.Semaphore(1)
+        sem = asyncio.Semaphore(4)
 
         async def _scan(cand: Dict[str, str]):
             async with sem:
@@ -648,18 +651,36 @@ class CaptionSearchService:
                     "youtube_url": f"https://www.youtube.com/watch?v={cand['video_id']}&t={int(seconds)}s",
                 }
 
-        # Fire scans until we've collected `limit` matches. Cap at 12 to keep
-        # per-query fetch counts under YouTube's per-IP rate ceiling.
-        pending = [asyncio.create_task(_scan(c)) for c in candidates[:12]]
+        # Fire scans until we've collected `limit` matches, or overall
+        # timeout, whichever first. Cap at 8 candidates to keep total
+        # per-query transcript fetches predictable.
+        pending = [asyncio.create_task(_scan(c)) for c in candidates[:8]]
         precise: List[Dict[str, Any]] = []
         fallback_pool: List[Dict[str, Any]] = list(candidates[:limit])
+        SCAN_BUDGET_SECONDS = 4.0
+        deadline = asyncio.get_event_loop().time() + SCAN_BUDGET_SECONDS
         try:
-            for coro in asyncio.as_completed(pending):
-                res = await coro
-                if res:
-                    precise.append(res)
-                    if len(precise) >= limit:
-                        break
+            while pending and len(precise) < limit:
+                remaining = deadline - asyncio.get_event_loop().time()
+                if remaining <= 0:
+                    break
+                done, pending_set = await asyncio.wait(
+                    pending,
+                    timeout=remaining,
+                    return_when=asyncio.FIRST_COMPLETED,
+                )
+                if not done:
+                    break  # hit the budget
+                pending = list(pending_set)
+                for t in done:
+                    try:
+                        res = t.result()
+                    except Exception:
+                        res = None
+                    if res:
+                        precise.append(res)
+                        if len(precise) >= limit:
+                            break
         finally:
             for t in pending:
                 if not t.done():
