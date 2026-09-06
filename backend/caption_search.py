@@ -103,9 +103,61 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "NFL",                     "label": "NFL"},
     {"handle": "NBA",                     "label": "NBA"},
     {"handle": "mlb",                     "label": "MLB"},
+    # Food & cooking (very high captions coverage)
+    {"handle": "bonappetit",              "label": "Bon Appétit"},
+    {"handle": "BingingWithBabish",       "label": "Babish Culinary Universe"},
+    {"handle": "foodnetwork",             "label": "Food Network"},
+    {"handle": "americastestkitchen",     "label": "America's Test Kitchen"},
+    # Late-night / talk show (extras)
+    {"handle": "jimmyfallon",             "label": "Jimmy Fallon (channel)"},
+    {"handle": "SNL",                     "label": "Saturday Night Live"},
+    # Podcasts / long-form interviews (extras)
+    {"handle": "TheTimFerrissShow",       "label": "Tim Ferriss"},
+    {"handle": "hubermanlab",             "label": "Huberman Lab"},
+    {"handle": "TheDailyPodcast",         "label": "The Daily (NYT)"},
+    # Science / education (extras)
+    {"handle": "kurzgesagt",              "label": "Kurzgesagt"},
+    {"handle": "Vsauce",                  "label": "Vsauce"},
+    {"handle": "Numberphile",             "label": "Numberphile"},
+    {"handle": "SmarterEveryDay",         "label": "Smarter Every Day"},
+    {"handle": "MinutePhysics",           "label": "MinutePhysics"},
+    # Tech (American hosts)
+    {"handle": "LinusTechTips",           "label": "Linus Tech Tips"},
+    {"handle": "TheVerge",                "label": "The Verge"},
+    {"handle": "cnet",                    "label": "CNET"},
+    # Reactions / commentary (high caption density)
+    {"handle": "REACT",                   "label": "REACT (Fine Bros)"},
+    {"handle": "Cut",                     "label": "Cut"},
+    # History & culture
+    {"handle": "HistoryChannel",          "label": "History Channel"},
+    {"handle": "SmithsonianChannel",      "label": "Smithsonian Channel"},
+    # Music interviews / performances (American voices)
+    {"handle": "genius",                  "label": "Genius"},
+    {"handle": "npcmusic",                "label": "NPR Music"},
 ]
 
 WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
+
+# Titles matching this pattern are almost always songs / music videos — bad
+# examples for pronunciation practice because they're sung, not spoken. We
+# filter them out of the fallback pool to keep speech content on top.
+MUSIC_TITLE_RE = re.compile(
+    r"(?i)(\bofficial\s+(music\s+)?video\b|\blyrics?\b|\bvevo\b|\baudio\b|"
+    r"\bfeat\.?\s|\bft\.\s|\bx\s+[A-Z]|\btopic\b|\bremix\b|"
+    r"\bmusic\s+video\b|\bnew\s+song\b|\balbum\b|\bsingle\b)"
+)
+
+
+def _is_musicy_title(title: str, channel_title: str = "") -> bool:
+    """Heuristic filter to keep music videos out of pronunciation examples."""
+    if not title:
+        return False
+    if MUSIC_TITLE_RE.search(title):
+        return True
+    # " - Topic" auto-generated music channels
+    if channel_title.endswith("- Topic"):
+        return True
+    return False
 
 
 @dataclass
@@ -255,24 +307,31 @@ class CaptionSearchService:
                     vid = (it.get("id") or {}).get("videoId")
                     if not cid or not vid or cid not in curated or vid in seen:
                         continue
+                    if _is_musicy_title(snip.get("title", ""),
+                                        snip.get("channelTitle", "")):
+                        continue
                     seen.add(vid)
                     filtered.append(it)
 
-                # Fallback: if curated allowlist yields nothing, fall back to
-                # the raw US/en YouTube results so obscure words still have
-                # examples. regionCode=US + relevanceLanguage=en keeps this
-                # American-leaning; a hard curated match is preferred when
-                # available.
-                used_fallback = False
-                if not filtered:
-                    seen = set()
-                    for it in combined:
-                        vid = (it.get("id") or {}).get("videoId")
-                        if not vid or vid in seen:
-                            continue
-                        seen.add(vid)
-                        filtered.append(it)
-                    used_fallback = bool(filtered)
+                # Also collect the non-curated results as a top-up pool so
+                # we always have SOMETHING to show. Curated hits are still
+                # preferred in ordering (they come first in `filtered`);
+                # non-curated results are appended so they only surface
+                # when curated + embeddability filtering leaves us short.
+                # Music/song titles are dropped from the top-up too.
+                topup: List[Dict[str, Any]] = []
+                for it in combined:
+                    snip = it.get("snippet") or {}
+                    cid = snip.get("channelId")
+                    vid = (it.get("id") or {}).get("videoId")
+                    if not cid or not vid or vid in seen:
+                        continue
+                    if _is_musicy_title(snip.get("title", ""),
+                                        snip.get("channelTitle", "")):
+                        continue
+                    seen.add(vid)
+                    topup.append(it)
+                filtered.extend(topup)
 
                 # Confirm embeddability at the video level — the search flag
                 # misses some geo/copyright-restricted news clips.
@@ -282,11 +341,6 @@ class CaptionSearchService:
                     it for it in filtered
                     if (it.get("id") or {}).get("videoId") in allowed
                 ]
-                if used_fallback and items:
-                    logger.info(
-                        "youtube search: curated empty, using fallback (%d items) for %r",
-                        len(items), query,
-                    )
                 return {"items": items, "quota_exceeded": False}
         except Exception as exc:  # noqa: BLE001
             logger.warning("youtube broad search failed for %r: %s", query, exc)

@@ -596,35 +596,72 @@ async def sound_categories():
 
 @api_router.get("/pronounce", response_model=PronounceResponse)
 async def pronounce(word: str):
-    """Return IPA + ARPABET + sound categories for a single word.
+    """Return IPA + ARPABET + sound categories for a single word or short phrase.
 
     Uses the CMU Pronouncing Dictionary first; falls back to Claude for
     out-of-dictionary words (names, invented spellings). Does NOT synthesize
     audio — the frontend calls POST /api/tts for that separately.
+
+    Multi-word inputs (e.g., "los angeles") are handled by looking up each
+    word in CMU and concatenating; only if a word is missing from CMU do we
+    fall back to the slow LLM path for the whole phrase.
     """
     raw = (word or "").strip()
     if not raw:
         raise HTTPException(status_code=400, detail="word is required")
 
-    norm = normalize_word(raw)
-    if not norm:
+    # Split on whitespace so multi-word queries hit the CMU dict per word.
+    parts = [p for p in re.split(r"\s+", raw) if p]
+    if not parts:
         raise HTTPException(
             status_code=400,
             detail="Please enter a real word (letters only).",
         )
 
-    ipa, arpa, cats = transcribe_word(norm)
+    norm_parts = [normalize_word(p) for p in parts]
+    if not all(norm_parts):
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a real word (letters only).",
+        )
+    norm = "".join(norm_parts) if len(norm_parts) == 1 else " ".join(norm_parts)
+
+    # Multi-word: try per-word CMU lookup and stitch. Fast path — no LLM.
+    if len(parts) > 1:
+        ipa_pieces: List[str] = []
+        arpa_pieces: List[str] = []
+        cats_set: List[str] = []
+        all_hit = True
+        for np in norm_parts:
+            w_ipa, w_arpa, w_cats = transcribe_word(np)
+            if not w_ipa:
+                all_hit = False
+                break
+            ipa_pieces.append(w_ipa)
+            arpa_pieces.extend(w_arpa)
+            for c in w_cats:
+                if c not in cats_set:
+                    cats_set.append(c)
+        if all_hit:
+            return PronounceResponse(
+                word=raw, normalized=norm, ipa=" ".join(ipa_pieces),
+                arpabet=arpa_pieces, categories=cats_set, source="cmu",
+            )
+
+    # Single word (or multi-word with a CMU miss): original path.
+    single_norm = norm_parts[0] if len(parts) == 1 else "".join(norm_parts)
+    ipa, arpa, cats = transcribe_word(single_norm)
     if ipa:
         return PronounceResponse(
-            word=raw, normalized=norm, ipa=ipa,
+            word=raw, normalized=single_norm, ipa=ipa,
             arpabet=arpa, categories=cats, source="cmu",
         )
 
     # CMU miss → Claude fallback.
-    llm_map = await llm_transcribe_words([norm])
-    llm_ipa = llm_map.get(norm)
+    llm_map = await llm_transcribe_words([single_norm])
+    llm_ipa = llm_map.get(single_norm)
     return PronounceResponse(
-        word=raw, normalized=norm, ipa=llm_ipa,
+        word=raw, normalized=single_norm, ipa=llm_ipa,
         arpabet=[], categories=[],
         source="llm" if llm_ipa else "none",
     )

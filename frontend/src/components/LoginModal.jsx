@@ -161,16 +161,6 @@ export default function LoginModal() {
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-5 text-center">
               New here? Get 1 free word + 1 free scene on us.
             </p>
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-2 text-center">
-              Need help?{" "}
-              <a
-                href="mailto:info@katherinebeck.com?subject=American%20Accent%20Prep%20support"
-                className="underline hover:text-ink transition-colors"
-                data-testid="login-support-email"
-              >
-                info@katherinebeck.com
-              </a>
-            </p>
           </form>
         )}
       </div>
