@@ -79,6 +79,30 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     # Dialect / accent-focused
     {"handle": "WIRED",            "label": "WIRED (Erik Singer)"},
     {"handle": "businessinsider",  "label": "Business Insider"},
+    {"handle": "rachelsenglish",   "label": "Rachel's English"},
+    {"handle": "MerriamWebster",   "label": "Merriam-Webster"},
+    # Movie & entertainment press
+    {"handle": "MOVIECLIPS",              "label": "Movieclips"},
+    {"handle": "FandangoMovieClips",      "label": "Fandango"},
+    {"handle": "RegalMovies",             "label": "Regal Movies"},
+    {"handle": "entertainmenttonight",    "label": "Entertainment Tonight"},
+    {"handle": "AccessHollywood",         "label": "Access Hollywood"},
+    {"handle": "HollywoodLife",           "label": "Hollywood Life"},
+    {"handle": "popsugar",                "label": "PopSugar"},
+    # Podcast heavy-hitters (YouTube channels)
+    {"handle": "lexfridman",              "label": "Lex Fridman"},
+    {"handle": "PowerfulJRE",             "label": "Joe Rogan Experience"},
+    {"handle": "smartless",               "label": "SmartLess"},
+    {"handle": "armchairexpertpodcast",   "label": "Armchair Expert"},
+    {"handle": "HowIBuiltThis",           "label": "How I Built This"},
+    # Actor / celebrity talk shows (American hosts)
+    {"handle": "TheDrewBarrymoreShow",    "label": "The Drew Barrymore Show"},
+    {"handle": "KellyClarksonShow",       "label": "The Kelly Clarkson Show"},
+    # Sports broadcasters (American)
+    {"handle": "espn",                    "label": "ESPN"},
+    {"handle": "NFL",                     "label": "NFL"},
+    {"handle": "NBA",                     "label": "NBA"},
+    {"handle": "mlb",                     "label": "MLB"},
 ]
 
 WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
@@ -234,6 +258,22 @@ class CaptionSearchService:
                     seen.add(vid)
                     filtered.append(it)
 
+                # Fallback: if curated allowlist yields nothing, fall back to
+                # the raw US/en YouTube results so obscure words still have
+                # examples. regionCode=US + relevanceLanguage=en keeps this
+                # American-leaning; a hard curated match is preferred when
+                # available.
+                used_fallback = False
+                if not filtered:
+                    seen = set()
+                    for it in combined:
+                        vid = (it.get("id") or {}).get("videoId")
+                        if not vid or vid in seen:
+                            continue
+                        seen.add(vid)
+                        filtered.append(it)
+                    used_fallback = bool(filtered)
+
                 # Confirm embeddability at the video level — the search flag
                 # misses some geo/copyright-restricted news clips.
                 ids = [f["id"]["videoId"] for f in filtered]
@@ -242,6 +282,11 @@ class CaptionSearchService:
                     it for it in filtered
                     if (it.get("id") or {}).get("videoId") in allowed
                 ]
+                if used_fallback and items:
+                    logger.info(
+                        "youtube search: curated empty, using fallback (%d items) for %r",
+                        len(items), query,
+                    )
                 return {"items": items, "quota_exceeded": False}
         except Exception as exc:  # noqa: BLE001
             logger.warning("youtube broad search failed for %r: %s", query, exc)
@@ -510,7 +555,9 @@ class CaptionSearchService:
         items = search_data["items"]
         quota_exceeded = search_data["quota_exceeded"]
 
-        # Every result is already from a curated channel, but double-check.
+        # _youtube_search already applied the curated allowlist (with an
+        # unfiltered fallback when curated returns nothing). Here we just
+        # dedupe by video id and shape the payload.
         candidates: List[Dict[str, str]] = []
         seen_vids = set()
         for it in items:
@@ -518,7 +565,7 @@ class CaptionSearchService:
             cid = snip.get("channelId")
             vid_obj = it.get("id") or {}
             vid = vid_obj.get("videoId") if isinstance(vid_obj, dict) else None
-            if not cid or not vid or cid not in curated_ids or vid in seen_vids:
+            if not cid or not vid or vid in seen_vids:
                 continue
             seen_vids.add(vid)
             candidates.append({
