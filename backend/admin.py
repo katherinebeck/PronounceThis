@@ -15,10 +15,11 @@ Endpoints:
 """
 from __future__ import annotations
 
+import base64
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, EmailStr
 
@@ -31,6 +32,11 @@ def _now_iso() -> str:
 
 def _in_days(days: int) -> str:
     return (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+
+
+ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
+                       "audio/webm", "audio/ogg", "audio/mp4", "audio/m4a"}
+MAX_AUDIO_BYTES = 2 * 1024 * 1024   # 2 MB is plenty for a single word
 
 
 class CancelBody(BaseModel):
@@ -46,6 +52,10 @@ class GrantBody(BaseModel):
     # How many days from now to expire the grant. 0 or omitted = no expiry
     # (permanent, e.g., for a group-coaching student).
     days: int = 0
+
+
+class DeleteOverrideBody(BaseModel):
+    word: str
 
 
 def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
@@ -197,5 +207,81 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             .to_list(min(limit, 200))
         )
         return {"count": len(docs), "events": docs}
+
+    # --- Manual pronunciation overrides ---------------------------------
+    # For words ElevenLabs mispronounces (proper nouns like "Los Angeles",
+    # actor names, technical terms). Katherine records the correct
+    # pronunciation once; it's saved into the shared `audio_cache`
+    # collection and served on every future /api/tts call for that word,
+    # bypassing ElevenLabs entirely.
+
+    @router.get("/pronunciation-overrides")
+    async def list_pronunciation_overrides(request: Request, limit: int = 100):
+        await require_admin(request, db)
+        docs = await (
+            db.audio_cache.find(
+                {"manual_override": True},
+                {"_id": 0, "audio_b64": 0},  # strip the giant base64
+            )
+            .sort("created_at", -1)
+            .to_list(min(limit, 500))
+        )
+        return {"count": len(docs), "overrides": docs}
+
+    @router.post("/pronunciation-overrides")
+    async def upload_pronunciation_override(
+        request: Request,
+        word: str = Form(...),
+        file: UploadFile = File(...),
+    ):
+        await require_admin(request, db)
+        clean_word = word.strip().lower()
+        if not clean_word:
+            raise HTTPException(status_code=400, detail="word_required")
+
+        # Read + validate size (multipart uploads have no reliable
+        # Content-Length by the time they reach us).
+        raw = await file.read()
+        if not raw:
+            raise HTTPException(status_code=400, detail="empty_file")
+        if len(raw) > MAX_AUDIO_BYTES:
+            raise HTTPException(status_code=413, detail="file_too_large_max_2mb")
+        ct = (file.content_type or "").lower()
+        if ct and ct not in ALLOWED_AUDIO_TYPES:
+            raise HTTPException(status_code=400,
+                                detail=f"unsupported_audio_type:{ct}")
+
+        audio_b64 = base64.b64encode(raw).decode("ascii")
+        await db.audio_cache.update_one(
+            {"word": clean_word},
+            {"$set": {
+                "word": clean_word,
+                "audio_b64": audio_b64,
+                "manual_override": True,
+                "content_type": ct or "audio/mpeg",
+                "byte_size": len(raw),
+                "created_at": _now_iso(),
+            }},
+            upsert=True,
+        )
+        return {
+            "ok": True,
+            "word": clean_word,
+            "byte_size": len(raw),
+            "content_type": ct or "audio/mpeg",
+        }
+
+    @router.post("/pronunciation-overrides/delete")
+    async def delete_pronunciation_override(
+        body: DeleteOverrideBody, request: Request
+    ):
+        await require_admin(request, db)
+        clean_word = body.word.strip().lower()
+        if not clean_word:
+            raise HTTPException(status_code=400, detail="word_required")
+        result = await db.audio_cache.delete_one(
+            {"word": clean_word, "manual_override": True}
+        )
+        return {"ok": True, "deleted": result.deleted_count}
 
     return router

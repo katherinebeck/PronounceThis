@@ -20,10 +20,13 @@ function friendlyError(e, fallback = "Audio playback failed.") {
 }
 
 export async function playWord(word) {
-  if (!word) return;
+  if (!word) return null;
   const key = word.toLowerCase();
-  let url = cache.get(key);
-  if (!url) {
+  let cached = cache.get(key);
+  let manualOverride = false;
+  if (cached) {
+    manualOverride = cached.manualOverride;
+  } else {
     let resp;
     try {
       resp = await fetchTTS(word);
@@ -32,12 +35,17 @@ export async function playWord(word) {
       err.friendly = err.message;
       throw err;
     }
-    url = b64ToBlobUrl(resp.audio_b64, resp.mime);
-    cache.set(key, url);
+    const url = b64ToBlobUrl(resp.audio_b64, resp.mime);
+    manualOverride = !!resp.manual_override;
+    cached = { url, manualOverride };
+    cache.set(key, cached);
   }
-  const audio = new Audio(url);
+  const audio = new Audio(cached.url);
   audio.preload = "auto";
   await audio.play().catch(() => {});
+  // Return the override flag along with the audio so callers (e.g. the
+  // Pronounce page) can decide whether to nudge to Real Speakers.
+  audio.manualOverride = manualOverride;
   return audio;
 }
 

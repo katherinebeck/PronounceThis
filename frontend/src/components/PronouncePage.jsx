@@ -41,11 +41,24 @@ export default function PronouncePage({ onGoToScenes }) {
     }
   };
 
+  // Heuristic: words with a capital letter or a space are usually proper nouns
+  // or multi-word phrases (e.g. "Los Angeles"), which ElevenLabs is most
+  // likely to mispronounce. When Katherine hasn't uploaded a manual override
+  // for one, we auto-open Real Speakers alongside the Play so the student
+  // hears at least one real native speaker say the word.
+  const looksProper = (w) => /[A-Z]/.test(w || "") || /\s/.test(w || "");
+
   const play = async () => {
     if (!result?.word) return;
     setPlayingHint(true);
     try {
-      await playWord(result.word);
+      const audio = await playWord(result.word);
+      // If ElevenLabs generated this (no admin override) AND the word looks
+      // like a proper noun, also open Real Speakers so the student can
+      // sanity-check against a real human.
+      if (audio && !audio.manualOverride && looksProper(input.trim())) {
+        setYgQuery(input.trim());
+      }
     } catch (err) {
       toast.error(err.friendly || "Audio playback failed.");
     } finally {

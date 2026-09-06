@@ -119,6 +119,10 @@ class TTSResponse(BaseModel):
     audio_b64: str  # raw base64 (no data: prefix)
     mime: str = "audio/mpeg"
     cached: bool = False
+    # True when this audio came from an admin-uploaded manual pronunciation
+    # override rather than ElevenLabs. The frontend uses this to decide
+    # whether to also nudge the user toward Real Speakers.
+    manual_override: bool = False
 
 
 class PronounceResponse(BaseModel):
@@ -843,7 +847,12 @@ async def tts(req: TTSRequest, request: Request):
     cached = await db.audio_cache.find_one({"word": cache_key}, {"_id": 0})
     if cached and cached.get("audio_b64"):
         await consume_trial(db, actor)
-        return TTSResponse(word=word, audio_b64=cached["audio_b64"], cached=True)
+        return TTSResponse(
+            word=word,
+            audio_b64=cached["audio_b64"],
+            cached=True,
+            manual_override=bool(cached.get("manual_override")),
+        )
 
     voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
 

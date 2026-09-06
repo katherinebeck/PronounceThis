@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff } from "lucide-react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2 } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -82,6 +82,75 @@ export default function AdminPage() {
       toast.error(err?.response?.data?.detail || "Grant failed");
     } finally {
       setGranting(false);
+    }
+  };
+
+  // ------------------------ Pronunciation overrides ------------------------
+  const [overrides, setOverrides] = useState([]);
+  const [ovWord, setOvWord] = useState("");
+  const ovFileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
+
+  const loadOverrides = useCallback(async () => {
+    if (!authorized) return;
+    try {
+      const { data } = await api.get("/admin/pronunciation-overrides");
+      setOverrides(data.overrides || []);
+    } catch {
+      // non-fatal; the rest of the page still works
+    }
+  }, [authorized]);
+
+  useEffect(() => {
+    loadOverrides();
+  }, [loadOverrides]);
+
+  const uploadOverride = async (e) => {
+    e.preventDefault();
+    const file = ovFileRef.current?.files?.[0];
+    if (!file) return toast.error("Choose an audio file first");
+    if (!ovWord.trim()) return toast.error("Enter a word");
+    if (file.size > 2 * 1024 * 1024) return toast.error("Audio must be under 2 MB");
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("word", ovWord.trim().toLowerCase());
+      form.append("file", file);
+      await api.post("/admin/pronunciation-overrides", form, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      toast.success(`Saved pronunciation for "${ovWord.trim().toLowerCase()}"`);
+      setOvWord("");
+      if (ovFileRef.current) ovFileRef.current.value = "";
+      loadOverrides();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const deleteOverride = async (word) => {
+    if (!window.confirm(`Remove the manual pronunciation for "${word}"? The next lookup will regenerate it via ElevenLabs.`))
+      return;
+    try {
+      await api.post("/admin/pronunciation-overrides/delete", { word });
+      toast.success(`Removed "${word}"`);
+      loadOverrides();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Delete failed");
+    }
+  };
+
+  const previewOverride = async (word) => {
+    try {
+      const { data } = await api.post("/tts", { word });
+      if (data?.audio_b64) {
+        const a = new Audio(`data:audio/mpeg;base64,${data.audio_b64}`);
+        a.play();
+      }
+    } catch (err) {
+      toast.error("Could not play — " + (err?.response?.data?.detail || "unknown error"));
     }
   };
 
@@ -300,6 +369,92 @@ export default function AdminPage() {
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-3">
             Cancel = ends access at end of paid period (leave date empty to end immediately).
           </p>
+        </section>
+
+        {/* Pronunciation overrides */}
+        <section className="bg-surface border thin-rule p-6">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
+            Fix a pronunciation
+          </div>
+          <h2 className="font-display text-2xl text-ink mb-4">
+            Record your own for tricky words
+          </h2>
+          <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
+            ElevenLabs sometimes mispronounces proper nouns like "Los Angeles". Upload
+            an MP3 (2 MB max) of the correct pronunciation and the Play button will
+            use YOUR recording forever for that word.
+          </p>
+          <form onSubmit={uploadOverride} className="grid gap-3 sm:grid-cols-[1.5fr_2fr_auto]">
+            <input
+              type="text"
+              required
+              placeholder="Word or phrase (e.g. Los Angeles)"
+              value={ovWord}
+              onChange={(e) => setOvWord(e.target.value)}
+              className="w-full px-3 py-2.5 bg-paper border thin-rule font-serif text-base text-ink focus:outline-none focus:border-ink"
+              data-testid="admin-ov-word"
+            />
+            <input
+              type="file"
+              accept="audio/mpeg,audio/mp3,audio/wav,audio/webm,audio/ogg,audio/mp4"
+              ref={ovFileRef}
+              className="w-full px-3 py-2 bg-paper border thin-rule font-serif text-sm text-ink file:mr-3 file:px-3 file:py-1.5 file:border-0 file:bg-ink file:text-surface file:font-mono file:text-[10px] file:uppercase file:tracking-[0.2em]"
+              data-testid="admin-ov-file"
+            />
+            <button
+              type="submit"
+              disabled={uploading}
+              className="btn-primary justify-center"
+              data-testid="admin-ov-submit"
+            >
+              {uploading ? <Loader2 size={14} className="animate-spin" /> : <Mic size={14} />}
+              Save
+            </button>
+          </form>
+
+          {overrides.length > 0 ? (
+            <div className="mt-5 border thin-rule bg-paper divide-y divide-[color:var(--rule)]">
+              {overrides.map((o) => (
+                <div
+                  key={o.word}
+                  className="flex items-center justify-between gap-3 px-4 py-3"
+                  data-testid={`admin-ov-row-${o.word}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-serif text-base text-ink truncate">
+                      {o.word}
+                    </div>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted2 mt-0.5">
+                      {(o.byte_size ? Math.round(o.byte_size / 1024) : "?")} kb
+                      {o.content_type ? ` · ${o.content_type}` : ""}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => previewOverride(o.word)}
+                    className="p-2 border thin-rule hover:bg-ink hover:text-surface transition-colors"
+                    data-testid={`admin-ov-play-${o.word}`}
+                    title="Play"
+                  >
+                    <Volume2 size={13} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteOverride(o.word)}
+                    className="p-2 border thin-rule hover:bg-rust hover:text-surface hover:border-rust transition-colors"
+                    data-testid={`admin-ov-delete-${o.word}`}
+                    title="Remove"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-5">
+              No overrides yet. Upload one for any word ElevenLabs gets wrong.
+            </p>
+          )}
         </section>
       </div>
     </div>

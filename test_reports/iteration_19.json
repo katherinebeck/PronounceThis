@@ -1,0 +1,46 @@
+{
+  "summary": "Backend testing of new /api/admin/pronunciation-overrides endpoints and /api/tts manual_override flag. All 12 pytest cases pass after fixing one blocker: DeleteOverrideBody Pydantic model was defined INSIDE create_admin_router() function scope, causing FastAPI to fail body-schema detection and always return 422 on POST /api/admin/pronunciation-overrides/delete regardless of request body. Moved model to module scope alongside CancelBody/GrantBody — delete now works.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/admin/pronunciation-overrides/delete",
+        "issue": "DeleteOverrideBody was declared as a NESTED class inside create_admin_router(); FastAPI could not recognize it as a request body and returned 422 for every call. Fixed by hoisting the model to module scope."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_pronunciation_overrides.py",
+    "/app/test_reports/pytest/iter19_results.xml"
+  ],
+  "test_coverage": {
+    "admin_gating": "401/403 without session — verified on both POST upload and GET list",
+    "validation": "Empty file -> 400 empty_file; >2MB -> 413 file_too_large_max_2mb",
+    "happy_path": "Upload 'Los Angeles' -> lowercased to 'los angeles', persisted with manual_override=true, byte_size + content_type match. GET list omits audio_b64. Delete removes row and confirms 404 in follow-up list. Admin session established via magic-link token inserted directly into db.magic_links + GET /api/auth/verify.",
+    "tts_integration": "POST /api/tts {word: 'Los Angeles'} returns manual_override=true with audio_b64 matching uploaded bytes. POST /api/tts {word: 'testword_xyz_never'} returns manual_override=false when Eleven succeeds (skips if Eleven quota/network fails).",
+    "regression": "/api/auth/me still returns stripe_prices; /api/scenes and /api/caption-search still return 200."
+  },
+  "action_items": [
+    "Review the DeleteOverrideBody hoist in /app/backend/admin.py (moved to module scope alongside CancelBody/GrantBody). Consider adding a lint/pattern rule to keep all Pydantic body-schema classes at module scope."
+  ],
+  "critical_code_review_comments": [
+    "admin.py: DeleteOverrideBody was defined as a local (nested) class inside create_admin_router. FastAPI's dependency introspection is unreliable for locally-scoped BaseModel subclasses — you got a silent 422 on every real request. Now fixed. Keep body schemas at module scope going forward.",
+    "server.py:894 — When writing a fresh (non-override) audio_cache row on /api/tts, the doc does NOT include manual_override=false explicitly. That's fine because Python treats missing as falsy in the response builder, but consider persisting the flag explicitly for grep-ability and future queries."
+  ],
+  "updated_files": [
+    "/app/backend/admin.py (moved DeleteOverrideBody to module scope)",
+    "/app/backend/tests/test_pronunciation_overrides.py (new)"
+  ],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "not tested (backend-only per request)"},
+  "test_credentials": "Admin session obtained programmatically by inserting a magic-link doc for katherine@katherinebeck.com into db.magic_links then GET /api/auth/verify. Also seeded an active manual_grant membership row so /api/tts passes the subscriber gate.",
+  "seed_data_creation": "db.users upsert for katherine@katherinebeck.com; db.memberships upsert (offer_id=manual_grant, offer_title=TEST_admin_grant, status=active); db.magic_links insert (test token). All test-created audio_cache rows (word='los angeles' + prefix test_word_* + testword_xyz_never) are cleaned up via module-scoped teardown.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Test file /app/backend/tests/test_pronunciation_overrides.py is idempotent — reuses a magic-link + membership grant for katherine@katherinebeck.com. If admin auth changes (e.g., ADMIN_EMAILS rotated), update ADMIN_EMAIL fallback in the test. The TINY_MP3 payload is opaque bytes with an MP3 magic header; endpoint doesn't parse MP3 structure so any bytes pass.",
+  "rca of the issue": "POST /api/admin/pronunciation-overrides/delete returned HTTP 422 for every well-formed body because DeleteOverrideBody was declared with `class DeleteOverrideBody(BaseModel): ...` INSIDE create_admin_router(). FastAPI parameter introspection did not classify it as a request body, so it treated 'body' as a query parameter and reported missing. Reproduction: POST with {word:'x'} JSON body -> 422 {'loc':['query','body']}. Mitigation: moved DeleteOverrideBody to module scope. Re-tested — delete returns 200 with {ok:true, deleted:1}."
+}
