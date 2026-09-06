@@ -32,10 +32,10 @@ export default function LoginModal() {
       let msg;
       if (detail === "email_delivery_pending_domain_verification") {
         msg =
-          "We're still verifying our email domain — right now sign-in links only work for the app owner. Please email support to get a comp account while we finish setup.";
+          "We're still verifying our email domain — right now sign-in links only work for the app owner. Please email info@katherinebeck.com to get a comp account while we finish setup.";
       } else if (detail === "email_send_failed") {
         msg =
-          "Couldn't send the sign-in email right now. Please try again in a minute, or contact support if it persists.";
+          "Couldn't send the sign-in email right now. Please try again in a minute, or email info@katherinebeck.com if it persists.";
       } else if (detail === "invalid_email") {
         msg = "That doesn't look like a valid email address.";
       } else {
@@ -160,6 +160,16 @@ export default function LoginModal() {
 
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-5 text-center">
               New here? Get 1 free word + 1 free scene on us.
+            </p>
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-2 text-center">
+              Need help?{" "}
+              <a
+                href="mailto:info@katherinebeck.com?subject=American%20Accent%20Prep%20support"
+                className="underline hover:text-ink transition-colors"
+                data-testid="login-support-email"
+              >
+                info@katherinebeck.com
+              </a>
             </p>
           </form>
         )}

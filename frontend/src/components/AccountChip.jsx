@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { User, LogOut, CreditCard, ExternalLink, ChevronDown, Loader2 } from "lucide-react";
+import { User, LogOut, CreditCard, ExternalLink, ChevronDown, Loader2, Mail } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { createStripePortal } from "@/lib/api";
 import { toast } from "sonner";
@@ -130,6 +130,15 @@ export default function AccountChip() {
               <ExternalLink size={12} className="text-muted2" />
             </a>
           ) : null}
+
+          <a
+            href="mailto:info@katherinebeck.com?subject=American%20Accent%20Prep%20support"
+            className="flex items-center gap-2 w-full px-4 py-3 hover:bg-paper transition-colors font-mono text-[11px] uppercase tracking-[0.22em] text-ink text-left border-b thin-rule"
+            data-testid="account-support"
+          >
+            <Mail size={12} />
+            Contact support
+          </a>
 
           <button
             type="button"
