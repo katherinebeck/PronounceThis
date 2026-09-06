@@ -364,6 +364,39 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             )
 
         status = await _membership_status(db, email)
+
+        # Self-heal: if the user has a Stripe customer link but shows no
+        # active membership, there's a chance a webhook was missed or the
+        # local row is stale. Force a resync from Stripe — rate-limited so
+        # we don't hammer Stripe on every /me poll. On success, recompute
+        # the membership status.
+        if status["status"] != "active" and user.get("stripe_customer_id"):
+            last_sync = user.get("last_stripe_sync_at")
+            should_sync = True
+            if last_sync:
+                try:
+                    last_dt = datetime.fromisoformat(
+                        last_sync.replace("Z", "+00:00")
+                    )
+                    if (_now() - last_dt) < timedelta(minutes=5):
+                        should_sync = False
+                except Exception:
+                    pass
+            if should_sync:
+                try:
+                    from stripe_payments import sync_from_stripe_customer
+                    result = await sync_from_stripe_customer(db, email)
+                    await db.users.update_one(
+                        {"email": email},
+                        {"$set": {"last_stripe_sync_at": _now().isoformat()}},
+                    )
+                    if result.get("active_found"):
+                        status = await _membership_status(db, email)
+                except Exception as exc:
+                    logger.warning(
+                        f"self-heal stripe sync failed for {email}: {exc}"
+                    )
+
         return AuthMeResponse(
             authenticated=True,
             email=email,

@@ -91,11 +91,23 @@
 - **Frontend** — `LoginModal`, `PaywallModal`, `VerifyPage`, `AccountChip`, `AuthProvider`. Global axios interceptor opens login on 401 / paywall on 402.
 - **Kajabi setup guide** at `/app/memory/KAJABI_SETUP.md` — step-by-step instructions the user can follow to create offers + hook them into our webhooks.
 
+## Added (Feb–Sep 2026 session)
+- **Rebrand → "American Accent Prep"** across UI, emails, Stripe products.
+- **Magic-link auth via Resend** with 90-day sessions (`/app/backend/auth.py`).
+- **Standalone Stripe subscriptions** ($9/mo, $90/yr) — replaced Kajabi as the payment gateway (`/app/backend/stripe_payments.py`). Kajabi env vars kept for backward compat but no longer used.
+- **Admin panel** at `/admin` — manual grants, cancellations, user list, webhook events, pronunciation overrides, and **Stripe resync** (new).
+- **Welcome walkthrough modal** for first-time signed-in users.
+- **Real Speakers** feature: YouGlish-style single-video player with prev/next, 58 curated American-speaker YouTube channels + all-of-YouTube fallback when the allowlist returns nothing.
+- **Manual pronunciation overrides**: admin uploads MP3s for words ElevenLabs mispronounces (bypasses TTS entirely for those words).
+- **Custom domain** `app.katherinebeck.com` linked.
+- **Resend production sender**: `login@katherinebeck.com` (verified in Resend dashboard).
+- **Stripe self-heal** — `/api/auth/me` now silently resyncs from Stripe (rate-limited 5 min) if a user has a `stripe_customer_id` but no active membership row. Also exposed as an admin utility: `POST /api/admin/stripe/sync {email}` + UI button on the admin panel. Solves the "paid on Stripe, still shows Free Trial" webhook-desync class of bug.
+
 ## Next tasks
-1. **[Waiting on user]** Create Monthly + Annual (+ optional Group Coaching) offers in Kajabi, then paste the 3 checkout URLs so we can drop them into `KAJABI_MONTHLY_OFFER_URL` / `KAJABI_ANNUAL_OFFER_URL` / `KAJABI_MEMBER_PORTAL_URL`.
-2. **[Waiting on user]** Configure the Purchase Created + Payment Succeeded webhooks + cancellation Automation in Kajabi per the setup guide.
-3. **Domain verification for Resend** — verify `katherinebeck.com` in Resend so login emails ship from `login@katherinebeck.com` (currently in Resend test mode which only delivers to the account owner).
-4. **Nightly Kajabi reconciliation job** using the Public API — catches missed cancellations/refunds. `KAJABI_API_CLIENT_ID` + `KAJABI_API_CLIENT_SECRET` already saved.
-5. **Merriam-Webster audio integration (P0)** — still waiting on MW API key.
-6. Playback speed toggles (0.5× / 0.75× / 1×).
-7. Refactor `server.py` (now ~1130 lines) into `routes/` + `services/`.
+1. **[Ready to ship — waiting on user]** Redeploy production to pick up the Stripe self-heal + admin resync button + expanded YouTube channels + Welcome modal copy fix.
+2. **[P1]** Add playback speed toggles (0.5× / 0.75× / 1×).
+3. **[P2]** Session notes: coach jots homework alongside words/scenes.
+4. **[P2]** Homework link: shareable read-only URL for students.
+5. **[P2]** Merriam-Webster audio integration (waiting on API key).
+6. **[P2]** Full local caption index (ingest transcripts to MongoDB to bypass YouTube API limits).
+7. **[Refactor]** Split `server.py` (~1150 lines) into `routes/` + `services/`.

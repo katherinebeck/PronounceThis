@@ -19,6 +19,7 @@ Design:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from datetime import datetime, timezone
@@ -329,3 +330,89 @@ async def _mark_cancelled(db: AsyncIOMotorDatabase, sub) -> None:
         }},
     )
     logger.info(f"stripe subscription.deleted {sub_id} → rows={result.modified_count}")
+
+
+async def sync_from_stripe_customer(
+    db: AsyncIOMotorDatabase, email: str
+) -> dict:
+    """Force a memberships resync from Stripe for one app user email.
+
+    Looks up the user's Stripe customer (by stored id, or by email as a
+    fallback), pulls their current subscriptions, and calls
+    _sync_subscription for each. Used by:
+      - Admin panel ("Sync from Stripe" button)
+      - /api/auth/me self-heal path (when app state falls out of sync)
+
+    Returns a dict summary. Never raises — returns {"error": ...} instead so
+    callers can decide whether to surface it.
+    """
+    email = (email or "").strip().lower()
+    if not email:
+        return {"ok": False, "reason": "email_required", "synced": 0}
+
+    user = await db.users.find_one({"email": email})
+    cust_id = (user or {}).get("stripe_customer_id")
+
+    # Fallback: find the customer by email in Stripe if we don't have the
+    # local link yet (e.g., user purchased via a channel that skipped our
+    # create-checkout flow).
+    if not cust_id:
+        try:
+            customers = await asyncio.to_thread(
+                lambda: stripe.Customer.list(email=email, limit=1).data
+            )
+            if customers:
+                cust_id = customers[0].id
+                await db.users.update_one(
+                    {"email": email},
+                    {"$setOnInsert": {
+                        "email": email,
+                        "trial_word_used": 0,
+                        "trial_scene_used": 0,
+                        "created_at": _now_iso(),
+                    },
+                     "$set": {"stripe_customer_id": cust_id}},
+                    upsert=True,
+                )
+        except stripe.error.StripeError as exc:
+            logger.warning(f"stripe customer lookup failed for {email}: {exc}")
+            return {"ok": False, "reason": "stripe_error",
+                    "error": str(exc), "synced": 0}
+
+    if not cust_id:
+        return {"ok": True, "reason": "no_stripe_customer", "synced": 0}
+
+    try:
+        subs = await asyncio.to_thread(
+            lambda: stripe.Subscription.list(
+                customer=cust_id, status="all", limit=10
+            ).data
+        )
+    except stripe.error.StripeError as exc:
+        logger.warning(f"stripe subscription list failed for {email}: {exc}")
+        return {"ok": False, "reason": "stripe_error",
+                "error": str(exc), "synced": 0, "customer_id": cust_id}
+
+    synced = 0
+    active_found = False
+    for sub in subs:
+        # Ensure the subscription metadata has our email so _sync_subscription
+        # can attribute it correctly even if it was created outside our flow.
+        try:
+            md = dict(sub.get("metadata") or {})
+            if not md.get("app_user_email"):
+                md["app_user_email"] = email
+                sub["metadata"] = md
+        except Exception:
+            pass
+        await _sync_subscription(db, sub)
+        synced += 1
+        if sub.get("status") in ("active", "trialing"):
+            active_found = True
+
+    return {
+        "ok": True,
+        "synced": synced,
+        "customer_id": cust_id,
+        "active_found": active_found,
+    }

@@ -24,6 +24,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, EmailStr
 
 from auth import require_admin
+from stripe_payments import sync_from_stripe_customer
 
 
 def _now_iso() -> str:
@@ -56,6 +57,10 @@ class GrantBody(BaseModel):
 
 class DeleteOverrideBody(BaseModel):
     word: str
+
+
+class StripeSyncBody(BaseModel):
+    email: EmailStr
 
 
 def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
@@ -283,5 +288,17 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             {"word": clean_word, "manual_override": True}
         )
         return {"ok": True, "deleted": result.deleted_count}
+
+    @router.post("/stripe/sync")
+    async def stripe_sync(body: StripeSyncBody, request: Request):
+        """Admin utility: force resync a user's memberships from Stripe.
+
+        Solves the "Stripe shows Active but app shows Free Trial" edge case
+        by pulling the current subscription state directly from Stripe
+        (bypassing webhook delivery). Idempotent.
+        """
+        await require_admin(request, db)
+        result = await sync_from_stripe_customer(db, body.email.strip().lower())
+        return result
 
     return router

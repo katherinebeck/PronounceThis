@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2 } from "lucide-react";
+import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -82,6 +82,42 @@ export default function AdminPage() {
       toast.error(err?.response?.data?.detail || "Grant failed");
     } finally {
       setGranting(false);
+    }
+  };
+
+  // ------------------------ Stripe resync ---------------------------------
+  const [syncEmail, setSyncEmail] = useState("");
+  const [syncing, setSyncing] = useState(false);
+
+  const stripeSync = async (e) => {
+    e.preventDefault();
+    if (!syncEmail.trim()) return;
+    setSyncing(true);
+    try {
+      const res = await api.post("/admin/stripe/sync", {
+        email: syncEmail.trim().toLowerCase(),
+      });
+      const d = res?.data || {};
+      if (d.active_found) {
+        toast.success(
+          `Synced ${d.synced} subscription${d.synced === 1 ? "" : "s"} — active membership found`
+        );
+      } else if (d.synced > 0) {
+        toast.success(
+          `Synced ${d.synced} subscription${d.synced === 1 ? "" : "s"} (none active)`
+        );
+      } else if (d.reason === "no_stripe_customer") {
+        toast.warning("No Stripe customer found for this email");
+      } else if (d.reason === "stripe_error") {
+        toast.error(`Stripe error: ${d.error || "unknown"}`);
+      } else {
+        toast.info("Nothing to sync");
+      }
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Sync failed");
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -261,6 +297,46 @@ export default function AdminPage() {
             >
               {granting ? <Loader2 size={14} className="animate-spin" /> : <UserCheck size={14} />}
               Grant
+            </button>
+          </form>
+        </section>
+
+        {/* Sync from Stripe */}
+        <section className="bg-surface border thin-rule p-6" data-testid="admin-stripe-sync">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
+            Sync from Stripe
+          </div>
+          <h2 className="font-display text-2xl text-ink mb-4">
+            Repair a paying member stuck on Free Trial
+          </h2>
+          <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
+            If a customer paid through Stripe but the app still shows them as
+            "Free trial", enter their email here. This pulls their current
+            subscription state directly from Stripe and updates their
+            membership record — no waiting on webhooks.
+          </p>
+          <form onSubmit={stripeSync} className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <input
+              type="email"
+              required
+              placeholder="member@example.com"
+              value={syncEmail}
+              onChange={(e) => setSyncEmail(e.target.value)}
+              className="w-full px-3 py-2.5 bg-paper border thin-rule font-serif text-base text-ink focus:outline-none focus:border-ink"
+              data-testid="admin-stripe-sync-email"
+            />
+            <button
+              type="submit"
+              disabled={syncing}
+              className="btn-primary justify-center"
+              data-testid="admin-stripe-sync-submit"
+            >
+              {syncing ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )}
+              Sync from Stripe
             </button>
           </form>
         </section>
