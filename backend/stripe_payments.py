@@ -275,14 +275,22 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
     logger.info(f"stripe → active: {email} / {lookup_key}")
 
 
-async def _sync_subscription(db: AsyncIOMotorDatabase, sub) -> None:
+async def _sync_subscription(
+    db: AsyncIOMotorDatabase,
+    sub,
+    email_override: Optional[str] = None,
+) -> None:
     """Reflect a customer.subscription.updated/created into memberships.
 
     If the sub is scheduled to cancel at period end, we stamp
     `subscription_end_at` so the access gate honours it.
+
+    `email_override` lets callers (like the admin sync utility) pin the
+    app-user email when the subscription's metadata wasn't populated by
+    our checkout flow.
     """
     metadata = sub.get("metadata") or {}
-    email = (metadata.get("app_user_email") or "").strip().lower()
+    email = (email_override or metadata.get("app_user_email") or "").strip().lower()
     if not email:
         # Look up by customer if metadata wasn't propagated.
         cust = await db.users.find_one({"stripe_customer_id": sub.get("customer")})
@@ -396,16 +404,10 @@ async def sync_from_stripe_customer(
     synced = 0
     active_found = False
     for sub in subs:
-        # Ensure the subscription metadata has our email so _sync_subscription
-        # can attribute it correctly even if it was created outside our flow.
-        try:
-            md = dict(sub.get("metadata") or {})
-            if not md.get("app_user_email"):
-                md["app_user_email"] = email
-                sub["metadata"] = md
-        except Exception:
-            pass
-        await _sync_subscription(db, sub)
+        # Pass the email explicitly rather than trying to mutate the Stripe
+        # SDK object's metadata (which behaves like a dict but may not
+        # persist writes reliably across SDK versions).
+        await _sync_subscription(db, sub, email_override=email)
         synced += 1
         if sub.get("status") in ("active", "trialing"):
             active_found = True
