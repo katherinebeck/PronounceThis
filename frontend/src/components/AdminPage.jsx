@@ -160,6 +160,41 @@ export default function AdminPage() {
     }
   };
 
+  // ------------------------ Prewarm caption cache ------------------------
+  const [prewarmStatus, setPrewarmStatus] = useState(null);
+  const [prewarmStarting, setPrewarmStarting] = useState(false);
+
+  const loadPrewarmStatus = useCallback(async () => {
+    if (!authorized) return;
+    try {
+      const { data } = await api.get("/admin/prewarm/status");
+      setPrewarmStatus(data);
+    } catch {
+      setPrewarmStatus(null);
+    }
+  }, [authorized]);
+
+  useEffect(() => {
+    loadPrewarmStatus();
+    const iv = setInterval(loadPrewarmStatus, 15000);
+    return () => clearInterval(iv);
+  }, [loadPrewarmStatus]);
+
+  const startPrewarm = async () => {
+    setPrewarmStarting(true);
+    try {
+      const { data } = await api.post("/admin/prewarm/start");
+      toast.success(
+        `Prewarm queued for ${data.words_queued} words — running in background`
+      );
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Could not start prewarm");
+    } finally {
+      setPrewarmStarting(false);
+      setTimeout(loadPrewarmStatus, 2000);
+    }
+  };
+
   // ------------------------ Pronunciation overrides ------------------------
   const [overrides, setOverrides] = useState([]);
   const [ovWord, setOvWord] = useState("");
@@ -439,6 +474,62 @@ export default function AdminPage() {
               Sync from Stripe
             </button>
           </form>
+        </section>
+
+        {/* Prewarm caption cache */}
+        <section className="bg-surface border thin-rule p-6" data-testid="admin-prewarm">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
+            Real Speakers · cache
+          </div>
+          <h2 className="font-display text-2xl text-ink mb-4">
+            Prewarm popular words
+          </h2>
+          <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
+            Populate the Real Speakers cache with a curated list of ~1400
+            common words + US places + auditioning vocabulary. Once cached,
+            every student's first click on those words is instant. Runs in
+            the background over several hours; already-cached words are
+            skipped. Uses YouTube API quota (~100 units per fresh word).
+          </p>
+          {prewarmStatus ? (
+            <div className="flex items-baseline gap-6 mb-4">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
+                  Cached
+                </div>
+                <div className="font-display text-2xl text-ink">
+                  {prewarmStatus.cached}
+                  <span className="font-mono text-sm text-muted2 ml-1">
+                    / {prewarmStatus.total}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
+                  Coverage
+                </div>
+                <div className="font-display text-2xl text-rust">
+                  {prewarmStatus.percent}%
+                </div>
+              </div>
+            </div>
+          ) : null}
+          <button
+            type="button"
+            onClick={startPrewarm}
+            disabled={prewarmStarting}
+            className="btn-primary"
+            data-testid="admin-prewarm-start"
+          >
+            {prewarmStarting ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <RefreshCw size={14} />
+            )}
+            {prewarmStatus?.pending
+              ? `Prewarm ${prewarmStatus.pending} pending words`
+              : "Prewarm all words"}
+          </button>
         </section>
 
         {/* User list */}

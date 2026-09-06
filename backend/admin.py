@@ -505,4 +505,76 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "failed_webhooks": failed_webhooks,
         }
 
+    @router.post("/prewarm/start")
+    async def prewarm_start(request: Request):
+        """Kick off a background prewarm of the caption cache using the
+        curated word list (data/prewarm_words.txt). Returns immediately;
+        actual work runs in the background over hours (~1s per word,
+        skipping words that are already cached).
+
+        Uses YouTube API quota (~100 units per fresh word). The daily
+        Google quota is 10,000 units, so ~100 fresh words per day. Words
+        already cached are free.
+        """
+        import asyncio as _asyncio
+        from pathlib import Path
+        await require_admin(request, db)
+
+        # Import inside the handler so we don't hard-depend on the module at
+        # import time (prewarm.py has its own Mongo connection setup).
+        from prewarm import prewarm as _prewarm, read_words
+
+        default_path = Path(__file__).parent / "data" / "prewarm_words.txt"
+        try:
+            words = read_words(default_path)
+        except Exception as exc:
+            raise HTTPException(500, f"could_not_read_words: {exc}")
+
+        # Fire and forget — we don't await the task so the response is
+        # instant. Errors are logged inside prewarm().
+        _asyncio.create_task(_prewarm(words, concurrency=2, delay=0.5))
+
+        return {
+            "ok": True,
+            "words_queued": len(words),
+            "note": (
+                "Running in background. Already-cached words are skipped "
+                "instantly; fresh words are fetched at ~2/second. Progress "
+                "is logged; check /admin/events to see cache growing over "
+                "time. Uses ~100 YouTube API units per fresh word (daily "
+                "budget: 10,000)."
+            ),
+        }
+
+    @router.get("/prewarm/status")
+    async def prewarm_status(request: Request):
+        """Show how much of the prewarm word list is currently cached."""
+        from pathlib import Path
+        await require_admin(request, db)
+
+        try:
+            from prewarm import read_words
+            words = read_words(
+                Path(__file__).parent / "data" / "prewarm_words.txt"
+            )
+        except Exception:
+            words = []
+
+        total = len(words)
+        if not total:
+            return {"total": 0, "cached": 0, "pending": 0}
+
+        now_epoch = datetime.now(timezone.utc).timestamp()
+        keys = [w.lower() for w in words]
+        cached = await db.caption_search_cache.count_documents({
+            "query": {"$in": keys},
+            "expires_at": {"$gt": now_epoch},
+        })
+        return {
+            "total": total,
+            "cached": cached,
+            "pending": total - cached,
+            "percent": round((cached / total) * 100) if total else 0,
+        }
+
     return router
