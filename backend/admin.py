@@ -448,4 +448,61 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "stripe": stripe_info,
         }
 
+    @router.get("/payment-health")
+    async def payment_health(request: Request):
+        """Show any red flags in the payment pipeline.
+
+        Two failure modes we watch for:
+          1. Users linked to a Stripe customer with no active membership row
+             (a "stuck" paying customer).
+          2. Webhook events with a handler_error stamped on them
+             (webhook received, but processing threw an exception).
+        """
+        await require_admin(request, db)
+        now = _now_iso()
+
+        # Stuck users: have stripe_customer_id but no unexpired active
+        # membership. These are the people who paid but the app didn't
+        # register the sub — same shape as the Stripe SDK v15 bug.
+        users_with_customer = await db.users.find(
+            {"stripe_customer_id": {"$exists": True, "$ne": None}},
+            {"_id": 0, "email": 1, "stripe_customer_id": 1,
+             "last_stripe_sync_at": 1, "created_at": 1},
+        ).to_list(500)
+        stuck = []
+        for u in users_with_customer:
+            mems = await db.memberships.find(
+                {"user_email": u["email"]}, {"_id": 0}
+            ).to_list(20)
+            has_active = any(
+                m.get("status") == "active" and (
+                    not m.get("subscription_end_at")
+                    or m.get("subscription_end_at") > now
+                )
+                for m in mems
+            )
+            if not has_active:
+                stuck.append({
+                    **u,
+                    "memberships_count": len(mems),
+                })
+
+        # Webhook events with a handler error stamped.
+        failed_webhooks = await (
+            db.webhook_events.find(
+                {"handler_error": {"$exists": True}},
+                {"_id": 0, "external_event_id": 1, "event": 1,
+                 "received_at": 1, "handler_error": 1, "handler_error_at": 1},
+            )
+            .sort("handler_error_at", -1)
+            .to_list(50)
+        )
+
+        return {
+            "stuck_users_count": len(stuck),
+            "stuck_users": stuck,
+            "failed_webhooks_count": len(failed_webhooks),
+            "failed_webhooks": failed_webhooks,
+        }
+
     return router

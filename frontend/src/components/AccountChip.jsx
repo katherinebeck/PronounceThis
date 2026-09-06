@@ -131,25 +131,21 @@ export default function AccountChip() {
             </a>
           ) : null}
 
-          <button
-            type="button"
-            onClick={async () => {
-              const supportEmail = "info@katherinebeck.com";
-              try {
-                await navigator.clipboard.writeText(supportEmail);
-                toast.success(`Copied ${supportEmail} — paste it into your email`);
-              } catch {
-                toast.info(`Support: ${supportEmail}`);
-              }
-              // Also try to open the mail client for users who have one set.
-              window.location.href = `mailto:${supportEmail}?subject=American%20Accent%20Prep%20support`;
-            }}
-            className="flex items-center gap-2 w-full px-4 py-3 hover:bg-paper transition-colors font-mono text-[11px] uppercase tracking-[0.22em] text-ink text-left border-b thin-rule"
+          <div
+            className="px-4 py-3 border-b thin-rule"
             data-testid="account-support"
           >
-            <Mail size={12} />
-            Contact support
-          </button>
+            <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mb-1 flex items-center gap-1.5">
+              <Mail size={11} />
+              Contact support
+            </div>
+            <a
+              href="mailto:info@katherinebeck.com?subject=American%20Accent%20Prep%20support"
+              className="font-serif text-sm text-ink hover:text-rust transition-colors break-all"
+            >
+              info@katherinebeck.com
+            </a>
+          </div>
 
           <button
             type="button"

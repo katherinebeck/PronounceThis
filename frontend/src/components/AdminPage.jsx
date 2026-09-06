@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Check } from "lucide-react";
+import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Check, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -52,6 +52,23 @@ export default function AdminPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // ------------------------ Payment health ---------------------------------
+  const [health, setHealth] = useState(null);
+
+  const loadHealth = useCallback(async () => {
+    if (!authorized) return;
+    try {
+      const { data } = await api.get("/admin/payment-health");
+      setHealth(data);
+    } catch {
+      setHealth(null);
+    }
+  }, [authorized]);
+
+  useEffect(() => {
+    loadHealth();
+  }, [loadHealth]);
 
   const cancel = async (email) => {
     if (!window.confirm(`Cancel access for ${email}? They keep access until whatever end date is on record, or immediately if none.`))
@@ -271,6 +288,67 @@ export default function AdminPage() {
       </header>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 space-y-10">
+        {/* Payment health banner — visible only when something is off */}
+        {health && (health.stuck_users_count > 0 || health.failed_webhooks_count > 0) ? (
+          <section
+            className="bg-rust/10 border thin-rule border-rust p-5"
+            data-testid="admin-payment-health"
+          >
+            <div className="flex items-start gap-3">
+              <AlertTriangle size={20} className="text-rust shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust mb-1">
+                  Payment Health · needs attention
+                </div>
+                <h3 className="font-display text-lg text-ink mb-2">
+                  {health.stuck_users_count > 0
+                    ? `${health.stuck_users_count} paying user${health.stuck_users_count === 1 ? "" : "s"} stuck on Free Trial`
+                    : `${health.failed_webhooks_count} webhook${health.failed_webhooks_count === 1 ? "" : "s"} failed to process`}
+                </h3>
+                {health.stuck_users.slice(0, 5).map((u) => (
+                  <div
+                    key={u.email}
+                    className="flex items-center justify-between gap-2 text-sm font-serif py-1 border-b thin-rule border-rust/30 last:border-b-0"
+                  >
+                    <span className="text-ink truncate">{u.email}</span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        setSyncEmail(u.email);
+                        try {
+                          const res = await api.post("/admin/stripe/sync", {
+                            email: u.email,
+                          });
+                          if (res?.data?.active_found) {
+                            toast.success(`Fixed ${u.email}`);
+                          } else {
+                            toast.info(`Synced ${u.email} — no active sub in Stripe`);
+                          }
+                          loadHealth();
+                          load();
+                        } catch (e) {
+                          toast.error(`Sync failed for ${u.email}`);
+                        }
+                      }}
+                      className="font-mono text-[10px] uppercase tracking-[0.2em] px-2.5 py-1 border thin-rule border-rust text-rust hover:bg-rust hover:text-surface transition-colors"
+                      data-testid={`admin-health-fix-${u.email}`}
+                    >
+                      <RefreshCw size={10} className="inline mr-1" />
+                      Fix
+                    </button>
+                  </div>
+                ))}
+                {health.failed_webhooks_count > 0 ? (
+                  <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-3">
+                    {health.failed_webhooks_count} webhook{health.failed_webhooks_count === 1 ? "" : "s"} with errors — last:{" "}
+                    {health.failed_webhooks[0]?.handler_error}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         {/* Grant access */}
         <section className="bg-surface border thin-rule p-6">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">

@@ -205,33 +205,50 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
         obj = _to_dict(event["data"]["object"])
         t = event["type"]
 
-        if t == "checkout.session.completed":
-            await db.payment_transactions.update_one(
-                {"session_id": obj["id"], "payment_status": {"$ne": "paid"}},
+        # Process the event inside a try/except so a bug in one handler
+        # (like the Stripe SDK v15 .get() breaking change) can't silently
+        # swallow the event — the error is logged AND stamped onto the
+        # webhook_events row so it surfaces in the admin panel.
+        try:
+            if t == "checkout.session.completed":
+                await db.payment_transactions.update_one(
+                    {"session_id": obj["id"], "payment_status": {"$ne": "paid"}},
+                    {"$set": {
+                        "status": "completed",
+                        "payment_status": obj.get("payment_status", "paid"),
+                        "stripe_subscription_id": obj.get("subscription"),
+                        "updated_at": _now_iso(),
+                    }},
+                )
+                await _grant_from_session(db, obj)
+
+            elif t in ("customer.subscription.updated", "customer.subscription.created"):
+                await _sync_subscription(db, obj)
+
+            elif t == "customer.subscription.deleted":
+                # Fired when the subscription actually ends (after cancel-at-
+                # period-end has been honoured, or on immediate cancellation).
+                await _mark_cancelled(db, obj)
+
+            elif t == "invoice.payment_failed":
+                logger.warning(
+                    f"stripe invoice.payment_failed: customer={obj.get('customer')} "
+                    f"sub={obj.get('subscription')}"
+                )
+                # Access remains until subscription.deleted; Stripe's dunning
+                # will retry and either recover or cancel.
+        except Exception as exc:
+            logger.exception(f"stripe webhook handler failed for {t}: {exc}")
+            await db.webhook_events.update_one(
+                {"external_event_id": event["id"], "provider": "stripe"},
                 {"$set": {
-                    "status": "completed",
-                    "payment_status": obj.get("payment_status", "paid"),
-                    "stripe_subscription_id": obj.get("subscription"),
-                    "updated_at": _now_iso(),
+                    "handler_error": f"{type(exc).__name__}: {exc}",
+                    "handler_error_at": _now_iso(),
                 }},
             )
-            await _grant_from_session(db, obj)
-
-        elif t in ("customer.subscription.updated", "customer.subscription.created"):
-            await _sync_subscription(db, obj)
-
-        elif t == "customer.subscription.deleted":
-            # Fired when the subscription actually ends (after cancel-at-
-            # period-end has been honoured, or on immediate cancellation).
-            await _mark_cancelled(db, obj)
-
-        elif t == "invoice.payment_failed":
-            logger.warning(
-                f"stripe invoice.payment_failed: customer={obj.get('customer')} "
-                f"sub={obj.get('subscription')}"
-            )
-            # Access remains until subscription.deleted; Stripe's dunning will
-            # retry and either recover or cancel.
+            # Return 500 so Stripe retries the delivery — critical for
+            # correctness (Stripe will keep retrying for 3 days).
+            raise HTTPException(500, "handler_failed")
 
         return {"ok": True}
 

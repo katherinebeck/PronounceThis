@@ -101,13 +101,17 @@
 - **Manual pronunciation overrides**: admin uploads MP3s for words ElevenLabs mispronounces (bypasses TTS entirely for those words).
 - **Custom domain** `app.katherinebeck.com` linked.
 - **Resend production sender**: `login@katherinebeck.com` (verified in Resend dashboard).
-- **Stripe self-heal** — `/api/auth/me` now silently resyncs from Stripe (rate-limited 5 min) if a user has a `stripe_customer_id` but no active membership row. Also exposed as an admin utility: `POST /api/admin/stripe/sync {email}` + UI button on the admin panel. Solves the "paid on Stripe, still shows Free Trial" webhook-desync class of bug.
+- **Stripe self-heal** — `/api/auth/me` now silently resyncs from Stripe (rate-limited 5 min) if a user has no active membership row. Also exposed as an admin utility: `POST /api/admin/stripe/sync {email}` + UI button on the admin panel.
+- **Stripe SDK v15 compatibility fix (Sep 6 2026)** — SDK v15 removed dict-style `.get()` from StripeObject; all our webhook + sync code was silently failing. Added `_to_dict()` helper that flattens Stripe objects to plain dicts at every boundary. Root cause of the "paid but shows Free Trial" bug for `info@katherinebeck.com`.
+- **Payment health monitoring** — `GET /api/admin/payment-health` lists users with a Stripe customer but no active membership AND any webhook events with handler errors. Rendered as a red banner at the top of `/admin` when anything is off, with per-user "Fix" buttons. Webhooks that fail processing now return 500 so Stripe retries automatically.
+- **Copy magic link** button on the admin user list — mints a 15-min single-use sign-in URL per row for in-person student handoffs.
+- **Contact support** display (`info@katherinebeck.com`) in the account dropdown menu.
+- **Regression tests** (`/app/backend/tests/test_stripe_sdk_compat.py`) — lock in the Stripe v15 `.get()` fix so it can't regress silently.
 
 ## Next tasks
-1. **[Ready to ship — waiting on user]** Redeploy production to pick up the Stripe self-heal + admin resync button + expanded YouTube channels + Welcome modal copy fix.
-2. **[P1]** Add playback speed toggles (0.5× / 0.75× / 1×).
-3. **[P2]** Session notes: coach jots homework alongside words/scenes.
-4. **[P2]** Homework link: shareable read-only URL for students.
-5. **[P2]** Merriam-Webster audio integration (waiting on API key).
-6. **[P2]** Full local caption index (ingest transcripts to MongoDB to bypass YouTube API limits).
-7. **[Refactor]** Split `server.py` (~1150 lines) into `routes/` + `services/`.
+1. **[P1]** Add playback speed toggles (0.5× / 0.75× / 1×).
+2. **[P2]** Session notes: coach jots homework alongside words/scenes.
+3. **[P2]** Homework link: shareable read-only URL for students.
+4. **[P2]** Merriam-Webster audio integration (waiting on API key).
+5. **[P2]** Full local caption index (ingest transcripts to MongoDB to bypass YouTube API limits).
+6. **[Refactor]** Split `server.py` (~1150 lines) into `routes/` + `services/`.
