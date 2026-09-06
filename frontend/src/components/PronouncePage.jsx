@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import PhraseOfTheDay from "./PhraseOfTheDay";
 import { Volume2, Loader2, Search, Book, ArrowRight } from "lucide-react";
 import { pronounceWord, fetchSoundCategories } from "@/lib/api";
 import { playWord } from "@/lib/audio";
@@ -82,13 +81,6 @@ export default function PronouncePage({ onGoToScenes }) {
             phonetically (IPA) and hear it spoken in an American accent.
           </p>
         </div>
-
-        <PhraseOfTheDay
-          onPickPhrase={(p) => {
-            setInput(p);
-            setTimeout(() => submit(), 50);
-          }}
-        />
 
         <form
           onSubmit={submit}
