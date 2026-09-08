@@ -47,7 +47,6 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "CBSSundayMorning", "label": "CBS Sunday Morning"},
     {"handle": "TODAY",            "label": "TODAY"},
     {"handle": "CNBC",             "label": "CNBC"},
-    {"handle": "bloomberglp",      "label": "Bloomberg"},
     # Late-night / talk
     {"handle": "FallonTonight",    "label": "The Tonight Show"},
     {"handle": "TheEllenShow",     "label": "The Ellen Show"},
@@ -66,8 +65,6 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "hollywoodreporter", "label": "The Hollywood Reporter"},
     {"handle": "IMDb",             "label": "IMDb"},
     # Educational / long-form
-    {"handle": "TED",              "label": "TED"},
-    {"handle": "TEDEd",            "label": "TED-Ed"},
     {"handle": "bigthink",         "label": "Big Think"},
     {"handle": "Vox",              "label": "Vox"},
     {"handle": "crashcourse",      "label": "CrashCourse"},
@@ -90,7 +87,6 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "HollywoodLife",           "label": "Hollywood Life"},
     {"handle": "popsugar",                "label": "PopSugar"},
     # Podcast heavy-hitters (YouTube channels)
-    {"handle": "lexfridman",              "label": "Lex Fridman"},
     {"handle": "PowerfulJRE",             "label": "Joe Rogan Experience"},
     {"handle": "smartless",               "label": "SmartLess"},
     {"handle": "armchairexpertpodcast",   "label": "Armchair Expert"},
@@ -116,13 +112,10 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "hubermanlab",             "label": "Huberman Lab"},
     {"handle": "TheDailyPodcast",         "label": "The Daily (NYT)"},
     # Science / education (extras)
-    {"handle": "kurzgesagt",              "label": "Kurzgesagt"},
     {"handle": "Vsauce",                  "label": "Vsauce"},
-    {"handle": "Numberphile",             "label": "Numberphile"},
     {"handle": "SmarterEveryDay",         "label": "Smarter Every Day"},
     {"handle": "MinutePhysics",           "label": "MinutePhysics"},
     # Tech (American hosts)
-    {"handle": "LinusTechTips",           "label": "Linus Tech Tips"},
     {"handle": "TheVerge",                "label": "The Verge"},
     {"handle": "cnet",                    "label": "CNET"},
     # Reactions / commentary (high caption density)
@@ -132,8 +125,6 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "HistoryChannel",          "label": "History Channel"},
     {"handle": "SmithsonianChannel",      "label": "Smithsonian Channel"},
     # Music interviews / performances (American voices)
-    {"handle": "genius",                  "label": "Genius"},
-    {"handle": "npcmusic",                "label": "NPR Music"},
 ]
 
 WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
@@ -313,25 +304,8 @@ class CaptionSearchService:
                     seen.add(vid)
                     filtered.append(it)
 
-                # Also collect the non-curated results as a top-up pool so
-                # we always have SOMETHING to show. Curated hits are still
-                # preferred in ordering (they come first in `filtered`);
-                # non-curated results are appended so they only surface
-                # when curated + embeddability filtering leaves us short.
-                # Music/song titles are dropped from the top-up too.
-                topup: List[Dict[str, Any]] = []
-                for it in combined:
-                    snip = it.get("snippet") or {}
-                    cid = snip.get("channelId")
-                    vid = (it.get("id") or {}).get("videoId")
-                    if not cid or not vid or vid in seen:
-                        continue
-                    if _is_musicy_title(snip.get("title", ""),
-                                        snip.get("channelTitle", "")):
-                        continue
-                    seen.add(vid)
-                    topup.append(it)
-                filtered.extend(topup)
+                # Curated channels only — no non-curated top-up. Fewer
+                # results beats a non-American speaker.
 
                 # Confirm embeddability at the video level — the search flag
                 # misses some geo/copyright-restricted news clips.
@@ -548,26 +522,32 @@ class CaptionSearchService:
                 out.append({"text": text, "start": start, "duration": max(0.0, end - start)})
         return out
 
-    async def _scan_video(self, video_id: str, query: str) -> Optional[Dict[str, Any]]:
+    async def _scan_video(self, video_id: str, query: str,
+                          meta: Optional[Dict[str, str]] = None) -> Optional[Dict[str, Any]]:
         # Check per-video transcript cache first (Mongo, 30d TTL for hits,
         # 1h TTL for misses so we eventually retry after rate-limits clear).
         cached = await self.db.caption_transcript_cache.find_one({"video_id": video_id})
         if cached and cached.get("expires_at", 0) > time.time():
             transcript = cached.get("transcript")
+            if meta and not (cached.get("channel_id") or (cached.get("channel_meta") or {}).get("channel_id")):
+                await self.db.caption_transcript_cache.update_one(
+                    {"video_id": video_id}, {"$set": {"channel_meta": meta}}
+                )
         else:
             transcript = await asyncio.to_thread(self._fetch_transcript_sync, video_id)
             ttl = self.RESULT_TTL if transcript else self.MISS_TTL
+            doc = {
+                "video_id": video_id,
+                "transcript": transcript or [],
+                "full_text": self._flatten_transcript(transcript or []),
+                "has_transcript": bool(transcript),
+                "expires_at": time.time() + ttl,
+                "cached_at": time.time(),
+            }
+            if meta:
+                doc["channel_meta"] = meta
             await self.db.caption_transcript_cache.update_one(
-                {"video_id": video_id},
-                {"$set": {
-                    "video_id": video_id,
-                    "transcript": transcript or [],
-                    "full_text": self._flatten_transcript(transcript or []),
-                    "has_transcript": bool(transcript),
-                    "expires_at": time.time() + ttl,
-                    "cached_at": time.time(),
-                }},
-                upsert=True,
+                {"video_id": video_id}, {"$set": doc}, upsert=True,
             )
             # Small delay between live fetches to avoid YouTube rate-limits.
             await asyncio.sleep(1.5)
@@ -601,25 +581,31 @@ class CaptionSearchService:
         # Mongo text search on full_text. Requires a text index on the
         # caption_transcript_cache.full_text field (see ensure_indexes).
         # Also self-heal: score-sort by textScore for best matches.
+        curated = set(await self._get_curated_channel_ids())
         cursor = self.db.caption_transcript_cache.find(
             {"$text": {"$search": f'"{query}"'},
-             "has_transcript": True},
+             "has_transcript": True,
+             "embeddable": {"$ne": False}},
             {"_id": 0, "score": {"$meta": "textScore"}},
         ).sort([("score", {"$meta": "textScore"})]).limit(limit * 3)
         results: List[Dict[str, Any]] = []
-        target = query.lower()
-        target_words = WORD_RE.findall(target)
+        unchecked: List[str] = []
         async for doc in cursor:
+            meta = doc.get("channel_meta") or {}
+            channel_id = meta.get("channel_id") or doc.get("channel_id") or ""
+            if channel_id not in curated:
+                continue
             hit = self._find_word_in_transcript(
                 doc.get("transcript") or [], query
             )
             if not hit:
                 continue
-            meta = doc.get("channel_meta") or {}
+            if "embeddable" not in doc:
+                unchecked.append(doc["video_id"])
             results.append({
                 "video_id": doc["video_id"],
                 "title": meta.get("title") or doc.get("title") or "",
-                "channel_id": meta.get("channel_id") or doc.get("channel_id") or "",
+                "channel_id": channel_id,
                 "channel_title": meta.get("channel_title") or doc.get("channel_title") or "",
                 "thumbnail": meta.get("thumbnail", ""),
                 "offset_seconds": max(0.0, float(hit["offset"])),
@@ -631,11 +617,18 @@ class CaptionSearchService:
                 "has_timestamp": True,
                 "source": "local_index",
             })
-            if len(results) >= limit:
-                break
-        # Silence lint on unused variable (kept for future scoring).
-        _ = target_words
-        return results
+        # Videos indexed before we tracked embeddability: verify once
+        # (1 quota unit per 50 ids), persist the flag, drop the blocked ones.
+        if unchecked and self.api_key:
+            async with httpx.AsyncClient(timeout=20) as client:
+                allowed = await self._check_embeddable(client, unchecked)
+            for vid in unchecked:
+                await self.db.caption_transcript_cache.update_one(
+                    {"video_id": vid}, {"$set": {"embeddable": vid in allowed}}
+                )
+            results = [r for r in results
+                       if r["video_id"] not in unchecked or r["video_id"] in allowed]
+        return results[:limit]
 
     async def ingest_channel_videos(
         self, channel_id: str, per_channel_limit: int = 50
@@ -695,6 +688,12 @@ class CaptionSearchService:
                     page_token = data.get("nextPageToken")
                     if not page_token:
                         break
+                # Drop non-embeddable / US-region-blocked uploads before
+                # spending transcript fetches on them.
+                allowed = await self._check_embeddable(
+                    client, [m["video_id"] for m in video_ids]
+                )
+                video_ids = [m for m in video_ids if m["video_id"] in allowed]
         except Exception as exc:  # noqa: BLE001
             logger.warning("ingest playlist failed for %s: %s", channel_id, exc)
             return {"ingested": 0, "skipped": 0, "failed": 0,
@@ -723,6 +722,7 @@ class CaptionSearchService:
                     "transcript": transcript or [],
                     "full_text": self._flatten_transcript(transcript or []),
                     "has_transcript": has_t,
+                    "embeddable": True,
                     "channel_meta": meta,  # persist title/channel for search hits
                     "expires_at": time.time() + ttl,
                     "cached_at": time.time(),
@@ -771,11 +771,22 @@ class CaptionSearchService:
         if not force_refresh:
             cached = await self.db.caption_search_cache.find_one({"query": cache_key})
             if cached and cached.get("expires_at", 0) > time.time():
-                return {
-                    "query": query,
-                    "results": cached.get("results", []),
-                    "cached": True,
-                }
+                # Serve only verified hits (word confirmed in captions, from
+                # a curated channel). Older cache entries may contain
+                # unverified/non-curated fallbacks — drop those and re-search
+                # if nothing verified is left.
+                curated_now = set(await self._get_curated_channel_ids())
+                verified = [
+                    r for r in cached.get("results", [])
+                    if r.get("has_timestamp") and r.get("snippet")
+                    and r.get("channel_id") in curated_now
+                ]
+                if verified or not cached.get("results"):
+                    return {
+                        "query": query,
+                        "results": verified,
+                        "cached": True,
+                    }
 
         # PATH 1 — local transcript index (instant). Only when we already
         # have enough curated-channel videos ingested for this term.
@@ -836,7 +847,12 @@ class CaptionSearchService:
 
         async def _scan(cand: Dict[str, str]):
             async with sem:
-                hit = await self._scan_video(cand["video_id"], query)
+                hit = await self._scan_video(cand["video_id"], query, meta={
+                    "channel_id": cand["channel_id"],
+                    "channel_title": cand["channel_title"],
+                    "title": cand["title"],
+                    "thumbnail": cand["thumbnail"],
+                })
                 if not hit:
                     return None
                 seconds = max(0.0, float(hit["offset"]))
@@ -852,7 +868,6 @@ class CaptionSearchService:
         # per-query transcript fetches predictable.
         pending = [asyncio.create_task(_scan(c)) for c in candidates[:8]]
         precise: List[Dict[str, Any]] = []
-        fallback_pool: List[Dict[str, Any]] = list(candidates[:limit])
         SCAN_BUDGET_SECONDS = 4.0
         deadline = asyncio.get_event_loop().time() + SCAN_BUDGET_SECONDS
         try:
@@ -884,7 +899,8 @@ class CaptionSearchService:
 
         # Build final results: local index hits first (they're guaranteed
         # to be curated + word-in-caption), then live-search precise
-        # (timestamped) hits, then untimestamped fallbacks.
+        # (timestamped) hits. No unverified fallbacks — every result must
+        # actually contain the word in its captions.
         results: List[Dict[str, Any]] = []
         seen_result_ids: set = set()
         for h in local_hits:
@@ -897,29 +913,13 @@ class CaptionSearchService:
                 continue
             seen_result_ids.add(p["video_id"])
             results.append(p)
-        if len(results) < limit:
-            for cand in fallback_pool:
-                if cand["video_id"] in seen_result_ids:
-                    continue
-                seen_result_ids.add(cand["video_id"])
-                results.append({
-                    **cand,
-                    "offset_seconds": 0.0,
-                    "snippet": "",
-                    "has_timestamp": False,
-                    "youtube_url": f"https://www.youtube.com/watch?v={cand['video_id']}",
-                })
-                if len(results) >= limit:
-                    break
         results = results[:limit]
 
-        # Mark precise entries too so the client can style differently.
         for r in results:
-            r.setdefault("has_timestamp", bool(r.get("snippet")))
+            r["has_timestamp"] = True
 
-        # Sort: precise hits first (earliest offset first), then fallbacks.
-        results.sort(key=lambda r: (0 if r["has_timestamp"] else 1,
-                                    r["offset_seconds"]))
+        # Earliest offset first.
+        results.sort(key=lambda r: r["offset_seconds"])
 
         # Cache the top-level query. Successful queries get the long TTL;
         # empty results only get MISS_TTL so we retry after rate-limits pass

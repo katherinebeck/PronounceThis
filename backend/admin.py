@@ -699,7 +699,7 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 "Ingestion running in background. Poll "
                 "GET /api/admin/ingest/status. Expect several hours to "
                 "complete — fetches ~1 transcript/second, gated to be "
-                "gentle on YouTube. ~4000 videos total (81 channels × 50)."
+                "gentle on YouTube. ~3600 videos total (72 channels × 50)."
             ),
         }
 

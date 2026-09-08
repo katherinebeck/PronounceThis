@@ -235,7 +235,7 @@ export default function AdminPage() {
         toast.info("Channel ingest already running");
       } else {
         toast.success(
-          "Channel ingest started — fetches all 81 channels' recent videos"
+          "Channel ingest started — fetches all 72 channels' recent videos"
         );
       }
     } catch (err) {
@@ -629,7 +629,7 @@ export default function AdminPage() {
             Bulk ingest channel transcripts
           </h2>
           <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
-            Walks every one of our 81 curated American-speaker YouTube
+            Walks every one of our 72 curated American-speaker YouTube
             channels, fetches up to 50 recent videos each (~4,000 videos
             total), and stores their full transcripts locally. Once
             complete, ANY word ever spoken in these channels is instantly

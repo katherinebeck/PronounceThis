@@ -3,6 +3,37 @@ import { X, ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink } from "
 import { captionSearch } from "@/lib/api";
 import { toast } from "sonner";
 
+function decodeEntities(s) {
+  const el = document.createElement("textarea");
+  el.innerHTML = s || "";
+  return el.value;
+}
+
+function formatTime(secs) {
+  const t = Math.floor(secs || 0);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = String(t % 60).padStart(2, "0");
+  return h ? `${h}:${String(m).padStart(2, "0")}:${s}` : `${m}:${s}`;
+}
+
+function HighlightedSnippet({ text, query }) {
+  const q = (query || "").trim();
+  if (!q) return <>{text}</>;
+  const re = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "ig");
+  return (
+    <>
+      {text.split(re).map((part, i) =>
+        part.toLowerCase() === q.toLowerCase() ? (
+          <mark key={i} className="bg-ink text-paper px-1 rounded-sm not-italic">{part}</mark>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
 // YouGlish-style single-clip player. Opens on the first result, cued to the
 // word, and lets you tap ▶ / ◀ to jump to the next / previous clip. No
 // sidebar, no transcript spam — just the word, spoken.
@@ -76,7 +107,7 @@ export default function CaptionSearchModal({ open, query, onClose }) {
 
   const embedSrc = useMemo(() => {
     if (!current) return null;
-    const start = Math.max(0, Math.floor(current.offset_seconds || 0));
+    const start = Math.max(0, Math.floor(current.offset_seconds || 0) - 1);
     // Autoplay is fine here: the modal only opens on a direct user click,
     // which satisfies the browser autoplay policy.
     const params = new URLSearchParams({
@@ -204,6 +235,19 @@ export default function CaptionSearchModal({ open, query, onClose }) {
               <ChevronRight size={16} />
             </button>
           </div>
+
+          {/* Caption line where the word is spoken */}
+          {current?.snippet ? (
+            <p
+              className="mt-3 font-serif text-sm sm:text-base text-ink leading-relaxed border-l-2 border-ink/30 pl-3"
+              data-testid="caption-search-snippet"
+            >
+              <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted2 block mb-1">
+                Said at {formatTime(current.offset_seconds)}
+              </span>
+              <HighlightedSnippet text={decodeEntities(current.snippet)} query={query} />
+            </p>
+          ) : null}
 
           {/* Optional "Open on YouTube" — minimal footer */}
           {current ? (

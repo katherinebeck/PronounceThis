@@ -127,3 +127,10 @@
 - ANTHROPIC_API_KEY added to preview backend/.env; LLM calls verified hitting api.anthropic.com directly (Emergent key no longer used when set). User must add same var to production deployment secrets.
 - Custom domain verified: app.katherinebeck.com/api live; magic links, admin links, Stripe return URLs all derive from request Origin; sender login@katherinebeck.com.
 - Added Admin "Your data" section: GET /api/admin/export/users.csv and /memberships.csv (admin-gated, Content-Disposition filename with date). Verified via curl + browser download.
+
+## 2026-06 — Real Speakers accuracy pass
+- APP_PUBLIC_URL in backend/.env now https://app.katherinebeck.com (ships with next re-publish; secrets are set via chat + re-publish on this platform).
+- caption_search.py: removed non-curated "top-up" pool in live YouTube search; removed unverified (no-timestamp) fallback results; local index results now require curated channel_id + embeddable check (flag persisted per video); cached query results are filtered at read time to verified + currently-curated only (auto re-search if none left); _scan_video persists channel_meta; channel ingest checks embeddability first.
+- Curated list trimmed 81 → 72: removed TED, TED-Ed, Numberphile, Linus Tech Tips, Kurzgesagt, Bloomberg, Lex Fridman, Genius, NPR Music (non-American / international / music-heavy).
+- CaptionSearchModal: shows caption line with the word highlighted + "Said at h:mm:ss"; playback starts 1s before the cue.
+- Known limitation: US news channels can still feature non-American interviewees/correspondents; accent cannot be detected from captions.
