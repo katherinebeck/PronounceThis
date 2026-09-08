@@ -36,6 +36,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 from phonetics import (
+    PREFERRED_ARPA,
     SOUND_CATEGORIES,
     arpabet_to_ipa,
     arpabet_to_respelling,
@@ -888,6 +889,9 @@ async def tts(req: TTSRequest, request: Request):
     actor = await require_access(request, db, kind="word")
 
     base_key = word.lower()
+    # Coach-preferred pronunciations must be audible, not just displayed.
+    if normalize_word(word) in PREFERRED_ARPA:
+        req.phonetic = True
     # Manual overrides always win, regardless of mode.
     override = await db.audio_cache.find_one(
         {"word": base_key, "manual_override": True}, {"_id": 0})
@@ -1227,6 +1231,8 @@ app.add_middleware(
 @app.on_event("startup")
 async def _startup_indexes():
     await ensure_auth_indexes(db)
+    async for pref in db.pronunciation_prefs.find({}, {"_id": 0}):
+        PREFERRED_ARPA[pref["word"]] = pref["arpabet"]
     # Ensure the caption_transcript_cache text index exists so the local
     # word-in-caption search works. Idempotent.
     try:

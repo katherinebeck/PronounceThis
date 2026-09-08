@@ -3,6 +3,7 @@ import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2,
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
+import { PronunciationPrefs } from "./PronunciationPrefs";
 
 // Owner-only admin page for manual membership management. Reached via /admin.
 // Access is enforced server-side (require_admin) — this UI just talks to the
@@ -816,6 +817,8 @@ export default function AdminPage() {
             Cancel = ends access at end of paid period (leave date empty to end immediately).
           </p>
         </section>
+
+        <PronunciationPrefs />
 
         {/* Pronunciation overrides */}
         <section className="bg-surface border thin-rule p-6">

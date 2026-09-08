@@ -135,10 +135,31 @@ def strip_stress(phone: str) -> str:
     return re.sub(r"\d", "", phone)
 
 
-PREFERRED_ARPA = {
-    # CMU's first entry isn't the General American citation form.
+# Coach-preferred pronunciations (word -> ARPABET string). Seeded with
+# cases where CMU's first entry isn't the General American citation form;
+# extended at runtime from the `pronunciation_prefs` collection via Admin.
+PREFERRED_ARPA: dict = {
     "because": "B IH0 K AH1 Z",
 }
+
+
+def cmu_variants(word: str) -> List[List[str]]:
+    """All CMU pronunciations for a word (may be empty)."""
+    return [p.split() for p in pronouncing.phones_for_word(word.lower().strip())]
+
+
+def validate_arpabet(text: str) -> Optional[List[str]]:
+    """Parse 'B IH0 K AH1 Z' -> phones list, or None if any phone is unknown."""
+    phones = [p.strip().upper() for p in (text or "").replace(",", " ").split() if p.strip()]
+    if not phones:
+        return None
+    for p in phones:
+        bare = strip_stress(p)
+        if bare not in ARPA_TO_IPA:
+            return None
+        if bare in VOWEL_ARPA and p[-1:] not in ("0", "1", "2"):
+            return None
+    return phones
 
 
 def get_arpabet(word: str) -> Optional[List[str]]:

@@ -29,6 +29,9 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, EmailStr
 
 from auth import require_admin
+from phonetics import (
+    PREFERRED_ARPA, arpabet_to_ipa, classify_word, cmu_variants, validate_arpabet,
+)
 from stripe_payments import sync_from_stripe_customer
 
 
@@ -70,6 +73,15 @@ class StripeSyncBody(BaseModel):
 
 class MagicLinkBody(BaseModel):
     email: EmailStr
+
+
+class PronunciationPrefBody(BaseModel):
+    word: str
+    arpabet: str   # e.g. "B IH0 K AH1 Z"
+
+
+class PronunciationPrefDeleteBody(BaseModel):
+    word: str
 
 
 def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
@@ -331,6 +343,75 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             {"word": clean_word, "manual_override": True}
         )
         return {"ok": True, "deleted": result.deleted_count}
+
+    # --- Preferred pronunciations (dictionary-level, no recording) -------
+    def _clean_word(w: str) -> str:
+        import re as _re
+        return _re.sub(r"[^a-z']", "", (w or "").lower().strip())
+
+    @router.get("/pronunciations")
+    async def list_pronunciation_prefs(request: Request):
+        await require_admin(request, db)
+        docs = await db.pronunciation_prefs.find({}, {"_id": 0}).sort("word", 1).to_list(1000)
+        return {"count": len(docs), "prefs": docs}
+
+    @router.get("/pronunciations/options")
+    async def pronunciation_options(request: Request, word: str,
+                                    arpabet: Optional[str] = None):
+        """CMU variants for a word (with IPA), plus a preview of a custom
+        ARPABET string if supplied."""
+        await require_admin(request, db)
+        w = _clean_word(word)
+        if not w:
+            raise HTTPException(status_code=400, detail="word_required")
+        variants = [{"arpabet": " ".join(v), "ipa": arpabet_to_ipa(v)}
+                    for v in cmu_variants(w)]
+        current = PREFERRED_ARPA.get(w)
+        out: dict = {
+            "word": w,
+            "variants": variants,
+            "current": {"arpabet": current,
+                        "ipa": arpabet_to_ipa(current.split())} if current else None,
+        }
+        if arpabet is not None:
+            phones = validate_arpabet(arpabet)
+            out["preview"] = ({"arpabet": " ".join(phones), "ipa": arpabet_to_ipa(phones)}
+                              if phones else None)
+        return out
+
+    @router.post("/pronunciations")
+    async def set_pronunciation_pref(body: PronunciationPrefBody, request: Request):
+        await require_admin(request, db)
+        w = _clean_word(body.word)
+        phones = validate_arpabet(body.arpabet)
+        if not w:
+            raise HTTPException(status_code=400, detail="word_required")
+        if not phones:
+            raise HTTPException(
+                status_code=400,
+                detail="invalid_arpabet: use CMU phones, vowels need stress 0/1/2 (e.g. B IH0 K AH1 Z)")
+        arp = " ".join(phones)
+        await db.pronunciation_prefs.update_one(
+            {"word": w},
+            {"$set": {"word": w, "arpabet": arp, "ipa": arpabet_to_ipa(phones),
+                      "categories": classify_word(phones), "updated_at": _now_iso()}},
+            upsert=True,
+        )
+        PREFERRED_ARPA[w] = arp
+        # Drop generated audio so the next play follows the new pronunciation.
+        await db.audio_cache.delete_many(
+            {"word": {"$in": [w, f"{w}#ph"]}, "manual_override": {"$ne": True}})
+        return {"ok": True, "word": w, "arpabet": arp, "ipa": arpabet_to_ipa(phones)}
+
+    @router.post("/pronunciations/delete")
+    async def delete_pronunciation_pref(body: PronunciationPrefDeleteBody, request: Request):
+        await require_admin(request, db)
+        w = _clean_word(body.word)
+        res = await db.pronunciation_prefs.delete_one({"word": w})
+        PREFERRED_ARPA.pop(w, None)
+        await db.audio_cache.delete_many(
+            {"word": {"$in": [w, f"{w}#ph"]}, "manual_override": {"$ne": True}})
+        return {"ok": True, "deleted": res.deleted_count}
 
     @router.post("/stripe/sync")
     async def stripe_sync(body: StripeSyncBody, request: Request):
