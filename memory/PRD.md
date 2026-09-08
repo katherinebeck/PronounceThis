@@ -134,3 +134,12 @@
 - Curated list trimmed 81 → 72: removed TED, TED-Ed, Numberphile, Linus Tech Tips, Kurzgesagt, Bloomberg, Lex Fridman, Genius, NPR Music (non-American / international / music-heavy).
 - CaptionSearchModal: shows caption line with the word highlighted + "Said at h:mm:ss"; playback starts 1s before the cue.
 - Known limitation: US news channels can still feature non-American interviewees/correspondents; accent cannot be detected from captions.
+
+## 2026-06 — YouGlish-parity pass (word-level cueing, ranking, deeper index)
+- Parsers (json3 + VTT) now capture per-word timestamps into `w` on each segment; `_find_word_in_transcript` cues to the word (precise) or interpolates within the segment; returns rank metadata.
+- `_score_hit` ranking: precise cue +3, short segment +2, 4–14 words +1.5, penalize `>>`/`[Music]`. `_rank` round-robins channels.
+- Query cache versioned (`CACHE_VERSION=2`) so old segment-level results are recomputed.
+- Ingest: per_channel_limit 50 → 200 (cron + admin), stores `has_word_timing`/`embeddable`; entries lacking word timing are re-fetched on next ingest. Livestreams >30k segments drop `w` to stay under 16MB.
+- Fixed 4 unresolved handles: joerogan, SaturdayNightLive, timferriss, HISTORY (72/72 resolve).
+- Frontend: lead-in 1s for precise cues, 2s for interpolated.
+- Reporting/thumbs-down explicitly declined by user.

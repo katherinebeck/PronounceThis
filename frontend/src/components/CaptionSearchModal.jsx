@@ -107,7 +107,9 @@ export default function CaptionSearchModal({ open, query, onClose }) {
 
   const embedSrc = useMemo(() => {
     if (!current) return null;
-    const start = Math.max(0, Math.floor(current.offset_seconds || 0) - 1);
+    // Word-accurate cues need only a 1s lead-in; interpolated ones get 2s.
+    const lead = current.precise ? 1 : 2;
+    const start = Math.max(0, Math.floor(current.offset_seconds || 0) - lead);
     // Autoplay is fine here: the modal only opens on a direct user click,
     // which satisfies the browser autoplay policy.
     const params = new URLSearchParams({

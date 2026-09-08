@@ -1184,7 +1184,7 @@ async def _startup_indexes():
             totals = {"ingested": 0, "skipped": 0, "failed": 0}
             for i, cid in enumerate(ch_ids, start=1):
                 r = await caption_service.ingest_channel_videos(
-                    cid, per_channel_limit=50
+                    cid, per_channel_limit=200
                 )
                 for k in totals:
                     totals[k] = totals.get(k, 0) + int(r.get(k, 0) or 0)

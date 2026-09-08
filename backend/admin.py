@@ -665,7 +665,7 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 totals = {"ingested": 0, "skipped": 0, "failed": 0}
                 for i, cid in enumerate(ch_ids, start=1):
                     r = await caption_service.ingest_channel_videos(
-                        cid, per_channel_limit=50
+                        cid, per_channel_limit=200
                     )
                     for k in totals:
                         totals[k] = totals.get(k, 0) + int(r.get(k, 0) or 0)
@@ -699,7 +699,7 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 "Ingestion running in background. Poll "
                 "GET /api/admin/ingest/status. Expect several hours to "
                 "complete — fetches ~1 transcript/second, gated to be "
-                "gentle on YouTube. ~3600 videos total (72 channels × 50)."
+                "gentle on YouTube. ~14,000 videos total (72 channels × 200)."
             ),
         }
 

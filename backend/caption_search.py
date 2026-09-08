@@ -87,7 +87,7 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "HollywoodLife",           "label": "Hollywood Life"},
     {"handle": "popsugar",                "label": "PopSugar"},
     # Podcast heavy-hitters (YouTube channels)
-    {"handle": "PowerfulJRE",             "label": "Joe Rogan Experience"},
+    {"handle": "joerogan",             "label": "Joe Rogan Experience"},
     {"handle": "smartless",               "label": "SmartLess"},
     {"handle": "armchairexpertpodcast",   "label": "Armchair Expert"},
     {"handle": "HowIBuiltThis",           "label": "How I Built This"},
@@ -106,9 +106,9 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "americastestkitchen",     "label": "America's Test Kitchen"},
     # Late-night / talk show (extras)
     {"handle": "jimmyfallon",             "label": "Jimmy Fallon (channel)"},
-    {"handle": "SNL",                     "label": "Saturday Night Live"},
+    {"handle": "SaturdayNightLive",                     "label": "Saturday Night Live"},
     # Podcasts / long-form interviews (extras)
-    {"handle": "TheTimFerrissShow",       "label": "Tim Ferriss"},
+    {"handle": "timferriss",       "label": "Tim Ferriss"},
     {"handle": "hubermanlab",             "label": "Huberman Lab"},
     {"handle": "TheDailyPodcast",         "label": "The Daily (NYT)"},
     # Science / education (extras)
@@ -122,7 +122,7 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     {"handle": "REACT",                   "label": "REACT (Fine Bros)"},
     {"handle": "Cut",                     "label": "Cut"},
     # History & culture
-    {"handle": "HistoryChannel",          "label": "History Channel"},
+    {"handle": "HISTORY",          "label": "History Channel"},
     {"handle": "SmithsonianChannel",      "label": "Smithsonian Channel"},
     # Music interviews / performances (American voices)
 ]
@@ -168,6 +168,7 @@ class CaptionSearchService:
     CHANNEL_TTL = 30 * 24 * 3600        # 30 days for channel-id lookups
     RESULT_TTL = 30 * 24 * 3600         # 30 days for successful transcripts
     MISS_TTL = 60 * 60                  # 1 hour for misses/rate-limits (retry later)
+    CACHE_VERSION = 2                   # bump to invalidate cached query results
 
     def __init__(self, db):
         self.db = db
@@ -371,33 +372,86 @@ class CaptionSearchService:
         transcript: List[Dict[str, Any]],
         query: str,
     ) -> Optional[Dict[str, Any]]:
-        """Locate the query word inside a transcript. Case-insensitive,
-        whole-word match. Returns {offset, snippet} or None."""
+        """Locate the query inside a transcript and cue to the WORD itself.
+
+        Uses per-word timing when the caption file had it; otherwise
+        interpolates the word's position across the segment. Returns the
+        best-scoring hit (see _score_hit) or None."""
         target = query.lower().strip()
         if not target:
             return None
-        # Support multi-word queries and single words alike.
+        target_words = [w.lower() for w in WORD_RE.findall(target)]
+        if not target_words:
+            return None
+        n_t = len(target_words)
+        best: Optional[Dict[str, Any]] = None
         for entry in transcript:
             text = (entry.get("text") or "").strip()
             if not text:
                 continue
             words = [w.lower() for w in WORD_RE.findall(text)]
-            if not words:
+            idx = next(
+                (i for i in range(len(words) - n_t + 1)
+                 if words[i:i + n_t] == target_words), None
+            )
+            if idx is None:
                 continue
-            if " " in target:
-                # phrase match: does the lowered text contain the phrase?
-                if target in text.lower():
-                    return {
-                        "offset": float(entry.get("start", 0) or 0),
-                        "snippet": text,
-                    }
+            seg_start = float(entry.get("start", 0) or 0)
+            seg_dur = float(entry.get("duration", 0) or 0)
+            timed = entry.get("w") or []
+            precise = False
+            if timed:
+                # Match the same token sequence inside the timed word list.
+                tw = [t[1] for t in timed]
+                j = next(
+                    (i for i in range(len(tw) - n_t + 1)
+                     if tw[i:i + n_t] == target_words), None
+                )
+                if j is not None:
+                    offset = float(timed[j][0])
+                    precise = True
+                else:
+                    offset = seg_start
             else:
-                if target in words:
-                    return {
-                        "offset": float(entry.get("start", 0) or 0),
-                        "snippet": text,
-                    }
-        return None
+                offset = seg_start
+            if not precise and len(words) > 1 and seg_dur > 0:
+                offset = seg_start + seg_dur * (idx / len(words))
+            hit = {
+                "offset": max(0.0, offset),
+                "snippet": text,
+                "precise": precise,
+                "seg_duration": seg_dur,
+                "n_words": len(words),
+            }
+            hit["score"] = CaptionSearchService._score_hit(hit)
+            if best is None or hit["score"] > best["score"]:
+                best = hit
+        return best
+
+    @staticmethod
+    def _score_hit(hit: Dict[str, Any]) -> float:
+        """Higher is better. Prefer word-accurate cues, short clean
+        segments with a little context, and penalize shouty/crosstalk
+        captions."""
+        score = 0.0
+        if hit.get("precise"):
+            score += 3.0
+        dur = hit.get("seg_duration") or 0
+        if 0 < dur <= 6:
+            score += 2.0
+        elif dur <= 10:
+            score += 1.0
+        n = hit.get("n_words") or 0
+        if 4 <= n <= 14:
+            score += 1.5
+        elif n > 25:
+            score -= 1.0
+        snip = hit.get("snippet") or ""
+        if ">>" in snip or "[" in snip:
+            score -= 1.0   # speaker-change markers / [Music] [Applause]
+        if (hit.get("offset") or 0) > 3600:
+            score -= 1.5   # deep inside a marathon livestream
+        return score
 
     def _fetch_transcript_sync(self, video_id: str) -> Optional[List[Dict[str, Any]]]:
         """Blocking transcript fetch via yt-dlp. Downloads subtitles into a
@@ -464,8 +518,14 @@ class CaptionSearchService:
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
         if chosen.endswith(".json3"):
-            return self._parse_json3(raw)
-        return self._parse_vtt(raw)
+            parsed = self._parse_json3(raw)
+        else:
+            parsed = self._parse_vtt(raw)
+        # Keep marathon livestreams under Mongo's 16MB doc cap.
+        if len(parsed) > 30000:
+            for e in parsed:
+                e.pop("w", None)
+        return parsed
 
     @staticmethod
     def _parse_json3(raw: str) -> List[Dict[str, Any]]:
@@ -485,11 +545,25 @@ class CaptionSearchService:
                 continue
             start_ms = ev.get("tStartMs") or 0
             dur_ms = ev.get("dDurationMs") or 0
-            out.append({
+            # Per-word offsets (auto-captions carry tOffsetMs per segment).
+            words: List[List[Any]] = []
+            has_offsets = any("tOffsetMs" in s for s in segs)
+            if has_offsets:
+                for s in segs:
+                    tok = (s.get("utf8") or "").strip()
+                    if not tok or tok == "\n":
+                        continue
+                    t = (start_ms + (s.get("tOffsetMs") or 0)) / 1000.0
+                    for w in WORD_RE.findall(tok):
+                        words.append([round(t, 2), w.lower()])
+            entry = {
                 "text": text.replace("\n", " "),
                 "start": start_ms / 1000.0,
                 "duration": dur_ms / 1000.0,
-            })
+            }
+            if words:
+                entry["w"] = words
+            out.append(entry)
         return out
 
     @staticmethod
@@ -510,16 +584,34 @@ class CaptionSearchService:
             start = h * 3600 + mn * 60 + s + ms / 1000.0
             end = eh * 3600 + em * 60 + es + ems / 1000.0
             text_lines = []
+            words: List[List[Any]] = []
+            inline_ts = re.compile(r"<(\d{2}):(\d{2}):(\d{2})[.,](\d{3})>")
             for line in block.splitlines():
                 if ts.search(line) or line.strip().startswith(("WEBVTT", "NOTE")):
                     continue
+                # Word timing from inline <hh:mm:ss.mmm> markers (auto-subs).
+                if inline_ts.search(line):
+                    t = start
+                    pos = 0
+                    for m2 in inline_ts.finditer(line):
+                        chunk = re.sub(r"<[^>]+>", "", line[pos:m2.start()])
+                        for w in WORD_RE.findall(chunk):
+                            words.append([round(t, 2), w.lower()])
+                        ih, im, isec, ims = map(int, m2.groups())
+                        t = ih * 3600 + im * 60 + isec + ims / 1000.0
+                        pos = m2.end()
+                    for w in WORD_RE.findall(re.sub(r"<[^>]+>", "", line[pos:])):
+                        words.append([round(t, 2), w.lower()])
                 # Strip inline tags like <c> and timestamp <00:00:01.000> markers.
                 cleaned = re.sub(r"<[^>]+>", "", line).strip()
                 if cleaned:
                     text_lines.append(cleaned)
             text = " ".join(text_lines).strip()
             if text:
-                out.append({"text": text, "start": start, "duration": max(0.0, end - start)})
+                entry = {"text": text, "start": start, "duration": max(0.0, end - start)}
+                if words:
+                    entry["w"] = words
+                out.append(entry)
         return out
 
     async def _scan_video(self, video_id: str, query: str,
@@ -587,7 +679,7 @@ class CaptionSearchService:
              "has_transcript": True,
              "embeddable": {"$ne": False}},
             {"_id": 0, "score": {"$meta": "textScore"}},
-        ).sort([("score", {"$meta": "textScore"})]).limit(limit * 3)
+        ).sort([("score", {"$meta": "textScore"})]).limit(limit * 5)
         results: List[Dict[str, Any]] = []
         unchecked: List[str] = []
         async for doc in cursor:
@@ -610,6 +702,8 @@ class CaptionSearchService:
                 "thumbnail": meta.get("thumbnail", ""),
                 "offset_seconds": max(0.0, float(hit["offset"])),
                 "snippet": hit["snippet"],
+                "precise": hit["precise"],
+                "rank_score": hit["score"],
                 "youtube_url": (
                     f"https://www.youtube.com/watch?v={doc['video_id']}"
                     f"&t={int(hit['offset'])}s"
@@ -628,7 +722,22 @@ class CaptionSearchService:
                 )
             results = [r for r in results
                        if r["video_id"] not in unchecked or r["video_id"] in allowed]
-        return results[:limit]
+        return self._rank(results)[:limit]
+
+    @staticmethod
+    def _rank(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Best clips first, then round-robin across channels so the
+        student hears different voices instead of six ABC clips."""
+        ordered = sorted(results, key=lambda r: -r.get("rank_score", 0))
+        by_channel: Dict[str, List[Dict[str, Any]]] = {}
+        for r in ordered:
+            by_channel.setdefault(r.get("channel_id") or "", []).append(r)
+        out: List[Dict[str, Any]] = []
+        while any(by_channel.values()):
+            for cid in list(by_channel):
+                if by_channel[cid]:
+                    out.append(by_channel[cid].pop(0))
+        return out
 
     async def ingest_channel_videos(
         self, channel_id: str, per_channel_limit: int = 50
@@ -705,9 +814,14 @@ class CaptionSearchService:
         failed = 0
         for meta in video_ids:
             existing = await self.db.caption_transcript_cache.find_one(
-                {"video_id": meta["video_id"]}, {"expires_at": 1, "_id": 0}
+                {"video_id": meta["video_id"]},
+                {"expires_at": 1, "has_transcript": 1, "has_word_timing": 1, "_id": 0},
             )
-            if existing and existing.get("expires_at", 0) > time.time():
+            fresh = bool(existing) and existing.get("expires_at", 0) > time.time()
+            # Re-fetch older entries that pre-date word-level timing.
+            needs_upgrade = (fresh and existing.get("has_transcript")
+                             and not existing.get("has_word_timing"))
+            if fresh and not needs_upgrade:
                 skipped += 1
                 continue
             transcript = await asyncio.to_thread(
@@ -722,6 +836,7 @@ class CaptionSearchService:
                     "transcript": transcript or [],
                     "full_text": self._flatten_transcript(transcript or []),
                     "has_transcript": has_t,
+                    "has_word_timing": any(e.get("w") for e in (transcript or [])),
                     "embeddable": True,
                     "channel_meta": meta,  # persist title/channel for search hits
                     "expires_at": time.time() + ttl,
@@ -770,7 +885,8 @@ class CaptionSearchService:
         cache_key = query.lower()
         if not force_refresh:
             cached = await self.db.caption_search_cache.find_one({"query": cache_key})
-            if cached and cached.get("expires_at", 0) > time.time():
+            if (cached and cached.get("expires_at", 0) > time.time()
+                    and cached.get("version") == self.CACHE_VERSION):
                 # Serve only verified hits (word confirmed in captions, from
                 # a curated channel). Older cache entries may contain
                 # unverified/non-curated fallbacks — drop those and re-search
@@ -797,6 +913,7 @@ class CaptionSearchService:
                 {"$set": {
                     "query": cache_key,
                     "results": local_hits,
+                    "version": self.CACHE_VERSION,
                     "expires_at": time.time() + self.RESULT_TTL,
                     "cached_at": time.time(),
                 }},
@@ -860,6 +977,8 @@ class CaptionSearchService:
                     **cand,
                     "offset_seconds": seconds,
                     "snippet": hit["snippet"],
+                    "precise": hit["precise"],
+                    "rank_score": hit["score"],
                     "youtube_url": f"https://www.youtube.com/watch?v={cand['video_id']}&t={int(seconds)}s",
                 }
 
@@ -903,23 +1022,13 @@ class CaptionSearchService:
         # actually contain the word in its captions.
         results: List[Dict[str, Any]] = []
         seen_result_ids: set = set()
-        for h in local_hits:
+        for h in local_hits + precise:
             if h["video_id"] in seen_result_ids:
                 continue
             seen_result_ids.add(h["video_id"])
+            h["has_timestamp"] = True
             results.append(h)
-        for p in precise:
-            if p["video_id"] in seen_result_ids:
-                continue
-            seen_result_ids.add(p["video_id"])
-            results.append(p)
-        results = results[:limit]
-
-        for r in results:
-            r["has_timestamp"] = True
-
-        # Earliest offset first.
-        results.sort(key=lambda r: r["offset_seconds"])
+        results = self._rank(results)[:limit]
 
         # Cache the top-level query. Successful queries get the long TTL;
         # empty results only get MISS_TTL so we retry after rate-limits pass
@@ -930,6 +1039,7 @@ class CaptionSearchService:
             {"$set": {
                 "query": cache_key,
                 "results": results,
+                "version": self.CACHE_VERSION,
                 "expires_at": time.time() + top_ttl,
                 "cached_at": time.time(),
             }},
