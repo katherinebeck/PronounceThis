@@ -124,6 +124,50 @@ CURATED_HANDLES: List[Dict[str, str]] = [
     # History & culture
     {"handle": "HISTORY",          "label": "History Channel"},
     {"handle": "SmithsonianChannel",      "label": "Smithsonian Channel"},
+    # --- Added June 2026: wider net of American speakers ---
+    {"handle": "TED",                 "label": "TED"},
+    {"handle": "FoxNews",             "label": "Fox News"},
+    {"handle": "WashingtonPost",      "label": "Washington Post"},
+    {"handle": "wsj",                 "label": "Wall Street Journal"},
+    {"handle": "nytimes",             "label": "The New York Times"},
+    {"handle": "GMA",                 "label": "Good Morning America"},
+    {"handle": "TheView",             "label": "The View"},
+    {"handle": "DrPhil",              "label": "Dr. Phil"},
+    {"handle": "MrBeast",             "label": "MrBeast"},
+    {"handle": "MarkRober",           "label": "Mark Rober"},
+    {"handle": "emmachamberlain",     "label": "Emma Chamberlain"},
+    {"handle": "khanacademy",         "label": "Khan Academy"},
+    {"handle": "stanford",            "label": "Stanford"},
+    {"handle": "Harvard",             "label": "Harvard University"},
+    {"handle": "mitocw",              "label": "MIT OpenCourseWare"},
+    {"handle": "YaleCourses",         "label": "Yale Courses"},
+    {"handle": "NASA",                "label": "NASA"},
+    {"handle": "TheAtlantic",         "label": "The Atlantic"},
+    {"handle": "ABC",                 "label": "ABC"},
+    {"handle": "CBS",                 "label": "CBS"},
+    {"handle": "NBC",                 "label": "NBC"},
+    {"handle": "Netflix",             "label": "Netflix"},
+    {"handle": "BuzzFeedVideo",       "label": "BuzzFeedVideo"},
+    {"handle": "NFLNetwork",          "label": "NFL Network"},
+    {"handle": "nbcsports",           "label": "NBC Sports"},
+    {"handle": "ClubShayShay",        "label": "Club Shay Shay"},
+    {"handle": "CallHerDaddy",        "label": "Call Her Daddy"},
+    {"handle": "MelRobbins",          "label": "Mel Robbins"},
+    {"handle": "realtime",            "label": "Real Time with Bill Maher"},
+    {"handle": "aspeninstitute",      "label": "The Aspen Institute"},
+    {"handle": "TalksAtGoogle",       "label": "Talks at Google"},
+    {"handle": "Gizmodo",             "label": "Gizmodo"},
+    {"handle": "ScreenRant",          "label": "ScreenRant"},
+    {"handle": "CinemaSins",          "label": "CinemaSins"},
+    {"handle": "johnnyharris",        "label": "Johnny Harris"},
+    {"handle": "WendoverProductions", "label": "Wendover Productions"},
+    {"handle": "PolyMatter",          "label": "PolyMatter"},
+    {"handle": "CleoAbram",           "label": "Cleo Abram"},
+    {"handle": "americanartmuseum",   "label": "Smithsonian American Art Museum"},
+    {"handle": "smithsonian",         "label": "Smithsonian"},
+    {"handle": "SciShowSpace",        "label": "SciShow Space"},
+    {"handle": "ObamaWhiteHouse",     "label": "The Obama White House"},
+    {"handle": "WhiteHouse",          "label": "The White House"},
     # Music interviews / performances (American voices)
 ]
 
@@ -272,6 +316,7 @@ class CaptionSearchService:
                         "q": query,
                         "type": "video",
                         "videoEmbeddable": "true",
+                        "videoCaption": "closedCaption",
                         "regionCode": "US",
                         "relevanceLanguage": "en",
                         "maxResults": 50,       # max allowed; still 100 quota units
@@ -983,11 +1028,11 @@ class CaptionSearchService:
                 }
 
         # Fire scans until we've collected `limit` matches, or overall
-        # timeout, whichever first. Cap at 8 candidates to keep total
+        # timeout, whichever first. Cap at 16 candidates to keep total
         # per-query transcript fetches predictable.
-        pending = [asyncio.create_task(_scan(c)) for c in candidates[:8]]
+        pending = [asyncio.create_task(_scan(c)) for c in candidates[:16]]
         precise: List[Dict[str, Any]] = []
-        SCAN_BUDGET_SECONDS = 4.0
+        SCAN_BUDGET_SECONDS = 6.0
         deadline = asyncio.get_event_loop().time() + SCAN_BUDGET_SECONDS
         try:
             while pending and len(precise) < limit:

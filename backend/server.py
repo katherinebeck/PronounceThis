@@ -1341,14 +1341,26 @@ async def _startup_indexes():
             indexed = await db.caption_transcript_cache.count_documents(
                 {"has_transcript": True}
             )
-            if indexed < 200:
+            # Also re-run when the curated channel list changed since the
+            # last full pass, so new channels show up without a manual click.
+            import hashlib
+            from caption_search import CURATED_HANDLES
+            channel_sig = hashlib.sha1(
+                ",".join(sorted(h["handle"].lower() for h in CURATED_HANDLES)).encode()
+            ).hexdigest()[:12]
+            status = await db.ingest_status.find_one({"job": "channels"}, {"_id": 0}) or {}
+            if indexed < 200 or status.get("channel_sig") != channel_sig:
                 logger.info(
-                    "ingest supervisor: cold-start ingest (indexed=%d)", indexed
+                    "ingest supervisor: startup ingest (indexed=%d, channels changed=%s)",
+                    indexed, status.get("channel_sig") != channel_sig,
                 )
                 try:
+                    await db.ingest_status.update_one(
+                        {"job": "channels"}, {"$set": {"channel_sig": channel_sig}}, upsert=True
+                    )
                     await _run_full_ingest()
                 except Exception as exc:
-                    logger.warning("cold-start ingest failed: %s", exc)
+                    logger.warning("startup ingest failed: %s", exc)
 
             # Weekly refresh loop.
             while True:

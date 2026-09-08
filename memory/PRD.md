@@ -169,3 +169,9 @@
 ## 2026-06 — Trial 3 words + admin delete user
 - TRIAL_WORD_LIMIT 1 → 3 (auth.py); copy updated in LoginModal, WelcomeModal, PaywallModal, AccountChip; auth.jsx default 3.
 - POST /api/admin/users/delete {email}: deletes user + memberships + magic links (refuses self). Trash button per user row in Admin.
+
+## 2026-06 — Real Speakers coverage: 115 channels, auto re-ingest
+- Curated list 72 → 115 (TED re-added at user request; Fox News, WaPo, WSJ, NYT, GMA, The View, Dr. Phil, MrBeast, Mark Rober, Emma Chamberlain, Khan Academy, Stanford, Harvard, MIT OCW, Yale, NASA, The Atlantic, ABC/CBS/NBC, Netflix, BuzzFeedVideo, NFL Network, NBC Sports, Club Shay Shay, Call Her Daddy, Mel Robbins, Bill Maher, Aspen Institute, Talks at Google, Gizmodo, ScreenRant, CinemaSins, Johnny Harris, Wendover, PolyMatter, Cleo Abram, Smithsonian American Art Museum (@americanartmuseum), Smithsonian, SciShow Space, Obama White House, White House). All 115 resolve.
+- Live search: videoCaption=closedCaption, scans 16 candidates, 6s budget.
+- Startup supervisor re-runs full ingest when the channel-list signature (`ingest_status.channel_sig`) changes — no manual click needed after deploy. Ingest is ~23k videos; runs hours in background; yt-dlp 429s are cached as 1h misses and retried on the next pass.
+- Open: "intoxication" still 0 until the deeper index is built (title search can't find words only spoken in captions).
