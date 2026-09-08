@@ -22,7 +22,7 @@ export default function WordBlock({
     }
     if (onSetActive) onSetActive(token);
     try {
-      await playWord(token.text);
+      await playWord(token.text, { phonetic: !!token.is_proper_noun });
     } catch (err) {
       toast.error(err.friendly || "Audio playback failed.");
     }

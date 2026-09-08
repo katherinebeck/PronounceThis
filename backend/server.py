@@ -115,6 +115,10 @@ class SceneSummary(BaseModel):
 
 class TTSRequest(BaseModel):
     word: str
+    # Proper nouns: drive pronunciation from the dictionary via phoneme tags.
+    # Ordinary words: plain multilingual synthesis (more natural for
+    # isolated function words like "in" / "because").
+    phonetic: bool = False
 
 
 class TTSResponse(BaseModel):
@@ -777,6 +781,11 @@ def _refresh_categories(doc: Dict) -> Dict:
     for t in doc.get("tokens", []):
         if not t.get("is_word"):
             continue
+        if t.get("source", "cmu") == "cmu":
+            phones = get_arpabet(normalize_word(t["text"]))
+            if phones:
+                t["arpabet"] = phones
+                t["ipa"] = arpabet_to_ipa(phones)
         if t.get("arpabet"):
             t["categories"] = classify_word(t["arpabet"])
         elif t.get("ipa"):
@@ -838,6 +847,7 @@ async def laundry_list(scene_id: str, sound: str):
                 "text": t["text"],
                 "ipa": t.get("ipa"),
                 "categories": t.get("categories", []),
+                "is_proper_noun": bool(t.get("is_proper_noun")),
             })
     return {"sound": sound, "count": len(matches), "words": matches}
 
@@ -877,10 +887,18 @@ async def tts(req: TTSRequest, request: Request):
     # Gate: subscribers unlimited; trial users get 1 word audio.
     actor = await require_access(request, db, kind="word")
 
-    cache_key = word.lower()
-    cached = await db.audio_cache.find_one({"word": cache_key}, {"_id": 0})
+    base_key = word.lower()
+    # Manual overrides always win, regardless of mode.
+    override = await db.audio_cache.find_one(
+        {"word": base_key, "manual_override": True}, {"_id": 0})
+    cache_key = f"{base_key}#ph" if req.phonetic else base_key
+    cached = override or await db.audio_cache.find_one({"word": cache_key}, {"_id": 0})
+    # Plain entries: accept legacy (no version) or current; reject the
+    # short-lived v2 turbo renders that sounded off on common words.
+    ok_version = (cached or {}).get("tts_version") != 2
     if cached and cached.get("audio_b64") and (
-        cached.get("manual_override") or cached.get("tts_version") == TTS_VERSION
+        cached.get("manual_override") or (ok_version if not req.phonetic
+                                          else cached.get("tts_version") == TTS_VERSION)
     ):
         await consume_trial(db, actor)
         return TTSResponse(
@@ -894,17 +912,17 @@ async def tts(req: TTSRequest, request: Request):
 
     def _generate() -> bytes:
         client = _eleven_client()
-        # Drive pronunciation from the dictionary via CMU Arpabet phoneme
-        # tags (eleven_turbo_v2 honors them; multilingual models don't), so
-        # names like "Harry" are said exactly as the IPA shown on screen.
+        # Proper nouns: CMU Arpabet phoneme tags on eleven_turbo_v2 so names
+        # like "Harry" are said exactly as the IPA shown on screen.
+        # Ordinary words: plain multilingual_v2 (original engine).
         # A trailing period cues a declarative (falling-pitch) reading.
-        spoken = _phoneme_markup(word)
+        spoken = _phoneme_markup(word) if req.phonetic else word
         if not spoken.endswith((".", "!", "?")):
             spoken += "."
         stream = client.text_to_speech.convert(
             text=spoken,
             voice_id=voice_id,
-            model_id="eleven_turbo_v2",
+            model_id="eleven_turbo_v2" if req.phonetic else "eleven_multilingual_v2",
             output_format="mp3_44100_128",
         )
         buf = bytearray()
@@ -927,7 +945,7 @@ async def tts(req: TTSRequest, request: Request):
         await db.audio_cache.update_one(
             {"word": cache_key},
             {"$set": {"word": cache_key, "audio_b64": audio_b64,
-                      "tts_version": TTS_VERSION,
+                      "tts_version": TTS_VERSION if req.phonetic else 3,
                       "created_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,
         )

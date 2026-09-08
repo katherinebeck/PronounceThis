@@ -19,9 +19,10 @@ function friendlyError(e, fallback = "Audio playback failed.") {
   return fallback;
 }
 
-export async function playWord(word) {
+// `phonetic` = proper noun: pronunciation driven by the dictionary's phonemes.
+export async function playWord(word, { phonetic = false } = {}) {
   if (!word) return null;
-  const key = word.toLowerCase();
+  const key = `${word.toLowerCase()}${phonetic ? "#ph" : ""}`;
   let cached = cache.get(key);
   let manualOverride = false;
   if (cached) {
@@ -29,7 +30,7 @@ export async function playWord(word) {
   } else {
     let resp;
     try {
-      resp = await fetchTTS(word);
+      resp = await fetchTTS(word, phonetic);
     } catch (e) {
       const err = new Error(friendlyError(e, "Unable to generate audio."));
       err.friendly = err.message;

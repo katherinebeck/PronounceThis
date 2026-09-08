@@ -52,7 +52,7 @@ export default function PronouncePage({ onGoToScenes }) {
     if (!result?.word) return;
     setPlayingHint(true);
     try {
-      const audio = await playWord(result.word);
+      const audio = await playWord(result.word, { phonetic: looksProper(input.trim()) });
       // If ElevenLabs generated this (no admin override) AND the word looks
       // like a proper noun, also open Real Speakers so the student can
       // sanity-check against a real human.

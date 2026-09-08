@@ -135,11 +135,19 @@ def strip_stress(phone: str) -> str:
     return re.sub(r"\d", "", phone)
 
 
+PREFERRED_ARPA = {
+    # CMU's first entry isn't the General American citation form.
+    "because": "B IH0 K AH1 Z",
+}
+
+
 def get_arpabet(word: str) -> Optional[List[str]]:
     """Return the first CMU pronunciation as a list of ARPABET phones, or None."""
     w = word.lower().strip()
     if not w:
         return None
+    if w in PREFERRED_ARPA:
+        return PREFERRED_ARPA[w].split()
     pronunciations = pronouncing.phones_for_word(w)
     if not pronunciations:
         return None

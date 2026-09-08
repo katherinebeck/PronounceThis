@@ -184,7 +184,7 @@ export default function LaundryListPanel({
                     data-testid="practice-play"
                     onClick={async () => {
                       try {
-                        await playWord(cur?.text);
+                        await playWord(cur?.text, { phonetic: !!cur?.is_proper_noun });
                       } catch {
                         toast.error("Playback failed.");
                       }
@@ -249,7 +249,7 @@ export default function LaundryListPanel({
                       onClick={async () => {
                         setPracticeIdx(i);
                         try {
-                          await playWord(w.text);
+                          await playWord(w.text, { phonetic: !!w.is_proper_noun });
                         } catch (e) {
                           console.warn("Word audio playback failed", w.text, e);
                         }

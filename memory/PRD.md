@@ -154,3 +154,8 @@
 - SOUND_CATEGORIES now: L, T, Rhotic R; vowels i ɪ ɛ æ ə ʌ u ʊ ɔ ɑ; diphthongs eɪ aɪ oʊ aʊ ɔɪ each as its own list. Removed light/dark L, flap T, TH/SH/ZH/CH/NG/D/S/Z, combined "Diphthongs".
 - `classify_word` rewritten (ARPABET map; AH0→ə, AH1/2→ʌ); new `classify_ipa` for LLM-transcribed words. `_refresh_categories` recomputes categories on GET scene + laundry-list so old scenes use the new scheme.
 - Removed "Did you mean" from pronounce (user request); caption-search auto-correct kept.
+
+## 2026-06 — TTS hybrid (fix "because"/"in" sounding wrong)
+- Root cause: turbo_v2 + CMU tags for ALL words; CMU's first entry for "because" is B IH0 K AO1 Z (be-CAWZ) and isolated function words rendered unnaturally.
+- Hybrid: `TTSRequest.phonetic` flag. Proper nouns (scene `is_proper_noun`, laundry-list `is_proper_noun`, Pronounce page `looksProper`) → eleven_turbo_v2 + phoneme tags, cached under `word#ph` (tts_version 2). Ordinary words → original eleven_multilingual_v2 plain, cached under `word` (tts_version 3; legacy no-version entries accepted; v2 turbo renders rejected & regenerated).
+- `PREFERRED_ARPA` in phonetics.py overrides CMU first entry ("because" → B IH0 K AH1 Z → bɪkˈʌz). `_refresh_categories` also refreshes IPA/arpabet for CMU tokens on scene load so saved scenes show the corrected IPA.
