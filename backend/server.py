@@ -135,6 +135,7 @@ class PronounceResponse(BaseModel):
     arpabet: List[str] = Field(default_factory=list)
     categories: List[str] = Field(default_factory=list)
     source: str  # "cmu" | "llm" | "none"
+    suggestion: Optional[str] = None  # "Did you mean …?" for CMU misses
 
 
 class TurnTTSResponse(BaseModel):
@@ -624,13 +625,19 @@ async def pronounce(word: str):
             arpabet=arpa, categories=cats, source="cmu",
         )
 
-    # CMU miss → Claude fallback.
+    # CMU miss → Claude fallback (+ spelling suggestion when the corrected
+    # form IS in the dictionary, e.g. "Charlston" -> "Charleston").
+    suggestion = await suggest_spelling(raw)
+    if suggestion and not transcribe_word(
+        re.sub(r"[^a-z']", "", suggestion.lower()))[0]:
+        suggestion = None
     llm_map = await llm_transcribe_words([single_norm])
     llm_ipa = llm_map.get(single_norm)
     return PronounceResponse(
         word=raw, normalized=single_norm, ipa=llm_ipa,
         arpabet=[], categories=[],
         source="llm" if llm_ipa else "none",
+        suggestion=suggestion,
     )
 
 
@@ -838,6 +845,20 @@ def _eleven_client():
     return ElevenLabs(api_key=api_key)
 
 
+TTS_VERSION = 2  # bump when synthesis settings change so cached audio regenerates
+
+
+def _phoneme_markup(text: str) -> str:
+    """Wrap each dictionary word in a CMU-Arpabet <phoneme> tag."""
+    def _wrap(m: re.Match) -> str:
+        w = m.group(0)
+        phones = get_arpabet(w)
+        if not phones:
+            return w
+        return f'<phoneme alphabet="cmu-arpabet" ph="{" ".join(phones)}">{w}</phoneme>'
+    return re.sub(r"[A-Za-z]+(?:'[A-Za-z]+)?", _wrap, text)
+
+
 @api_router.post("/tts", response_model=TTSResponse)
 async def tts(req: TTSRequest, request: Request):
     word = (req.word or "").strip()
@@ -849,7 +870,9 @@ async def tts(req: TTSRequest, request: Request):
 
     cache_key = word.lower()
     cached = await db.audio_cache.find_one({"word": cache_key}, {"_id": 0})
-    if cached and cached.get("audio_b64"):
+    if cached and cached.get("audio_b64") and (
+        cached.get("manual_override") or cached.get("tts_version") == TTS_VERSION
+    ):
         await consume_trial(db, actor)
         return TTSResponse(
             word=word,
@@ -862,13 +885,17 @@ async def tts(req: TTSRequest, request: Request):
 
     def _generate() -> bytes:
         client = _eleven_client()
-        # A trailing period cues a declarative (falling-pitch) reading instead
-        # of the "uptalk question" ElevenLabs otherwise gives to isolated words.
-        spoken = word if word.endswith((".", "!", "?")) else f"{word}."
+        # Drive pronunciation from the dictionary via CMU Arpabet phoneme
+        # tags (eleven_turbo_v2 honors them; multilingual models don't), so
+        # names like "Harry" are said exactly as the IPA shown on screen.
+        # A trailing period cues a declarative (falling-pitch) reading.
+        spoken = _phoneme_markup(word)
+        if not spoken.endswith((".", "!", "?")):
+            spoken += "."
         stream = client.text_to_speech.convert(
             text=spoken,
             voice_id=voice_id,
-            model_id="eleven_multilingual_v2",
+            model_id="eleven_turbo_v2",
             output_format="mp3_44100_128",
         )
         buf = bytearray()
@@ -891,6 +918,7 @@ async def tts(req: TTSRequest, request: Request):
         await db.audio_cache.update_one(
             {"word": cache_key},
             {"$set": {"word": cache_key, "audio_b64": audio_b64,
+                      "tts_version": TTS_VERSION,
                       "created_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,
         )
@@ -916,6 +944,26 @@ def _synthesize(text: str, voice_id: Optional[str] = None) -> bytes:
 
 
 # --- Caption search (YouGlish replacement) ---------------------------------
+async def suggest_spelling(q: str) -> Optional[str]:
+    """Return a corrected spelling for a likely-misspelled word/name, or None."""
+    if not llm.is_configured() or len(q) > 60:
+        return None
+    system = (
+        "An actor typed a single English word, character name, or US place "
+        "name, possibly misspelled. Reply with ONLY the most likely intended "
+        "correct spelling, preserving capitalization conventions (e.g. "
+        "'Charlston' -> 'Charleston', 'Hermione' -> 'Hermione'). If it is "
+        "already correct or you are unsure, reply with the input unchanged."
+    )
+    raw = await llm.complete(system, q, max_tokens=20)
+    if not raw:
+        return None
+    fixed = raw.strip().strip('"\'.').split("\n")[0].strip()
+    if not fixed or fixed.lower() == q.lower() or len(fixed) > 60:
+        return None
+    return fixed
+
+
 @api_router.get("/caption-search")
 async def caption_search(q: str, limit: int = 6, refresh: bool = False):
     """Search curated American-speaker YouTube channels for videos where the
@@ -925,8 +973,19 @@ async def caption_search(q: str, limit: int = 6, refresh: bool = False):
         raise HTTPException(status_code=400, detail="Missing query.")
     if len(q) > 80:
         raise HTTPException(status_code=400, detail="Query too long.")
-    return await caption_service.search(q, limit=max(1, min(limit, 10)),
-                                        force_refresh=refresh)
+    limit = max(1, min(limit, 10))
+    result = await caption_service.search(q, limit=limit, force_refresh=refresh)
+    if not result.get("results") and not result.get("error"):
+        # Likely a typo ("Charlston") — retry with the corrected spelling.
+        fixed = await suggest_spelling(q)
+        if fixed:
+            retry = await caption_service.search(fixed, limit=limit,
+                                                 force_refresh=refresh)
+            if retry.get("results"):
+                retry["corrected_query"] = fixed
+                retry["query"] = q
+                return retry
+    return result
 
 
 @api_router.get("/scenes/{scene_id}/download-lines")

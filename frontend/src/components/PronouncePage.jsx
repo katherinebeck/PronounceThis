@@ -26,9 +26,9 @@ export default function PronouncePage({ onGoToScenes }) {
     return m;
   }, [categoriesMeta]);
 
-  const submit = async (e) => {
+  const submit = async (e, override) => {
     e?.preventDefault?.();
-    const word = input.trim();
+    const word = (override ?? input).trim();
     if (!word) return;
     setLoading(true);
     try {
@@ -71,10 +71,10 @@ export default function PronouncePage({ onGoToScenes }) {
       <div className="max-w-3xl mx-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12 lg:py-16">
         <div className="mb-8 sm:mb-10">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
-            American Accent Prep · General American Accent Pronunciation Tool
+            Pronounce It · General American Accent Pronunciation Tool
           </div>
-          <h1 className="font-display text-4xl sm:text-5xl lg:text-6xl text-ink leading-[0.98]">
-            American Accent Prep.
+          <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98]">
+            Pronounce it.
           </h1>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Type any word, character name or location to see it written
@@ -135,6 +135,16 @@ export default function PronouncePage({ onGoToScenes }) {
                     We couldn’t transcribe this one. Try a variant spelling.
                   </div>
                 )}
+                {result.suggestion ? (
+                  <button
+                    type="button"
+                    className="mt-3 font-serif text-sm text-muted2 italic hover:text-ink underline underline-offset-4 decoration-ink/30"
+                    onClick={() => { setInput(result.suggestion); submit(null, result.suggestion); }}
+                    data-testid="pronounce-suggestion"
+                  >
+                    Did you mean <span className="not-italic text-ink">{result.suggestion}</span>?
+                  </button>
+                ) : null}
               </div>
               <div className="flex flex-col gap-2">
                 <button
@@ -198,10 +208,10 @@ export default function PronouncePage({ onGoToScenes }) {
             so it reads as a second, equally-important on-ramp. */}
         <div className="mt-14 sm:mt-20 pt-10 sm:pt-14 border-t thin-rule">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
-            Audition Scene · Full IPA Transcription
+            Scene Preparation · Full IPA Transcription
           </div>
-          <h2 className="font-display text-4xl sm:text-5xl lg:text-6xl text-ink leading-[0.98]">
-            Audition scene preparation.
+          <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98]">
+            Scene preparation.
           </h2>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Drop a PDF of an audition scene. Read every line in American IPA,

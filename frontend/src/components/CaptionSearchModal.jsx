@@ -42,6 +42,7 @@ export default function CaptionSearchModal({ open, query, onClose }) {
   const [results, setResults] = useState([]);
   const [index, setIndex] = useState(0);
   const [error, setError] = useState("");
+  const [corrected, setCorrected] = useState(null);
   const abortRef = useRef(null);
 
   const load = async (refresh = false) => {
@@ -56,6 +57,7 @@ export default function CaptionSearchModal({ open, query, onClose }) {
       // word right now.
       const cued = (data.results || []).filter((r) => r.has_timestamp);
       setResults(cued);
+      setCorrected(data.corrected_query || null);
       setIndex(0);
       if (!cued.length) {
         setError(
@@ -77,6 +79,7 @@ export default function CaptionSearchModal({ open, query, onClose }) {
     if (!open || !query) return;
     setResults([]);
     setIndex(0);
+    setCorrected(null);
     load(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, query]);
@@ -146,6 +149,11 @@ export default function CaptionSearchModal({ open, query, onClose }) {
             >
               {query}
             </div>
+            {corrected ? (
+              <div className="font-serif text-xs text-muted2 italic mt-0.5" data-testid="caption-search-corrected">
+                Showing results for <span className="not-italic text-ink">{corrected}</span>
+              </div>
+            ) : null}
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
@@ -247,7 +255,7 @@ export default function CaptionSearchModal({ open, query, onClose }) {
               <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-muted2 block mb-1">
                 Said at {formatTime(current.offset_seconds)}
               </span>
-              <HighlightedSnippet text={decodeEntities(current.snippet)} query={query} />
+              <HighlightedSnippet text={decodeEntities(current.snippet)} query={corrected || query} />
             </p>
           ) : null}
 

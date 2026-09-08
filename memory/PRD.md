@@ -143,3 +143,9 @@
 - Fixed 4 unresolved handles: joerogan, SaturdayNightLive, timferriss, HISTORY (72/72 resolve).
 - Frontend: lead-in 1s for precise cues, 2s for interpolated.
 - Reporting/thumbs-down explicitly declined by user.
+
+## 2026-06 — Misspellings, TTS accuracy, hero copy
+- Spelling fallback: `suggest_spelling()` (Claude) in server.py. `/api/caption-search` retries with the corrected word when zero results and returns `corrected_query` (modal shows "Showing results for …"). `/api/pronounce` returns `suggestion` on CMU misses when the corrected form is in CMU; UI shows clickable "Did you mean …?".
+- TTS: `/api/tts` now uses `eleven_turbo_v2` with CMU-Arpabet `<phoneme>` tags per dictionary word (`_phoneme_markup`), so audio matches the on-screen IPA. `TTS_VERSION=2` — non-override cached audio regenerates lazily (costs ElevenLabs credits once per word). Manual overrides untouched. Scene-line TTS (`_synthesize`) unchanged (multilingual_v2). Verified "Harry" audio via transcription: natural American, rhymes with hairy/carry.
+- Caveat: CMU errors now propagate to audio (e.g. CMU has Hermione as her-mee-OH-nee). Use Admin override for such names.
+- Hero copy: "Pronounce it." / "Scene preparation." with kickers updated; H1/H2 reduced to text-3xl/4xl/5xl. Header brand "American Accent Prep." left unchanged.
