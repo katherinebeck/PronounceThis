@@ -220,6 +220,19 @@ class CaptionSearchService:
         # Local in-process channel-id cache to avoid repeated Mongo hits.
         self._channel_ids: Optional[List[str]] = None
         self._channel_meta: Dict[str, Dict[str, str]] = {}
+        self._hidden: Optional[set] = None
+        self._hidden_at: float = 0.0
+
+    async def hidden_video_ids(self) -> set:
+        """Admin-hidden videos (e.g. a non-GA speaker). Cached 60s."""
+        if self._hidden is None or time.time() - self._hidden_at > 60:
+            docs = await self.db.hidden_videos.find({}, {"_id": 0, "video_id": 1}).to_list(5000)
+            self._hidden = {d["video_id"] for d in docs}
+            self._hidden_at = time.time()
+        return self._hidden
+
+    def invalidate_hidden(self) -> None:
+        self._hidden = None
 
     # ------------------------------------------------------------------
     # Channel allowlist resolution
@@ -719,6 +732,7 @@ class CaptionSearchService:
         # caption_transcript_cache.full_text field (see ensure_indexes).
         # Also self-heal: score-sort by textScore for best matches.
         curated = set(await self._get_curated_channel_ids())
+        hidden = await self.hidden_video_ids()
         cursor = self.db.caption_transcript_cache.find(
             {"$text": {"$search": f'"{query}"'},
              "has_transcript": True,
@@ -730,7 +744,7 @@ class CaptionSearchService:
         async for doc in cursor:
             meta = doc.get("channel_meta") or {}
             channel_id = meta.get("channel_id") or doc.get("channel_id") or ""
-            if channel_id not in curated:
+            if channel_id not in curated or doc["video_id"] in hidden:
                 continue
             hit = self._find_word_in_transcript(
                 doc.get("transcript") or [], query
@@ -937,10 +951,12 @@ class CaptionSearchService:
                 # unverified/non-curated fallbacks — drop those and re-search
                 # if nothing verified is left.
                 curated_now = set(await self._get_curated_channel_ids())
+                hidden = await self.hidden_video_ids()
                 verified = [
                     r for r in cached.get("results", [])
                     if r.get("has_timestamp") and r.get("snippet")
                     and r.get("channel_id") in curated_now
+                    and r.get("video_id") not in hidden
                 ]
                 if verified or not cached.get("results"):
                     return {
@@ -1066,7 +1082,7 @@ class CaptionSearchService:
         # (timestamped) hits. No unverified fallbacks — every result must
         # actually contain the word in its captions.
         results: List[Dict[str, Any]] = []
-        seen_result_ids: set = set()
+        seen_result_ids: set = set(await self.hidden_video_ids())
         for h in local_hits + precise:
             if h["video_id"] in seen_result_ids:
                 continue

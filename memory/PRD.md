@@ -175,3 +175,8 @@
 - Live search: videoCaption=closedCaption, scans 16 candidates, 6s budget.
 - Startup supervisor re-runs full ingest when the channel-list signature (`ingest_status.channel_sig`) changes — no manual click needed after deploy. Ingest is ~23k videos; runs hours in background; yt-dlp 429s are cached as 1h misses and retried on the next pass.
 - Open: "intoxication" still 0 until the deeper index is built (title search can't find words only spoken in captions).
+
+## 2026-06 — Recording Queue + Hidden videos
+- `tts_log` {word,count,last_at,phonetic,dismissed}: written on every synthetic /api/tts play (not overrides). GET /api/admin/recording-queue (excludes words with manual overrides), POST /api/admin/recording-queue/dismiss.
+- `RecordingQueue.jsx` (Admin): MediaRecorder mic capture → preview → Save & next (POST /admin/pronunciation-overrides multipart, now accepts "audio/webm;codecs=opus") → Skip. /api/tts now returns the override's real mime.
+- `hidden_videos` {video_id, reason, title, channel_title}: GET/POST /api/admin/hidden-videos, POST /api/admin/hidden-videos/delete. CaptionSearchService filters hidden ids in cached reads, local index and live results (60s in-memory cache). `HiddenVideos.jsx` in Admin. Hidden: _Sjvjvbz5X0 (CBS, "Gavin" speaker) — in PREVIEW DB only; user must re-hide in production via Admin (or I add it as a seed).

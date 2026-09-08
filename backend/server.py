@@ -917,9 +917,12 @@ async def tts(req: TTSRequest, request: Request):
                                           else cached.get("tts_version") == TTS_VERSION)
     ):
         await consume_trial(db, actor)
+        if not cached.get("manual_override"):
+            await _log_tts_play(base_key, req.phonetic)
         return TTSResponse(
             word=word,
             audio_b64=cached["audio_b64"],
+            mime=cached.get("content_type") or "audio/mpeg",
             cached=True,
             manual_override=bool(cached.get("manual_override")),
         )
@@ -966,7 +969,23 @@ async def tts(req: TTSRequest, request: Request):
             upsert=True,
         )
     await consume_trial(db, actor)
+    await _log_tts_play(base_key, req.phonetic)
     return TTSResponse(word=word, audio_b64=audio_b64, cached=False)
+
+
+async def _log_tts_play(word: str, phonetic: bool) -> None:
+    """Track synthetic plays so the coach's Recording Queue knows which
+    words students actually hear without a human recording."""
+    try:
+        await db.tts_log.update_one(
+            {"word": word},
+            {"$inc": {"count": 1},
+             "$set": {"last_at": datetime.now(timezone.utc).isoformat(),
+                      "phonetic": phonetic}},
+            upsert=True,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("tts_log write failed: %s", exc)
 
 
 def _preferred_markup(text: str) -> tuple:
@@ -1266,6 +1285,14 @@ async def _startup_indexes():
     await ensure_auth_indexes(db)
     async for pref in db.pronunciation_prefs.find({}, {"_id": 0}):
         PREFERRED_ARPA[pref["word"]] = pref["arpabet"]
+    # Clips the coach flagged as non-General-American speakers.
+    for vid, reason in [("_Sjvjvbz5X0", "CBS News — 'Gavin' speaker not GA")]:
+        await db.hidden_videos.update_one(
+            {"video_id": vid},
+            {"$setOnInsert": {"video_id": vid, "reason": reason, "channel_title": "CBS News",
+                              "title": "", "created_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True,
+        )
     # Ensure the caption_transcript_cache text index exists so the local
     # word-in-caption search works. Idempotent.
     try:

@@ -4,6 +4,8 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { PronunciationPrefs } from "./PronunciationPrefs";
+import { RecordingQueue } from "./RecordingQueue";
+import { HiddenVideos } from "./HiddenVideos";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -888,7 +890,11 @@ export default function AdminPage() {
           </AlertDialogContent>
         </AlertDialog>
 
+        <RecordingQueue />
+
         <PronunciationPrefs />
+
+        <HiddenVideos />
 
         {/* Pronunciation overrides */}
         <section className="bg-surface border thin-rule p-6">

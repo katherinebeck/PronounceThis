@@ -30,7 +30,8 @@ from pydantic import BaseModel, EmailStr
 
 from auth import require_admin
 from phonetics import (
-    PREFERRED_ARPA, arpabet_to_ipa, classify_word, cmu_variants, validate_arpabet,
+    PREFERRED_ARPA, arpabet_to_ipa, classify_word, cmu_variants, transcribe_word,
+    validate_arpabet,
 )
 from stripe_payments import sync_from_stripe_customer
 
@@ -77,6 +78,19 @@ class MagicLinkBody(BaseModel):
 
 class DeleteUserBody(BaseModel):
     email: EmailStr
+
+
+class HideVideoBody(BaseModel):
+    url_or_id: str
+    reason: Optional[str] = None
+
+
+class UnhideVideoBody(BaseModel):
+    video_id: str
+
+
+class DismissWordBody(BaseModel):
+    word: str
 
 
 class PronunciationPrefBody(BaseModel):
@@ -326,7 +340,7 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=400, detail="empty_file")
         if len(raw) > MAX_AUDIO_BYTES:
             raise HTTPException(status_code=413, detail="file_too_large_max_2mb")
-        ct = (file.content_type or "").lower()
+        ct = (file.content_type or "").lower().split(";")[0].strip()
         if ct and ct not in ALLOWED_AUDIO_TYPES:
             raise HTTPException(status_code=400,
                                 detail=f"unsupported_audio_type:{ct}")
@@ -438,6 +452,81 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         PREFERRED_ARPA.pop(w, None)
         await _invalidate_audio(w)
         return {"ok": True, "deleted": res.deleted_count}
+
+    # --- Hidden Real-Speakers videos ------------------------------------
+    def _extract_video_id(text: str) -> Optional[str]:
+        import re as _re
+        t = (text or "").strip()
+        m = (_re.search(r"[?&]v=([A-Za-z0-9_-]{11})", t)
+             or _re.search(r"youtu\.be/([A-Za-z0-9_-]{11})", t)
+             or _re.search(r"/(?:embed|shorts)/([A-Za-z0-9_-]{11})", t)
+             or _re.fullmatch(r"([A-Za-z0-9_-]{11})", t))
+        return m.group(1) if m else None
+
+    @router.get("/hidden-videos")
+    async def list_hidden_videos(request: Request):
+        await require_admin(request, db)
+        docs = await db.hidden_videos.find({}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+        return {"count": len(docs), "videos": docs}
+
+    @router.post("/hidden-videos")
+    async def hide_video(body: HideVideoBody, request: Request):
+        await require_admin(request, db)
+        vid = _extract_video_id(body.url_or_id)
+        if not vid:
+            raise HTTPException(status_code=400, detail="could_not_parse_video_id")
+        meta = await db.caption_transcript_cache.find_one(
+            {"video_id": vid}, {"_id": 0, "channel_meta": 1})
+        cm = (meta or {}).get("channel_meta") or {}
+        await db.hidden_videos.update_one(
+            {"video_id": vid},
+            {"$set": {"video_id": vid, "reason": (body.reason or "").strip(),
+                      "title": cm.get("title", ""), "channel_title": cm.get("channel_title", ""),
+                      "created_at": _now_iso()}},
+            upsert=True,
+        )
+        from server import caption_service
+        caption_service.invalidate_hidden()
+        return {"ok": True, "video_id": vid}
+
+    @router.post("/hidden-videos/delete")
+    async def unhide_video(body: UnhideVideoBody, request: Request):
+        await require_admin(request, db)
+        res = await db.hidden_videos.delete_one({"video_id": body.video_id})
+        from server import caption_service
+        caption_service.invalidate_hidden()
+        return {"ok": True, "deleted": res.deleted_count}
+
+    # --- Recording queue --------------------------------------------------
+    @router.get("/recording-queue")
+    async def recording_queue(request: Request, limit: int = 100):
+        """Words students have played as synthetic audio (no human
+        recording yet), most-played first."""
+        await require_admin(request, db)
+        overrides = {d["word"] for d in await db.audio_cache.find(
+            {"manual_override": True}, {"_id": 0, "word": 1}).to_list(10000)}
+        docs = await db.tts_log.find(
+            {"dismissed": {"$ne": True}}, {"_id": 0}
+        ).sort([("count", -1), ("last_at", -1)]).to_list(limit * 3)
+        out = []
+        for d in docs:
+            w = d["word"]
+            if w in overrides:
+                continue
+            ipa, _, _ = transcribe_word(w.replace(" ", ""))
+            out.append({"word": w, "count": d.get("count", 0),
+                        "last_at": d.get("last_at"), "ipa": ipa,
+                        "phonetic": bool(d.get("phonetic"))})
+            if len(out) >= limit:
+                break
+        return {"count": len(out), "words": out}
+
+    @router.post("/recording-queue/dismiss")
+    async def dismiss_recording(body: DismissWordBody, request: Request):
+        await require_admin(request, db)
+        await db.tts_log.update_one(
+            {"word": body.word.strip().lower()}, {"$set": {"dismissed": True}})
+        return {"ok": True}
 
     @router.post("/stripe/sync")
     async def stripe_sync(body: StripeSyncBody, request: Request):
