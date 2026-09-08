@@ -46,6 +46,7 @@ from phonetics import (
     transcribe_word,
 )
 from caption_search import CaptionSearchService
+from wiktionary import WiktionaryIPA
 import llm
 from auth import (
     create_auth_router,
@@ -69,6 +70,7 @@ app = FastAPI(title="American Accent Prep")
 api_router = APIRouter(prefix="/api")
 
 caption_service = CaptionSearchService(db)
+wiktionary_ipa = WiktionaryIPA(db)
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -473,16 +475,20 @@ async def _apply_llm_ipa_fallback(tokens: List[WordToken],
     unique = list(dict.fromkeys(unknown_words))[:80]
     if not unique:
         return
-    llm_map = await llm_transcribe_words(unique)
-    if not llm_map:
-        return
+    # Wiktionary (General American IPA) first; Claude only for what's left.
+    wik_map = await wiktionary_ipa.lookup_many(unique)
+    remaining = [w for w in unique if w.lower() not in wik_map]
+    llm_map = await llm_transcribe_words(remaining) if remaining else {}
     for wt in tokens:
         if wt.is_word and not wt.ipa:
             key = normalize_word(wt.text)
-            if key in llm_map:
-                wt.ipa = llm_map[key]
-                wt.source = "llm"
-                wt.categories = classify_ipa(wt.ipa)
+            if key in wik_map:
+                wt.ipa, wt.source = wik_map[key], "wiktionary"
+            elif key in llm_map:
+                wt.ipa, wt.source = llm_map[key], "llm"
+            else:
+                continue
+            wt.categories = classify_ipa(wt.ipa)
 
 
 async def build_dialogue_only_scene(raw_text: str) -> tuple:
@@ -631,7 +637,13 @@ async def pronounce(word: str):
             arpabet=arpa, categories=cats, source="cmu",
         )
 
-    # CMU miss → Claude fallback.
+    # CMU miss → Wiktionary (GA IPA) → Claude fallback.
+    wik_ipa = await wiktionary_ipa.lookup(raw if len(parts) == 1 else single_norm)
+    if wik_ipa:
+        return PronounceResponse(
+            word=raw, normalized=single_norm, ipa=wik_ipa,
+            arpabet=[], categories=classify_ipa(wik_ipa), source="wiktionary",
+        )
     llm_map = await llm_transcribe_words([single_norm])
     llm_ipa = llm_map.get(single_norm)
     return PronounceResponse(
@@ -957,14 +969,34 @@ async def tts(req: TTSRequest, request: Request):
     return TTSResponse(word=word, audio_b64=audio_b64, cached=False)
 
 
+def _preferred_markup(text: str) -> tuple:
+    """Wrap coach-preferred words in phoneme tags. Returns (text, changed)."""
+    changed = False
+
+    def _wrap(m: re.Match) -> str:
+        nonlocal changed
+        w = m.group(0)
+        arp = PREFERRED_ARPA.get(w.lower())
+        if not arp:
+            return w
+        changed = True
+        return f'<phoneme alphabet="cmu-arpabet" ph="{arp}">{w}</phoneme>'
+    return re.sub(r"[A-Za-z]+(?:'[A-Za-z]+)?", _wrap, text), changed
+
+
 def _synthesize(text: str, voice_id: Optional[str] = None) -> bytes:
-    """Blocking ElevenLabs synthesis for an arbitrary line of text."""
+    """Blocking ElevenLabs synthesis for an arbitrary line of text.
+
+    Lines containing a coach-preferred word are rendered on eleven_turbo_v2
+    with phoneme tags so the line follows the chosen pronunciation; all
+    other lines keep the original multilingual voice."""
     client = _eleven_client()
     vid = voice_id or os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+    spoken, tagged = _preferred_markup(text)
     stream = client.text_to_speech.convert(
-        text=text,
+        text=spoken,
         voice_id=vid,
-        model_id="eleven_multilingual_v2",
+        model_id="eleven_turbo_v2" if tagged else "eleven_multilingual_v2",
         output_format="mp3_44100_128",
     )
     buf = bytearray()
@@ -1091,6 +1123,7 @@ async def download_my_lines(
                         {"key": cache_key},
                         {"$set": {
                             "key": cache_key,
+                            "text": turn["text"],
                             "audio_b64": audio_b64,
                             "created_at": datetime.now(timezone.utc).isoformat(),
                         }},
@@ -1201,7 +1234,7 @@ async def tts_turn(scene_id: str, turn_index: int, voice: Optional[str] = None):
     async with _tts_lock:
         await db.turn_audio_cache.update_one(
             {"key": cache_key},
-            {"$set": {"key": cache_key, "scene_id": scene_id,
+            {"$set": {"key": cache_key, "scene_id": scene_id, "text": turn["text"],
                       "turn_index": turn_index, "audio_b64": audio_b64,
                       "created_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,

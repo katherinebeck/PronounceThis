@@ -349,6 +349,14 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         import re as _re
         return _re.sub(r"[^a-z']", "", (w or "").lower().strip())
 
+    async def _invalidate_audio(w: str) -> None:
+        import re as _re
+        await db.audio_cache.delete_many(
+            {"word": {"$in": [w, f"{w}#ph"]}, "manual_override": {"$ne": True}})
+        # Scene lines that contain the word regenerate on next play.
+        await db.turn_audio_cache.delete_many(
+            {"text": {"$regex": rf"\b{_re.escape(w)}\b", "$options": "i"}})
+
     @router.get("/pronunciations")
     async def list_pronunciation_prefs(request: Request):
         await require_admin(request, db)
@@ -399,8 +407,7 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         )
         PREFERRED_ARPA[w] = arp
         # Drop generated audio so the next play follows the new pronunciation.
-        await db.audio_cache.delete_many(
-            {"word": {"$in": [w, f"{w}#ph"]}, "manual_override": {"$ne": True}})
+        await _invalidate_audio(w)
         return {"ok": True, "word": w, "arpabet": arp, "ipa": arpabet_to_ipa(phones)}
 
     @router.post("/pronunciations/delete")
@@ -409,8 +416,7 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         w = _clean_word(body.word)
         res = await db.pronunciation_prefs.delete_one({"word": w})
         PREFERRED_ARPA.pop(w, None)
-        await db.audio_cache.delete_many(
-            {"word": {"$in": [w, f"{w}#ph"]}, "manual_override": {"$ne": True}})
+        await _invalidate_audio(w)
         return {"ok": True, "deleted": res.deleted_count}
 
     @router.post("/stripe/sync")
