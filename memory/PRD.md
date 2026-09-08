@@ -123,3 +123,7 @@
 - Removed hardcoded `sk_test_emergent` Stripe placeholder (fail-fast on missing key).
 - Rewrote `/app/README.md` as a hand-off doc: stack, run-anywhere instructions, full env var table, mongodump/mongorestore export, collection inventory, Stripe data ownership note.
 - To fully drop the Emergent key: set `ANTHROPIC_API_KEY` in backend env; `emergentintegrations` then becomes unused and can be removed from requirements.
+
+- ANTHROPIC_API_KEY added to preview backend/.env; LLM calls verified hitting api.anthropic.com directly (Emergent key no longer used when set). User must add same var to production deployment secrets.
+- Custom domain verified: app.katherinebeck.com/api live; magic links, admin links, Stripe return URLs all derive from request Origin; sender login@katherinebeck.com.
+- Added Admin "Your data" section: GET /api/admin/export/users.csv and /memberships.csv (admin-gated, Content-Disposition filename with date). Verified via curl + browser download.

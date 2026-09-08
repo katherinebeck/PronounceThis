@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Check, AlertTriangle } from "lucide-react";
+import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Check, AlertTriangle, Download } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -99,6 +99,30 @@ export default function AdminPage() {
       toast.error(err?.response?.data?.detail || "Grant failed");
     } finally {
       setGranting(false);
+    }
+  };
+
+  // ------------------------ Data export -----------------------------------
+  const [exporting, setExporting] = useState(null);
+
+  const exportCsv = async (kind) => {
+    setExporting(kind);
+    try {
+      const res = await api.get(`/admin/export/${kind}.csv`, { responseType: "blob" });
+      const match = /filename="([^"]+)"/.exec(res.headers["content-disposition"] || "");
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = match ? match[1] : `${kind}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast.success(`Downloaded ${kind}.csv`);
+    } catch (err) {
+      toast.error(`Could not export ${kind}`);
+    } finally {
+      setExporting(null);
     }
   };
 
@@ -501,6 +525,43 @@ export default function AdminPage() {
               Sync from Stripe
             </button>
           </form>
+        </section>
+
+        {/* Data export */}
+        <section className="bg-surface border thin-rule p-6" data-testid="admin-export">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
+            Your data
+          </div>
+          <h2 className="font-display text-2xl text-ink mb-4">
+            Export users &amp; memberships
+          </h2>
+          <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
+            Download a CSV snapshot of every account and every membership
+            record (including Stripe customer and subscription IDs) for your
+            own records or to hand to another team.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={exporting !== null}
+              onClick={() => exportCsv("users")}
+              className="btn-primary justify-center"
+              data-testid="admin-export-users"
+            >
+              {exporting === "users" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              Users CSV
+            </button>
+            <button
+              type="button"
+              disabled={exporting !== null}
+              onClick={() => exportCsv("memberships")}
+              className="btn-primary justify-center"
+              data-testid="admin-export-memberships"
+            >
+              {exporting === "memberships" ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+              Memberships CSV
+            </button>
+          </div>
         </section>
 
         {/* Prewarm caption cache */}

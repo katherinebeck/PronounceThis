@@ -16,12 +16,15 @@ Endpoints:
 from __future__ import annotations
 
 import base64
+import csv
+import io
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, EmailStr
 
@@ -208,6 +211,40 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         for u in users:
             u["membership"] = by_email.get(u["email"])
         return {"count": len(users), "users": users}
+
+    # --- Data export (CSV) ----------------------------------------------
+    USER_COLS = ["email", "created_at", "last_login_at", "stripe_customer_id",
+                 "trial_word_used", "trial_scene_used", "last_stripe_sync_at"]
+    MEMBERSHIP_COLS = ["user_email", "offer_id", "offer_title", "status",
+                       "subscription_end_at", "stripe_customer_id",
+                       "stripe_subscription_id", "kajabi_customer_id",
+                       "last_event", "last_payment_at", "updated_at"]
+
+    def _csv_response(rows: list, cols: list, filename: str) -> Response:
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=cols, extrasaction="ignore")
+        writer.writeheader()
+        for r in rows:
+            writer.writerow({c: ("" if r.get(c) is None else r.get(c)) for c in cols})
+        return Response(
+            content=buf.getvalue(),
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    @router.get("/export/users.csv")
+    async def export_users_csv(request: Request):
+        await require_admin(request, db)
+        rows = await db.users.find({}, {"_id": 0}).sort("created_at", 1).to_list(100_000)
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        return _csv_response(rows, USER_COLS, f"users-{stamp}.csv")
+
+    @router.get("/export/memberships.csv")
+    async def export_memberships_csv(request: Request):
+        await require_admin(request, db)
+        rows = await db.memberships.find({}, {"_id": 0}).sort("updated_at", 1).to_list(100_000)
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        return _csv_response(rows, MEMBERSHIP_COLS, f"memberships-{stamp}.csv")
 
     @router.get("/events")
     async def recent_events(request: Request, limit: int = 50):
