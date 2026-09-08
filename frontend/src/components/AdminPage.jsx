@@ -4,6 +4,10 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { PronunciationPrefs } from "./PronunciationPrefs";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "./ui/alert-dialog";
 
 // Owner-only admin page for manual membership management. Reached via /admin.
 // Access is enforced server-side (require_admin) — this UI just talks to the
@@ -83,15 +87,22 @@ export default function AdminPage() {
     }
   };
 
-  const deleteUser = async (email) => {
-    if (!window.confirm(`Delete ${email} completely? Their account, trial usage and any memberships are removed. This cannot be undone.`))
-      return;
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = async () => {
+    const email = pendingDelete;
+    if (!email) return;
+    setDeleting(true);
     try {
       await api.post("/admin/users/delete", { email });
       toast.success(`Deleted ${email}`);
+      setPendingDelete(null);
       load();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Delete failed");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -817,7 +828,7 @@ export default function AdminPage() {
                             ) : null}
                             <button
                               type="button"
-                              onClick={() => deleteUser(u.email)}
+                              onClick={() => setPendingDelete(u.email)}
                               className="font-mono text-[10px] uppercase tracking-[0.2em] px-2.5 py-1.5 border thin-rule text-muted2 hover:bg-rust hover:text-surface hover:border-rust transition-colors inline-flex items-center gap-1.5"
                               data-testid={`admin-delete-${u.email}`}
                               title="Delete this user completely"
@@ -838,6 +849,44 @@ export default function AdminPage() {
             Cancel = ends access at end of paid period · Trash = delete the user entirely (Stripe customer untouched).
           </p>
         </section>
+
+        <AlertDialog open={!!pendingDelete} onOpenChange={(o) => { if (!o && !deleting) setPendingDelete(null); }}>
+          <AlertDialogContent className="bg-paper border thin-rule rounded-none max-w-md" data-testid="admin-delete-dialog">
+            <AlertDialogHeader>
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust mb-1">
+                Permanent
+              </div>
+              <AlertDialogTitle className="font-display text-2xl text-ink font-normal">
+                Are you sure you want to delete this user?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="font-serif text-base text-muted2 leading-relaxed pt-2">
+                <span className="font-mono text-sm text-ink break-all">{pendingDelete}</span>
+                <br />
+                Their account, trial usage, memberships and sign-in links will be
+                removed. This cannot be undone. Any Stripe customer record is left
+                untouched.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="gap-2 sm:gap-3">
+              <AlertDialogCancel
+                disabled={deleting}
+                className="rounded-none border thin-rule bg-surface font-mono text-[11px] uppercase tracking-[0.2em] hover:bg-ink hover:text-surface"
+                data-testid="admin-delete-cancel"
+              >
+                Keep user
+              </AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleting}
+                onClick={(e) => { e.preventDefault(); confirmDelete(); }}
+                className="rounded-none bg-rust text-surface font-mono text-[11px] uppercase tracking-[0.2em] hover:bg-ink inline-flex items-center gap-2"
+                data-testid="admin-delete-confirm"
+              >
+                {deleting ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                Yes, delete user
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <PronunciationPrefs />
 
