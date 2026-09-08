@@ -44,6 +44,7 @@ from phonetics import (
     transcribe_word,
 )
 from caption_search import CaptionSearchService
+import llm
 from auth import (
     create_auth_router,
     require_access,
@@ -303,16 +304,7 @@ async def extract_dialogue_via_llm(raw_text: str) -> Optional[Dict]:
     action lines, and parentheticals are dropped from dialogue. Consecutive
     lines by the same speaker are merged into a single entry.
     """
-    if not raw_text.strip():
-        return None
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-    except Exception as e:
-        logger.warning("emergentintegrations import failed: %s", e)
-        return None
-
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
+    if not raw_text.strip() or not llm.is_configured():
         return None
 
     system = (
@@ -346,16 +338,8 @@ async def extract_dialogue_via_llm(raw_text: str) -> Optional[Dict]:
         "If no dialogue is present, return dialogue: []. If no proper nouns, "
         "return proper_nouns: []."
     )
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=f"dialogue-{uuid.uuid4()}",
-        system_message=system,
-    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
-
-    try:
-        raw = await chat.send_message(UserMessage(text=raw_text))
-    except Exception as e:
-        logger.warning("LLM dialogue extraction failed: %s", e)
+    raw = await llm.complete(system, raw_text)
+    if raw is None:
         return None
 
     cleaned = raw.strip()
@@ -539,16 +523,7 @@ async def llm_transcribe_words(words: List[str]) -> Dict[str, str]:
     Returns a mapping of `word -> ipa string`. Failures fall back to {} so the
     caller can render the word without IPA rather than crash the upload.
     """
-    if not words:
-        return {}
-    try:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage
-    except Exception as e:
-        logger.warning("emergentintegrations import failed: %s", e)
-        return {}
-
-    api_key = os.environ.get("EMERGENT_LLM_KEY")
-    if not api_key:
+    if not words or not llm.is_configured():
         return {}
 
     system = (
@@ -559,17 +534,8 @@ async def llm_transcribe_words(words: List[str]) -> Dict[str, str]:
         "tʃ, dʒ, ŋ, ɫ for dark L). Use ˈ for primary stress and ˌ for "
         "secondary. No commentary, no markdown — just JSON."
     )
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=f"ipa-{uuid.uuid4()}",
-        system_message=system,
-    ).with_model("anthropic", "claude-sonnet-4-5-20250929")
-
-    msg = UserMessage(text=json.dumps(words))
-    try:
-        raw = await chat.send_message(msg)
-    except Exception as e:
-        logger.warning("LLM IPA fallback failed: %s", e)
+    raw = await llm.complete(system, json.dumps(words))
+    if raw is None:
         return {}
 
     # Strip code fences if present and parse the JSON object.

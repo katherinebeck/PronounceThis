@@ -115,3 +115,11 @@
 4. **[P2]** Merriam-Webster audio integration (waiting on API key).
 5. **[P2]** Full local caption index (ingest transcripts to MongoDB to bypass YouTube API limits).
 6. **[Refactor]** Split `server.py` (~1150 lines) into `routes/` + `services/`.
+
+
+## 2026-06 — Portability / vendor-lock-in audit
+- Audit result: MongoDB, Stripe SDK, Resend, ElevenLabs, YouTube Data API, JWT auth, base64 audio overrides in Mongo are all standard/portable. Only Emergent-specific runtime dependency was the LLM fallback.
+- Added `backend/llm.py`: provider-agnostic `complete(system, user)`; prefers official `anthropic` SDK via `ANTHROPIC_API_KEY`, falls back to `emergentintegrations`/`EMERGENT_LLM_KEY` only when Anthropic key is unset. `server.py` dialogue extraction + IPA fallback now use it.
+- Removed hardcoded `sk_test_emergent` Stripe placeholder (fail-fast on missing key).
+- Rewrote `/app/README.md` as a hand-off doc: stack, run-anywhere instructions, full env var table, mongodump/mongorestore export, collection inventory, Stripe data ownership note.
+- To fully drop the Emergent key: set `ANTHROPIC_API_KEY` in backend env; `emergentintegrations` then becomes unused and can be removed from requirements.
