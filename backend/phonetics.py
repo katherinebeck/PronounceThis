@@ -176,34 +176,51 @@ def arpabet_to_ipa(phones: List[str]) -> str:
 # ---- Sound classification --------------------------------------------------
 
 SOUND_CATEGORIES = [
+    # Consonants
+    {"id": "consonant_l", "label": "L", "ipa": "l / ɫ",
+     "description": "Every word containing the L consonant (light or dark)."},
+    {"id": "consonant_t", "label": "T", "ipa": "t",
+     "description": "Every word containing a T sound."},
     {"id": "rhotic_r", "label": "Rhotic R", "ipa": "ɹ / ɝ",
      "description": "Words containing the American R consonant or r-colored vowel."},
-    {"id": "light_l", "label": "Light L", "ipa": "l (onset)",
-     "description": "L at the start of a syllable, before a vowel — a clearer, brighter L."},
-    {"id": "dark_l", "label": "Dark L", "ipa": "ɫ (coda)",
-     "description": "L at the end of a syllable or before a consonant — velarized, heavier."},
-    {"id": "flap_t", "label": "Flap T", "ipa": "ɾ",
-     "description": "T (or D) between vowels, realized as an alveolar tap in American English."},
-    {"id": "schwa", "label": "Schwa", "ipa": "ə",
+    # Vowels
+    {"id": "v_iy", "label": "i — see", "ipa": "i", "description": "The 'see' vowel."},
+    {"id": "v_ih", "label": "ɪ — sit", "ipa": "ɪ", "description": "The 'sit' vowel."},
+    {"id": "v_eh", "label": "ɛ — bet", "ipa": "ɛ", "description": "The 'bet' vowel."},
+    {"id": "v_ae", "label": "æ — cat", "ipa": "æ", "description": "The 'cat' vowel."},
+    {"id": "v_schwa", "label": "ə — schwa", "ipa": "ə",
      "description": "The unstressed neutral vowel — the most common sound in English."},
-    {"id": "diphthongs", "label": "Diphthongs", "ipa": "aɪ aʊ eɪ oʊ ɔɪ",
-     "description": "Vowels that glide from one quality to another within a single syllable."},
-    {"id": "ae", "label": "Short A (æ)", "ipa": "æ", "description": "The 'cat' vowel."},
-    {"id": "ah", "label": "Open A (ɑ)", "ipa": "ɑ", "description": "The 'father / lot' vowel."},
-    {"id": "th_voiceless", "label": "Voiceless TH", "ipa": "θ", "description": "As in 'think'."},
-    {"id": "th_voiced", "label": "Voiced TH", "ipa": "ð", "description": "As in 'this'."},
-    {"id": "sh", "label": "SH", "ipa": "ʃ", "description": "As in 'ship'."},
-    {"id": "zh", "label": "ZH", "ipa": "ʒ", "description": "As in 'measure'."},
-    {"id": "ch", "label": "CH", "ipa": "tʃ", "description": "As in 'church'."},
-    {"id": "ng", "label": "NG", "ipa": "ŋ", "description": "As in 'sing'."},
-    {"id": "consonant_l", "label": "All L's", "ipa": "l",
-     "description": "Every word containing the L consonant."},
-    {"id": "consonant_t", "label": "All T's", "ipa": "t",
-     "description": "Every word containing a T sound."},
-    {"id": "consonant_d", "label": "All D's", "ipa": "d", "description": "Every word with D."},
-    {"id": "consonant_s", "label": "S", "ipa": "s", "description": "Every word with S."},
-    {"id": "consonant_z", "label": "Z", "ipa": "z", "description": "Every word with Z."},
+    {"id": "v_uh_stressed", "label": "ʌ — cup", "ipa": "ʌ", "description": "The stressed 'cup' vowel."},
+    {"id": "v_uw", "label": "u — boot", "ipa": "u", "description": "The 'boot' vowel."},
+    {"id": "v_uh", "label": "ʊ — book", "ipa": "ʊ", "description": "The 'book' vowel."},
+    {"id": "v_ao", "label": "ɔ — thought", "ipa": "ɔ", "description": "The 'thought' vowel."},
+    {"id": "v_aa", "label": "ɑ — father", "ipa": "ɑ", "description": "The 'father / lot' vowel."},
+    # Diphthongs — one list each
+    {"id": "d_ey", "label": "eɪ — say", "ipa": "eɪ", "description": "As in 'say'."},
+    {"id": "d_ay", "label": "aɪ — my", "ipa": "aɪ", "description": "As in 'my'."},
+    {"id": "d_ow", "label": "oʊ — go", "ipa": "oʊ", "description": "As in 'go'."},
+    {"id": "d_aw", "label": "aʊ — cow", "ipa": "aʊ", "description": "As in 'cow'."},
+    {"id": "d_oy", "label": "ɔɪ — boy", "ipa": "ɔɪ", "description": "As in 'boy'."},
 ]
+
+_ARPA_CATEGORY = {
+    "L": "consonant_l", "T": "consonant_t",
+    "IY": "v_iy", "IH": "v_ih", "EH": "v_eh", "AE": "v_ae",
+    "UW": "v_uw", "UH": "v_uh", "AO": "v_ao", "AA": "v_aa",
+    "EY": "d_ey", "AY": "d_ay", "OW": "d_ow", "AW": "d_aw", "OY": "d_oy",
+}
+
+# IPA symbol -> category, for LLM-transcribed words with no ARPABET.
+# Diphthongs listed first so "eɪ" is consumed before the bare "ɪ".
+_IPA_CATEGORY = [
+    ("eɪ", "d_ey"), ("aɪ", "d_ay"), ("oʊ", "d_ow"), ("aʊ", "d_aw"), ("ɔɪ", "d_oy"),
+    ("ɹ", "rhotic_r"), ("ɝ", "rhotic_r"), ("ɚ", "rhotic_r"),
+    ("ɫ", "consonant_l"), ("l", "consonant_l"), ("t", "consonant_t"), ("ɾ", "consonant_t"),
+    ("i", "v_iy"), ("ɪ", "v_ih"), ("ɛ", "v_eh"), ("æ", "v_ae"), ("ə", "v_schwa"),
+    ("ʌ", "v_uh_stressed"), ("u", "v_uw"), ("ʊ", "v_uh"), ("ɔ", "v_ao"), ("ɑ", "v_aa"),
+]
+
+_CATEGORY_ORDER = [c["id"] for c in SOUND_CATEGORIES]
 
 
 def _has_phone(phones: List[str], target: str) -> bool:
@@ -218,61 +235,29 @@ def classify_word(phones: List[str]) -> List[str]:
     """Return the list of sound-category ids a word belongs to."""
     if not phones:
         return []
-    cats: List[str] = []
-    bare = [strip_stress(p) for p in phones]
+    cats: set = set()
+    for p in phones:
+        bare = strip_stress(p)
+        if bare in ("R", "ER"):
+            cats.add("rhotic_r")
+        elif bare == "AH":
+            cats.add("v_schwa" if p.endswith("0") else "v_uh_stressed")
+        elif bare in _ARPA_CATEGORY:
+            cats.add(_ARPA_CATEGORY[bare])
+    return [c for c in _CATEGORY_ORDER if c in cats]
 
-    if "R" in bare or "ER" in bare:
-        cats.append("rhotic_r")
 
-    # Light vs Dark L: examine each L's position.
-    for i, p in enumerate(bare):
-        if p != "L":
-            continue
-        nxt = bare[i + 1] if i + 1 < len(bare) else None
-        prev = bare[i - 1] if i - 1 >= 0 else None
-        if nxt and nxt in VOWEL_ARPA:
-            if "light_l" not in cats:
-                cats.append("light_l")
-        else:
-            # End of word OR before a consonant; if preceded by a vowel it's
-            # the prototypical dark/velarized L.
-            if prev and prev in VOWEL_ARPA:
-                if "dark_l" not in cats:
-                    cats.append("dark_l")
-            else:
-                if "dark_l" not in cats:
-                    cats.append("dark_l")
-
-    # Flap T: T (or D) between two vowels — classic American flapping.
-    for i, p in enumerate(bare):
-        if p in ("T", "D") and 0 < i < len(bare) - 1:
-            if bare[i - 1] in VOWEL_ARPA and bare[i + 1] in VOWEL_ARPA:
-                cats.append("flap_t")
-                break
-
-    # Schwa = unstressed AH (AH0).
-    if any(p == "AH" and phones[i].endswith("0") for i, p in enumerate(bare)):
-        cats.append("schwa")
-
-    if any(p in DIPHTHONG_ARPA for p in bare):
-        cats.append("diphthongs")
-
-    simple_map = {
-        "AE": "ae", "AA": "ah",
-        "TH": None, "DH": "th_voiced",
-        "SH": "sh", "ZH": "zh", "CH": "ch", "NG": "ng",
-        "L": "consonant_l", "T": "consonant_t", "D": "consonant_d",
-        "S": "consonant_s", "Z": "consonant_z",
-    }
-    for arpa, cat_id in simple_map.items():
-        if cat_id is None:
-            continue
-        if arpa in bare and cat_id not in cats:
-            cats.append(cat_id)
-    if "TH" in bare and "th_voiceless" not in cats:
-        cats.append("th_voiceless")
-
-    return cats
+def classify_ipa(ipa: Optional[str]) -> List[str]:
+    """Best-effort categories from an IPA string (LLM fallback words)."""
+    if not ipa:
+        return []
+    rest = ipa
+    cats: set = set()
+    for sym, cat in _IPA_CATEGORY:
+        if sym in rest:
+            cats.add(cat)
+            rest = rest.replace(sym, " ")
+    return [c for c in _CATEGORY_ORDER if c in cats]
 
 
 def transcribe_word(word: str) -> Tuple[Optional[str], List[str], List[str]]:

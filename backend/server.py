@@ -39,6 +39,7 @@ from phonetics import (
     SOUND_CATEGORIES,
     arpabet_to_ipa,
     arpabet_to_respelling,
+    classify_ipa,
     classify_word,
     get_arpabet,
     transcribe_word,
@@ -135,7 +136,6 @@ class PronounceResponse(BaseModel):
     arpabet: List[str] = Field(default_factory=list)
     categories: List[str] = Field(default_factory=list)
     source: str  # "cmu" | "llm" | "none"
-    suggestion: Optional[str] = None  # "Did you mean …?" for CMU misses
 
 
 class TurnTTSResponse(BaseModel):
@@ -477,6 +477,7 @@ async def _apply_llm_ipa_fallback(tokens: List[WordToken],
             if key in llm_map:
                 wt.ipa = llm_map[key]
                 wt.source = "llm"
+                wt.categories = classify_ipa(wt.ipa)
 
 
 async def build_dialogue_only_scene(raw_text: str) -> tuple:
@@ -625,19 +626,13 @@ async def pronounce(word: str):
             arpabet=arpa, categories=cats, source="cmu",
         )
 
-    # CMU miss → Claude fallback (+ spelling suggestion when the corrected
-    # form IS in the dictionary, e.g. "Charlston" -> "Charleston").
-    suggestion = await suggest_spelling(raw)
-    if suggestion and not transcribe_word(
-        re.sub(r"[^a-z']", "", suggestion.lower()))[0]:
-        suggestion = None
+    # CMU miss → Claude fallback.
     llm_map = await llm_transcribe_words([single_norm])
     llm_ipa = llm_map.get(single_norm)
     return PronounceResponse(
         word=raw, normalized=single_norm, ipa=llm_ipa,
-        arpabet=[], categories=[],
+        arpabet=[], categories=classify_ipa(llm_ipa),
         source="llm" if llm_ipa else "none",
-        suggestion=suggestion,
     )
 
 
@@ -776,12 +771,25 @@ async def list_scenes():
     return out
 
 
+def _refresh_categories(doc: Dict) -> Dict:
+    """Recompute sound categories so scenes saved under an older category
+    scheme pick up the current laundry-list definitions."""
+    for t in doc.get("tokens", []):
+        if not t.get("is_word"):
+            continue
+        if t.get("arpabet"):
+            t["categories"] = classify_word(t["arpabet"])
+        elif t.get("ipa"):
+            t["categories"] = classify_ipa(t["ipa"])
+    return doc
+
+
 @api_router.get("/scenes/{scene_id}", response_model=Scene)
 async def get_scene(scene_id: str):
     doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Scene not found")
-    doc = await _ensure_dialogue_only(doc)
+    doc = _refresh_categories(await _ensure_dialogue_only(doc))
     if isinstance(doc.get("created_at"), str):
         doc["created_at"] = datetime.fromisoformat(doc["created_at"])
     return Scene(**doc)
@@ -814,6 +822,7 @@ async def laundry_list(scene_id: str, sound: str):
     doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Scene not found")
+    doc = _refresh_categories(doc)
 
     seen: set = set()
     matches: List[Dict] = []

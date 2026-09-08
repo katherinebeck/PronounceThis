@@ -135,16 +135,6 @@ export default function PronouncePage({ onGoToScenes }) {
                     We couldn’t transcribe this one. Try a variant spelling.
                   </div>
                 )}
-                {result.suggestion ? (
-                  <button
-                    type="button"
-                    className="mt-3 font-serif text-sm text-muted2 italic hover:text-ink underline underline-offset-4 decoration-ink/30"
-                    onClick={() => { setInput(result.suggestion); submit(null, result.suggestion); }}
-                    data-testid="pronounce-suggestion"
-                  >
-                    Did you mean <span className="not-italic text-ink">{result.suggestion}</span>?
-                  </button>
-                ) : null}
               </div>
               <div className="flex flex-col gap-2">
                 <button
