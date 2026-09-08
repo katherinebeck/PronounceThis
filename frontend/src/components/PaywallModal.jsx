@@ -35,7 +35,7 @@ export default function PaywallModal() {
     paywallReason === "scene"
       ? "You've used your free scene"
       : paywallReason === "word"
-      ? "You've used your free word"
+      ? "You've used your 3 free words"
       : "Members only";
 
   const subhead =

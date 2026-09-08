@@ -75,6 +75,10 @@ class MagicLinkBody(BaseModel):
     email: EmailStr
 
 
+class DeleteUserBody(BaseModel):
+    email: EmailStr
+
+
 class PronunciationPrefBody(BaseModel):
     word: str
     arpabet: str   # e.g. "B IH0 K AH1 Z"
@@ -257,6 +261,22 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         rows = await db.memberships.find({}, {"_id": 0}).sort("updated_at", 1).to_list(100_000)
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         return _csv_response(rows, MEMBERSHIP_COLS, f"memberships-{stamp}.csv")
+
+    @router.post("/users/delete")
+    async def delete_user(body: DeleteUserBody, request: Request):
+        """Remove a user entirely: account, memberships, pending magic links.
+        Their Stripe customer (if any) is untouched — cancel that in Stripe."""
+        admin_email = await require_admin(request, db)
+        email = body.email.strip().lower()
+        if email == admin_email:
+            raise HTTPException(status_code=400, detail="cannot_delete_yourself")
+        u = await db.users.delete_one({"email": email})
+        m = await db.memberships.delete_many({"user_email": email})
+        ml = await db.magic_links.delete_many({"email": email})
+        if u.deleted_count == 0 and m.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="user_not_found")
+        return {"ok": True, "email": email, "users": u.deleted_count,
+                "memberships": m.deleted_count, "magic_links": ml.deleted_count}
 
     @router.get("/events")
     async def recent_events(request: Request, limit: int = 50):

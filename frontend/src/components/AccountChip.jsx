@@ -92,7 +92,7 @@ export default function AccountChip() {
             </div>
             {!isSubscriber ? (
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-2">
-                {trialWordRemaining} word · {trialSceneRemaining} scene left
+                {trialWordRemaining} {trialWordRemaining === 1 ? "word" : "words"} · {trialSceneRemaining} scene left
               </div>
             ) : null}
           </div>

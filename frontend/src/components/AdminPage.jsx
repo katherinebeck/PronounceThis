@@ -83,6 +83,18 @@ export default function AdminPage() {
     }
   };
 
+  const deleteUser = async (email) => {
+    if (!window.confirm(`Delete ${email} completely? Their account, trial usage and any memberships are removed. This cannot be undone.`))
+      return;
+    try {
+      await api.post("/admin/users/delete", { email });
+      toast.success(`Deleted ${email}`);
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Delete failed");
+    }
+  };
+
   const grant = async (e) => {
     e.preventDefault();
     if (!grantEmail.trim()) return;
@@ -631,7 +643,7 @@ export default function AdminPage() {
           </h2>
           <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
             Walks every one of our 72 curated American-speaker YouTube
-            channels, fetches up to 50 recent videos each (~4,000 videos
+            channels, fetches up to 200 recent videos each (~14,000 videos
             total), and stores their full transcripts locally. Once
             complete, ANY word ever spoken in these channels is instantly
             searchable — no more "no video found" for common words like
@@ -803,6 +815,15 @@ export default function AdminPage() {
                                 Cancel
                               </button>
                             ) : null}
+                            <button
+                              type="button"
+                              onClick={() => deleteUser(u.email)}
+                              className="font-mono text-[10px] uppercase tracking-[0.2em] px-2.5 py-1.5 border thin-rule text-muted2 hover:bg-rust hover:text-surface hover:border-rust transition-colors inline-flex items-center gap-1.5"
+                              data-testid={`admin-delete-${u.email}`}
+                              title="Delete this user completely"
+                            >
+                              <Trash2 size={11} />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -814,7 +835,7 @@ export default function AdminPage() {
           </div>
 
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-3">
-            Cancel = ends access at end of paid period (leave date empty to end immediately).
+            Cancel = ends access at end of paid period · Trash = delete the user entirely (Stripe customer untouched).
           </p>
         </section>
 

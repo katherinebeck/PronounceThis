@@ -165,3 +165,7 @@
 - Words in PREFERRED_ARPA force phonetic TTS (turbo_v2 + tags). Scene lines containing a preferred word are rendered with inline phoneme tags on eleven_turbo_v2 (`_preferred_markup`); other lines unchanged (multilingual_v2). Verified "because Mary's the smart one" → be-CUZ.
 - `wiktionary.py`: GA IPA for CMU misses (parses English section, prefers US-tagged / non-British / stressed forms; caches in `ipa_lookup_cache`). Order: CMU → Wiktionary → Claude. Source "wiktionary" on tokens and /pronounce.
 - User waiting on Merriam-Webster commercial license; recording queue idea discussed (user willing to record) — not built yet.
+
+## 2026-06 — Trial 3 words + admin delete user
+- TRIAL_WORD_LIMIT 1 → 3 (auth.py); copy updated in LoginModal, WelcomeModal, PaywallModal, AccountChip; auth.jsx default 3.
+- POST /api/admin/users/delete {email}: deletes user + memberships + magic links (refuses self). Trash button per user row in Admin.
