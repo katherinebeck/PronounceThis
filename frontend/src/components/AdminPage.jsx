@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Check, AlertTriangle, Download } from "lucide-react";
+import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Check, AlertTriangle, Download, Pencil } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -86,6 +86,30 @@ export default function AdminPage() {
       load();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Cancel failed");
+    }
+  };
+
+  const [editingEnd, setEditingEnd] = useState(null); // { email, value }
+  const [savingEnd, setSavingEnd] = useState(false);
+
+  const saveEnd = async () => {
+    if (!editingEnd) return;
+    setSavingEnd(true);
+    try {
+      const { data } = await api.post("/admin/memberships/set-end", {
+        email: editingEnd.email,
+        subscription_end_at: editingEnd.value || null,
+      });
+      toast.success(data.subscription_end_at
+        ? `Access now ends ${new Date(data.subscription_end_at).toLocaleDateString()}`
+        : "Access now has no end date");
+      setEditingEnd(null);
+      load();
+    } catch (e) {
+      const d = e?.response?.data?.detail || "";
+      toast.error(d.startsWith("stripe_membership") ? "This member pays via Stripe — change dates in Stripe" : d || "Could not update");
+    } finally {
+      setSavingEnd(false);
     }
   };
 
@@ -200,7 +224,7 @@ export default function AdminPage() {
       if (!url) throw new Error("no url");
       await navigator.clipboard.writeText(url);
       setCopiedEmail(email);
-      toast.success(`Sign-in link copied — expires in 15 min`);
+      toast.success(`Sign-in link copied — never expires, single use`);
       setTimeout(
         () => setCopiedEmail((cur) => (cur === email ? null : cur)),
         1800
@@ -787,11 +811,43 @@ export default function AdminPage() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-xs text-muted2">
-                          {m?.subscription_end_at
-                            ? new Date(m.subscription_end_at).toLocaleDateString()
-                            : active
-                            ? "—"
-                            : "—"}
+                          {editingEnd?.email === u.email ? (
+                            <div className="inline-flex items-center gap-1.5" data-testid={`admin-end-editor-${u.email}`}>
+                              <input
+                                type="date"
+                                value={editingEnd.value}
+                                onChange={(e) => setEditingEnd({ ...editingEnd, value: e.target.value })}
+                                className="px-2 py-1 bg-paper border thin-rule font-mono text-xs text-ink focus:outline-none focus:border-ink"
+                                data-testid={`admin-end-input-${u.email}`}
+                              />
+                              <button type="button" disabled={savingEnd} onClick={saveEnd}
+                                className="p-1 border thin-rule hover:bg-ink hover:text-surface" title="Save"
+                                data-testid={`admin-end-save-${u.email}`}>
+                                {savingEnd ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
+                              </button>
+                              <button type="button" onClick={() => setEditingEnd(null)}
+                                className="p-1 text-muted2 hover:text-ink" title="Cancel"
+                                data-testid={`admin-end-cancel-${u.email}`}>
+                                <UserX size={11} />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setEditingEnd({
+                                email: u.email,
+                                value: m?.subscription_end_at ? m.subscription_end_at.slice(0, 10) : "",
+                              })}
+                              className="inline-flex items-center gap-1.5 hover:text-ink group"
+                              title="Edit access end date"
+                              data-testid={`admin-end-edit-${u.email}`}
+                            >
+                              {m?.subscription_end_at
+                                ? new Date(m.subscription_end_at).toLocaleDateString()
+                                : active ? "No end" : "—"}
+                              <Pencil size={10} className="opacity-40 group-hover:opacity-100" />
+                            </button>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-xs text-muted2">
                           {u.trial_word_used}w · {u.trial_scene_used}s
@@ -803,7 +859,7 @@ export default function AdminPage() {
                               onClick={() => copyMagicLink(u.email)}
                               className="font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 border thin-rule hover:bg-ink hover:text-surface hover:border-ink transition-colors inline-flex items-center gap-1.5"
                               data-testid={`admin-copy-link-${u.email}`}
-                              title="Copy a one-time sign-in link for this user (expires in 15 min)"
+                              title="Copy a one-time sign-in link for this user (never expires)"
                             >
                               {copiedEmail === u.email ? (
                                 <>
@@ -848,7 +904,7 @@ export default function AdminPage() {
           </div>
 
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-3">
-            Cancel = ends access at end of paid period · Trash = delete the user entirely (Stripe customer untouched).
+            Click a date to extend or shorten access (clear it for no end) · Cancel = ends access at end of paid period · Trash = delete the user entirely.
           </p>
         </section>
 

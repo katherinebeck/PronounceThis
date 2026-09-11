@@ -80,6 +80,11 @@ class DeleteUserBody(BaseModel):
     email: EmailStr
 
 
+class SetEndBody(BaseModel):
+    email: EmailStr
+    subscription_end_at: Optional[str] = None   # "YYYY-MM-DD" or null = no end
+
+
 class HideVideoBody(BaseModel):
     url_or_id: str
     reason: Optional[str] = None
@@ -199,6 +204,36 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 "last_payment_at": _now_iso(),
                 "updated_at": _now_iso(),
             }},
+            upsert=True,
+        )
+        return {"ok": True, "email": email, "subscription_end_at": end_at}
+
+    @router.post("/memberships/set-end")
+    async def set_membership_end(body: SetEndBody, request: Request):
+        """Adjust when a manually granted membership ends (extend or shorten).
+        Creates the grant if the user has none yet."""
+        await require_admin(request, db)
+        email = body.email.strip().lower()
+        end_at: Optional[str] = None
+        if body.subscription_end_at:
+            try:
+                d = datetime.fromisoformat(body.subscription_end_at[:10])
+            except ValueError:
+                raise HTTPException(status_code=400, detail="bad_date_use_YYYY-MM-DD")
+            end_at = d.replace(hour=23, minute=59, second=59, tzinfo=timezone.utc).isoformat()
+        existing = await db.memberships.find_one(
+            {"user_email": email}, sort=[("offer_id", -1)])
+        target = {"user_email": email, "offer_id": "manual_grant"}
+        if existing and existing.get("offer_id") != "manual_grant" and existing.get("stripe_subscription_id"):
+            raise HTTPException(
+                status_code=400,
+                detail="stripe_membership_edit_in_stripe: this member pays via Stripe — change their subscription there")
+        await db.memberships.update_one(
+            target,
+            {"$set": {**target, "status": "active", "subscription_end_at": end_at,
+                      "offer_title": (existing or {}).get("offer_title") or "Complimentary access",
+                      "last_event": "admin_set_end", "updated_at": _now_iso()},
+             "$setOnInsert": {"kajabi_customer_id": None, "last_payment_at": _now_iso()}},
             upsert=True,
         )
         return {"ok": True, "email": email, "subscription_end_at": end_at}
@@ -570,7 +605,9 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         )
 
         token = secrets.token_urlsafe(32)
-        expires_at = now + timedelta(minutes=15)
+        # Admin-issued links don't expire (still single-use): the student
+        # may open the email days later for their first sign-in.
+        expires_at = now + timedelta(days=3650)
         await db.magic_links.insert_one({
             "token": token,
             "email": email,
@@ -596,7 +633,8 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "ok": True,
             "email": email,
             "login_url": login_url,
-            "expires_at": expires_at.isoformat(),
+            "expires_at": None,
+            "single_use": True,
         }
 
     @router.get("/debug/user")
