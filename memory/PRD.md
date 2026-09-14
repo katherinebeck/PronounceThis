@@ -194,3 +194,6 @@
 - Stripe: past_due keeps access (dunning) until subscription.deleted/unpaid/canceled.
 - Verification script: backend/tests/verify_isolation.py (21 checks, ALL PASS).
 - Scene storage: avg 20 KB / max 84 KB per scene; 100+ scenes/user is negligible (turn audio cache ~89 KB per line is the larger cost).
+
+## 2026-06 — Anthropic key rotation
+- ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

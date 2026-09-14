@@ -1,0 +1,22 @@
+{
+  "summary": "Verified rotated ANTHROPIC_API_KEY works end-to-end. All 6 pytest checks passed in the first full run: .env sanity, llm.py preference order, anonymous pronounce (source=none), authenticated pronounce (source=llm with non-empty IPA), caption-search spelling correction (Charlstn->Charleston), and backend log verification showing api.anthropic.com HTTP/1.1 200 OK with no Anthropic authentication_error and no Emergent fallback usage.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_anthropic_key_rotation.py",
+    "/app/test_reports/pytest/anthropic_rotation.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Historical elevenlabs.core.api_error.ApiError entries with 'authentication_error' exist in backend logs from Aug 2026 (unrelated to this task) — ElevenLabs key looks like an API key ID, not a real key. Not part of this scope but worth Katherine's attention.",
+    "llm.py correctly prefers ANTHROPIC_API_KEY over EMERGENT_LLM_KEY; no changes needed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "n/a (backend-only test)"},
+  "test_credentials": "Magic-link via Mongo lookup for katherine@katherinebeck.com (admin).",
+  "seed_data_creation": "None. Read-only verification.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Test file /app/backend/tests/test_anthropic_key_rotation.py is idempotent EXCEPT the auth fixture consumes a magic-link token. Magic-link requests are limited to 5/email/hour. If re-running quickly, either wait or reuse an unconsumed token from Mongo. First run verified: authenticated /api/pronounce?word=Vrelthanor returned source='llm' with valid IPA; /api/caption-search?q=Charlstn returned corrected_query='Charleston'. Backend logs show fresh api.anthropic.com 200 OK responses timestamped 2026-09-14 during test window.",
+  "rca of the issue": "N/A — no bug. Rotated key is fully operational."
+}
