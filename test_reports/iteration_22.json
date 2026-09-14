@@ -1,0 +1,49 @@
+{
+  "summary": "Frontend redesign regression pass (dark cinematic theme). Tested logged-out Word page, logged-in Word + Scene tabs (Little House scene reader), CaptionSearchModal, LoginModal, WelcomeModal (not shown for existing user), Account chip dropdown, /admin (top→bottom, incl. Memberships, Stripe sync, Exports, Users table, Recording queue, My Dictionary, Preferred pronunciations, Hidden videos, Overrides), Payment success/cancel routes, mobile 390px. All screenshots and computed-color contrast sweep (walked ~3000 nodes on /admin, flagged elements with |Δluminance| < 40 between text and effective background). One visual/legibility regression found — CaptionSearchModal video/loading area. Everything else is readable and on-theme.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "CaptionSearchModal",
+        "issue": "The video container uses `bg-ink` (line 184 of /app/frontend/src/components/CaptionSearchModal.jsx) which under the new theme resolves to near-white #F1F2F6. Inside the dark modal (`bg-surface #1A1B20`) the entire aspect-video panel renders as a bright white block until the YouTube iframe paints — jarring cinematic-theme break. The loading state (\"Searching real speakers…\") and the no-results empty state (line 201) render dark `text-paper/80` on that near-white bg — technically legible but clearly a semantics-flip bug from the token remap (bg-ink was meant to be dark-ink surface in the old palette).",
+        "selector": "[data-testid=\"caption-search-modal\"] .aspect-video",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "CaptionSearchModal",
+        "issues": [
+          "Video-embed area is bg-ink (#F1F2F6, near-white) inside the dark modal — should be bg-paper or bg-stage to match the cinematic dark theme. Same class also breaks the mark highlight (`bg-ink text-paper` at line 28, though currently readable) and any future empty/loading UI in this modal."
+        ]
+      },
+      {
+        "screen": "Mobile header (390px)",
+        "issues": [
+          "Header wraps to 3 rows (~111px tall): brand, WORD/SCENE pill, SIGN IN button drops to a new line. Not broken, just tall — main agent may want to make SIGN IN inline or icon-only on small screens."
+        ]
+      }
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_22.json"],
+  "action_items": [
+    "CaptionSearchModal.jsx line 184: change `aspect-video bg-ink` → `aspect-video bg-paper` (or `bg-stage`) so the video-embed frame matches the dark theme; then re-check the mark highlight at line 28 (`bg-ink text-paper`) — either keep it (still contrasty) or invert to `bg-rust text-surface` for on-brand accent.",
+    "Optional: CaptionSearchModal empty-state (line 201) `text-paper/80 italic` — once the bg flips to bg-paper, this text becomes invisible; switch to `text-ink/80` or `text-muted2`.",
+    "Optional: mobile header — consider reducing SIGN IN button height or wrap pill+CTA on the same row for viewport <420px."
+  ],
+  "critical_code_review_comments": [
+    "Token-flip regression pattern: any component still using `bg-ink` as a *surface* color (rather than a text color) is now a bright near-white block on a dark theme. Grep’d — CaptionSearchModal.jsx is the sole outstanding case; all other components use `bg-surface` / `bg-paper` correctly.",
+    "PaywallModal.jsx (line 95-96) plan cards read correctly in both states (`bg-ink text-surface` selected = dark on light, `bg-paper` unselected = light text on dark) — no fix needed. Verified by class inspection only; modal not actually rendered in this run because katherine is a subscriber.",
+    "WelcomeModal.jsx / LoginModal.jsx / SceneReader.jsx / LaundryListPanel.jsx / AdminPage.jsx / DictionaryBuilder.jsx all render readable text on dark surfaces (verified via computed-color sweep on /admin and screenshot review on the others).",
+    "React hydration warning surfaced once: \"<span> cannot be a child of <option>\" — comes from a `<select><option>...` in AdminPage where an option label contains a wrapping `<span>`. Cosmetic (renders fine) but should be flattened."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (skipped per request)", "frontend": "~95% — 1 visual regression, everything else on-theme"},
+  "test_credentials": "Magic-link inserted directly into Mongo for katherine@katherinebeck.com then GET /api/auth/verify?token=… (per /app/memory/test_credentials.md).",
+  "seed_data_creation": "Temporarily set scenes.owner_email='katherine@katherinebeck.com' & legacy=false for id 4b23e55d-67be-42bc-a397-4eb4085bdb2e to exercise the Scene Reader. REVERTED at end of run (owner_email:null, legacy:true) — confirmed modified_count=1 on revert.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Only one styling fix needed: CaptionSearchModal.jsx line 184 `bg-ink` → `bg-paper` (dark). Everything else in the new dark cinematic theme is verified — Word hero, Result card + IPA in rust, Scene sidebar + reader (speaker labels, amber IPA under English words, punctuation aligned), Laundry-list right rail (L / T / Rhotic R / see / sit), Login modal, Account-chip dropdown (bg-surface + rule border), /admin top→bottom incl. Grant form, Stripe sync, Exports, Users table (all 6 rows with cancel/trash buttons), Recording queue (test_word_dict_only card), My Dictionary (progress + IPA input + all 31 IPA palette keys visible), Preferred Pronunciations (with because/bɪkˈʌz row), Hide-video, Fix-a-pronunciation upload, Payment success (\"Confirming your payment…\") and cancel (\"Checkout cancelled\") — all render on-theme with readable contrast. Mobile 390px: Word page + Scene tab + Login modal all render acceptably; header wraps 3 rows.",
+  "rca of the issue": "Theme token remap (tailwind.config.js) flipped `paper` from light→dark (#121316) and `ink` from dark→light (#F1F2F6). Semantically `text-ink` (now light) and `bg-surface`/`bg-paper` (now dark) all made sense, but any legacy usage of `bg-ink` as a *surface* color survived unnoticed. CaptionSearchModal.jsx:184 uses `bg-ink` on the video container, which now renders as a near-white block inside the dark modal. Fix: replace with `bg-paper` (or `bg-stage`). Screenshot: /app/.screenshots/03_youglish_modal.png shows the regression clearly."
+}

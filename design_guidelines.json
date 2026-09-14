@@ -1,89 +1,156 @@
 {
-  "theme": "light",
-  "archetype": "1_organic_earthy",
-  "mood": "Editorial, Typographic, Refined, Focused. A mix between a theatre script, linguistics workbench, and music notation app.",
-  "colors": {
-    "background": "#F9F6F0",
-    "surface": "#FDFDFB",
-    "surface_glass": "rgba(253, 253, 251, 0.7)",
-    "primary": "#C85A4F",
-    "primary_hover": "#A64A41",
-    "text_main": "#1C1B1A",
-    "text_muted": "#787672",
-    "border": "#E5E1D8",
-    "accent_sage": "#8A9A86"
+  "project_name": "Pronounce This",
+  "archetype": "Dark & Cinematic Studio (A24 x Apple x Linear x Criterion)",
+  "overall_mood": "Deep charcoal & obsidian soundstage with warm tungsten spotlight accents, filmic minimalism, and high-precision audio tool design.",
+  "theme_decision": {
+    "primary_mode": "Dark",
+    "rationale": "App is an actor's soundstage workbench. Dark mode evokes a cinematic screening room, screenplay reading under stage lighting, and focused sound engineering without digital glare."
   },
-  "typography": {
-    "headings": {
-      "family": "Cormorant Garamond",
-      "weights": ["400", "600"],
-      "usage": "Page titles, large section headers, empty state hero text."
-    },
-    "script_body": {
-      "family": "Crimson Text",
-      "weights": ["400", "400i", "600", "700"],
-      "usage": "The actual English text of the audition scene. Use text-2xl or text-3xl for immersive reading, tracking-normal, leading-relaxed."
-    },
-    "phonetics_mono": {
-      "family": "IBM Plex Mono",
-      "weights": ["400", "500", "600"],
-      "usage": "IPA symbols, phonetic transcriptions, small labels, UI buttons. Gives the 'linguistics workbench' vibe."
+  "typography_strategy": {
+    "typewriter_font_answer": "American Typewriter is a proprietary Apple/Linotype font without an official Google Font web license. To achieve the exact tactile script/typewriter look legally on all platforms while giving Mac users native rendering: We pair Google Font 'Courier Prime' as the primary typewriter webfont, configured in CSS with the fallback stack: font-family: 'American Typewriter', 'Courier Prime', 'Courier New', monospace. For display headings, we pair it with 'Syne' (or 'Cinzel' / 'Outfit') for an A24 cinematic editorial feel, and 'JetBrains Mono' for crisp IPA phoneme alignment.",
+    "fonts": {
+      "display": {
+        "name": "Syne",
+        "google_import": "https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@500;700;800&display=swap",
+        "css_stack": "'Syne', -apple-system, BlinkMacSystemFont, sans-serif",
+        "usage": "H1, H2, major hero headings, section titles, brand logo"
+      },
+      "typewriter": {
+        "name": "American Typewriter / Courier Prime",
+        "css_stack": "'American Typewriter', 'Courier Prime', 'Courier New', monospace",
+        "usage": "Screenplay lines, script quotes, scene reader text, actor notes, laundry list sound headers"
+      },
+      "mono_ipa": {
+        "name": "JetBrains Mono",
+        "css_stack": "'JetBrains Mono', 'IBM Plex Mono', monospace",
+        "usage": "IPA transcriptions (/əkˈstɛnt/), timecodes (00:01:24:12), dictionary builder keypads, audio wave metrics"
+      },
+      "body": {
+        "name": "System Sans / Inter",
+        "css_stack": "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        "usage": "General UI body copy, modal text, table cells, form inputs"
+      }
     }
+  },
+  "token_mapping": {
+    "description": "Remap existing legacy light tokens to the new dark cinematic studio palette across all ~20 React components with zero breakages.",
+    "css_variables": {
+      "--bg-stage": "#0A0A0C",
+      "--bg-paper": "#121316",
+      "--bg-surface": "#1A1B20",
+      "--bg-surface-elevated": "#252730",
+      "--border-rule": "#2D303B",
+      "--border-spotlight": "#E5A93C",
+      "--text-ink": "#F1F2F6",
+      "--text-muted2": "#989DAE",
+      "--accent-rust": "#E5A93C",
+      "--accent-sage": "#38D39F",
+      "--accent-crimson": "#E54D42"
+    },
+    "tailwind_token_remap": {
+      "paper": "#121316",
+      "surface": "#1A1B20",
+      "surface-elevated": "#252730",
+      "ink": "#F1F2F6",
+      "muted2": "#989DAE",
+      "rule": "#2D303B",
+      "rust": "#E5A93C",
+      "sage": "#38D39F",
+      "stage": "#0A0A0C"
+    }
+  },
+  "colors": {
+    "background_stage": "#0A0A0C",
+    "background_paper": "#121316",
+    "background_surface": "#1A1B20",
+    "background_surface_elevated": "#252730",
+    "border_subtle": "rgba(255, 255, 255, 0.08)",
+    "border_medium": "#2D303B",
+    "border_spotlight": "rgba(229, 169, 60, 0.4)",
+    "primary_amber_spotlight": "#E5A93C",
+    "primary_hover": "#F2B84F",
+    "text_primary": "#F1F2F6",
+    "text_secondary": "#989DAE",
+    "text_accent_warm": "#F3C77C",
+    "status_success": "#38D39F",
+    "status_error": "#E54D42"
   },
   "spacing_and_layout": {
-    "philosophy": "Generous spacing. The script reading area must feel like a physical piece of paper, with plenty of negative space.",
-    "scale": "Tailwind standard, prioritize p-8, p-12, p-16 for main containers.",
-    "structure": "Dual-pane editor layout. Left: Script Workspace (width: 65%). Right: Laundry Lists & Tools (width: 35%). Use 1px sharp borders to separate them (no shadows).",
-    "grid_borders": "Use border-collapse style. Panels separated by border-r border-[#E5E1D8]. No rounded corners."
-  },
-  "components": {
-    "word_block": {
-      "description": "The atomic unit of the app. Contains the English word and its IPA transcription beneath it.",
-      "layout": "Flex-col, items-center, gap-1, p-2 -mx-2 rounded-sm transition-colors",
-      "hover_state": "bg-[#E5E1D8]/50 cursor-pointer text-[#C85A4F]",
-      "english_text": "font-serif text-2xl text-[#1C1B1A]",
-      "ipa_text": "font-mono text-[13px] text-[#C85A4F] tracking-tight"
-    },
-    "buttons": {
-      "primary": "bg-[#1C1B1A] text-[#FDFDFB] hover:bg-[#C85A4F] rounded-none px-6 py-3 font-mono text-xs uppercase tracking-[0.15em] transition-colors",
-      "secondary": "border border-[#E5E1D8] bg-transparent text-[#1C1B1A] hover:bg-[#E5E1D8]/50 rounded-none px-6 py-3 font-mono text-xs uppercase tracking-[0.15em] transition-colors"
-    },
-    "cards_and_panels": {
-      "style": "Flat, 0px border-radius (sharp), 1px solid border-[#E5E1D8]. NO SHADOWS. Neumorphism and glassmorphism are banned here to keep the 'ink on paper' feeling."
-    },
-    "laundry_list_badge": {
-      "style": "inline-flex items-center gap-2 border border-[#E5E1D8] px-3 py-1 font-mono text-xs text-[#1C1B1A] hover:border-[#C85A4F] cursor-pointer"
+    "generous_padding": "Use p-6 to p-12 on main containers to ensure breathing room.",
+    "border_padding": "All boxed containers with borders MUST have internal padding (p-6 minimum) to prevent text collision.",
+    "grid_layouts": {
+      "word_hero": "Centered high-impact single-column grid max-w-4xl with focal spotlight backdrop.",
+      "scene_workspace": "3-pane studio layout: Left Sidebar (Scenes list & PDF upload, w-72 or col-span-3) | Center Workspace (Screenplay reader with line-by-line IPA blocks, flex-1 or col-span-6) | Right Panel (Laundry List phonetic drawer, w-80 or col-span-3).",
+      "admin_dashboard": "High-density technical grid (grid-cols-1 md:grid-cols-3 lg:grid-cols-4) with cardless structured containers and tight gaps (gap-4)."
     }
   },
-  "motion": {
-    "hover": "Instant or very fast (100ms) background changes on word blocks so it feels highly responsive to quick scanning.",
-    "transitions": "Slide-in from right for the Laundry List panel. Subtle fade-ins for loaded text."
+  "subtle_film_and_audio_cues": {
+    "film_grain": "Subtle 2% noise texture on background surface to eliminate flat digital gradients.",
+    "spotlight_beams": "Radial background gradient: radial-gradient(ellipse at top, rgba(229,169,60,0.12) 0%, rgba(10,10,12,0) 70%).",
+    "clapperboard_icons": "Subtle slate icon accents for scenes and recording takes.",
+    "timecode_badges": "Monospace timecode chips (e.g. REC [00:02:14]) in recording queues.",
+    "vu_meters": "Dynamic miniature audio frequency bars during audio playback or microphone recording."
   },
-  "media": {
-    "images": [
-      {
-        "category": "empty_state_background",
-        "url": "https://images.unsplash.com/photo-1644329771909-b651e30c41da?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwzfHxtaW5pbWFsaXN0JTIwdGhlYXRyZSUyMHNjcmlwdCUyMHBhcGVyfGVufDB8fHx8MTc3Nzc4Njk0N3ww&ixlib=rb-4.1.0&q=85",
-        "description": "Minimalist paper texture for empty states when no PDF is uploaded. Apply mix-blend-multiply and low opacity (10-20%)."
-      },
-      {
-        "category": "hero_texture",
-        "url": "https://images.unsplash.com/photo-1571232151946-f7f00c61ade7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxOTB8MHwxfHNlYXJjaHwxfHxtaW5pbWFsaXN0JTIwdGhlYXRyZSUyMHNjcmlwdCUyMHBhcGVyfGVufDB8fHx8MTc3Nzc4Njk0N3ww&ixlib=rb-4.1.0&q=85",
-        "description": "Close up book writing texture for the login/marketing landing page."
-      }
+  "component_specifications": {
+    "header": {
+      "style": "Glassmorphic floating navbar with backdrop-blur-xl bg-[#121316]/80 border-b border-[#2D303B]/60 sticky top-0 z-50",
+      "elements": [
+        "Brand Logo: 'PRONOUNCE THIS.' in Syne font with amber dot accent",
+        "Tab Navigation: Pill-shaped toggle for 'Word' | 'Scene Workspace' with active spotlight slider",
+        "Account Chip: User avatar / email chip, subscription status badge ('TRIAL (3 free left)' or 'PRO MEMBER'), sign-in button"
+      ]
+    },
+    "word_search_hero": {
+      "container": "bg-[#16171D] border border-[#2D303B] rounded-2xl p-8 relative overflow-hidden shadow-2xl",
+      "input_box": "Flex row with sleek input (bg-[#0A0A0C], border-[#383C4A], text-[#F1F2F6], focus:border-[#E5A93C], focus:ring-1 focus:ring-[#E5A93C]) and high-contrast amber CTA button ('PRONOUNCE')",
+      "result_card": "Hero word presentation in Typewriter font (text-5xl), IPA breakdown (/əkˈstɛnt/) with click-to-play audio wave button, Real Speakers YouTube clip button, 'Did you mean' suggestion pills, and CMU pronunciation note"
+    },
+    "scene_workspace_3pane": {
+      "sidebar": "Dark slate pane with upload dropzone ('Drag & Drop Audition PDF / Screenplay'), scene list with active screenplay highlight, page count, and clapperboard icon",
+      "reader": "Screenplay viewer formatted in Courier Prime / American Typewriter layout with character speaker tags (e.g., LEO, MARGARET), line-by-line IPA toggle, clickable word chips for instant pronunciation playback, and line recording/download actions",
+      "laundry_list": "Sound categorization panel with tabs for Phoneme Groups (L Sound, T Sound, Rhotic R, Vowels, Diphthongs), practice cards with play/loop controls and audio sample triggers"
+    },
+    "modals": {
+      "login_modal": "Passwordless magic-link modal with dark stage styling, amber button, and clear email input",
+      "paywall_modal": "Studio Pro tier comparison modal ($9/mo or $90/yr), 5 free words + 1 free scene trial indicator, Stripe secure badge, high contrast CTA",
+      "caption_search_modal": "YouTube modal player with cue timecode list, prev/next clip buttons, and transcript line with highlighted target word"
+    },
+    "admin_panel": {
+      "sections": [
+        "Payment Health Banner (Stripe status, active subscriptions count, monthly MRR)",
+        "User Table with member grants, trial resets, CSV exports",
+        "Recording Queue with live mic waveforms, Record / Stop / Listen / Save / Skip buttons",
+        "My Dictionary Builder with IPA symbol palette keypad, progress bar, CMU word editor, preferred pronunciations, hidden videos control"
+      ]
+    }
+  },
+  "image_urls": {
+    "hero_stage_backdrop": "https://images.unsplash.com/photo-1507676385008-e7fb562d11f8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHwyfHxmaWxtJTIwc3R1ZGlvJTIwbWljcm9waG9uZSUyMGNpbmVtYXRpYyUyMHNwb3RsaWdodHxlbnwwfHx8fDE3ODkzNzQxODF8MA&ixlib=rb-4.1.0&q=85",
+    "microphone_close_up": "https://images.unsplash.com/photo-1652000583362-17a59b474578?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHszfHxmaWxtJTIwc3R1ZGlvJTIwbWljcm9waG9uZSUyMGNpbmVtYXRpYyUyMHNwb3RsaWdodHxlbnwwfHx8fDE3ODkzNzQxODF8MA&ixlib=rb-4.1.0&q=85",
+    "film_camera_set": "https://images.unsplash.com/photo-1570834322056-ba3e2994ab85?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1Nzl8MHwxfHNlYXJjaHw0fHxmaWxtJTIwc3R1ZGlvJTIwbWljcm9waG9uZSUyMGNpbmVtYXRpYyUyMHNwb3RsaWdodHxlbnwwfHx8fDE3ODkzNzQxODF8MA&ixlib=rb-4.1.0&q=85",
+    "dark_stage_lights": "https://images.unsplash.com/photo-1623090351083-90cce8ec842e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2ODl8MHwxfHNlYXJjaHwxfHxjaW5lbWElMjBmaWxtJTIwcHJvZHVjdGlvbiUyMHNldCUyMGRhcmslMjBzdGFnZXxlbnwwfHx8fDE3ODkzNzQxODV8MA&ixlib=rb-4.1.0&q=85"
+  },
+  "accessibility_and_testing": {
+    "contrast_standard": "All body text meets minimum APCA / WCAG AA 4.5:1 contrast against dark background. Accent text uses high legibility amber (#E5A93C or #F3C77C).",
+    "data_testid_convention": "All interactive buttons, inputs, tabs, modal triggers, IPA word chips, audio play buttons, and admin actions MUST include a data-testid attribute in kebab-case.",
+    "data_testid_examples": [
+      "data-testid=\"nav-word-tab\"",
+      "data-testid=\"nav-scene-tab\"",
+      "data-testid=\"word-search-input\"",
+      "data-testid=\"word-pronounce-button\"",
+      "data-testid=\"audio-play-button\"",
+      "data-testid=\"real-speakers-button\"",
+      "data-testid=\"pdf-upload-dropzone\"",
+      "data-testid=\"laundry-list-rhotic-r-tab\"",
+      "data-testid=\"admin-mic-record-button\"",
+      "data-testid=\"ipa-symbol-keypad\""
     ]
   },
-  "accessibility": {
-    "contrast": "Ensure all IPA text passes WCAG AA against the warm sand background.",
-    "interactive": "All clickable word blocks MUST have data-testid='word-block' and an aria-label indicating pronunciation playback. All buttons must have specific data-testid (e.g., 'upload-pdf-button', 'add-laundry-list-button')."
-  },
   "instructions_to_main_agent": [
-    "Use Tailwind for styling. Override default shadcn styles to remove border-radius (rounded-none) to match the editorial, print-design look.",
-    "Install Google Fonts in index.html or global CSS: Cormorant Garamond, Crimson Text, IBM Plex Mono.",
-    "For the main reading view, create a continuous flowing flex-wrap container so the text wraps naturally like a paragraph, but each word is its own discrete block (the 'word_block').",
-    "Implement the 'Laundry List' panel as a sticky sidebar on the right.",
-    "Use lucide-react for UI icons (Play, List, Plus, Trash).",
-    "CRITICAL: Generate .js and .jsx files exclusively. Do not create .tsx or .ts files.",
-    "Maintain the strict 'Archetype 1: Organic & Earthy' color palette. Do not inject default blues or purples."
+    "1. Ensure tailwind.config.js maps display font to Syne, typewriter font to 'American Typewriter', 'Courier Prime', Courier, monospace, and mono font to JetBrains Mono.",
+    "2. Remap paper, surface, ink, muted2, rule, rust, sage in tailwind.config.js to the new dark cinematic colors.",
+    "3. Update index.css to load Google Fonts (Syne, Courier Prime, JetBrains Mono) and set global body background to #0A0A0C and color to #F1F2F6.",
+    "4. Refactor Header, Word Page Hero, Scene 3-Pane Reader, Laundry Lists, Modals, and Admin Panel using the defined dark stage aesthetic with amber spotlight accents.",
+    "5. Retain and add data-testid attributes to all key elements for test verification."
   ]
 }

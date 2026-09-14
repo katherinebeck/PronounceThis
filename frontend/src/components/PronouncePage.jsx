@@ -70,13 +70,13 @@ export default function PronouncePage({ onGoToScenes }) {
     <div className="flex-1 overflow-auto bg-paper" data-testid="pronounce-page">
       <div className="max-w-3xl mx-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12 lg:py-16">
         <div className="mb-8 sm:mb-10">
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
+          <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-rust mb-3">
             Pronounce This · The General American Accent Pronunciation Tool Specifically Designed For Actors
           </div>
-          <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98]">
-            Pronounce This.
+          <h1 className="reveal reveal-2 font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
+            Pronounce This<span className="text-rust">.</span>
           </h1>
-          <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
+          <p className="reveal reveal-3 mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Type any word, name or location to see it written
             phonetically (IPA) and hear it spoken in an American accent.
           </p>
@@ -84,7 +84,7 @@ export default function PronouncePage({ onGoToScenes }) {
 
         <form
           onSubmit={submit}
-          className="border thin-rule bg-surface p-2 sm:p-3 flex items-center gap-2 sm:gap-3"
+          className="reveal reveal-4 border border-ink/70 bg-surface p-2 sm:p-3 flex items-center gap-2 sm:gap-3 transition-[border-color,box-shadow] duration-200 focus-within:border-rust focus-within:shadow-[0_0_0_1px_rgba(229,169,60,0.35),0_24px_60px_-30px_rgba(229,169,60,0.4)]"
         >
           <Search size={16} className="hidden sm:block text-muted2 ml-3" />
           <input
@@ -120,7 +120,7 @@ export default function PronouncePage({ onGoToScenes }) {
         </form>
 
         {result ? (
-          <div className="mt-8 sm:mt-10 border thin-rule bg-surface animate-fade-in" data-testid="pronounce-result">
+          <div className="mt-8 sm:mt-10 border thin-rule bg-surface animate-fade-in shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)]" data-testid="pronounce-result">
             <div className="px-5 sm:px-8 py-6 sm:py-8 border-b thin-rule flex items-start justify-between gap-4 sm:gap-6 flex-wrap">
               <div className="min-w-0">
                 <div className="font-serif text-4xl sm:text-5xl lg:text-6xl text-ink leading-none break-words">
@@ -197,12 +197,12 @@ export default function PronouncePage({ onGoToScenes }) {
         {/* Audition scene invitation — same visual weight as the main hero
             so it reads as a second, equally-important on-ramp. */}
         <div className="mt-14 sm:mt-20 pt-10 sm:pt-14 border-t thin-rule">
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
-            Scene Preparation · Full IPA Transcription
-          </div>
-          <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98]">
-            Prepare for your next audition. Hear how to pronounce every word.
+          <h2 className="font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
+            Scene Preparation<span className="text-rust">.</span>
           </h2>
+          <p className="mt-4 sm:mt-5 font-display font-semibold text-xl sm:text-2xl text-ink leading-snug max-w-2xl">
+            Prepare for your next audition. Hear how to pronounce every word.
+          </p>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Upload an audition scene as a PDF. Each word will be transcribed in
             American IPA, click any word to hear it spoken aloud, pull laundry
@@ -212,7 +212,7 @@ export default function PronouncePage({ onGoToScenes }) {
           <button
             type="button"
             onClick={() => onGoToScenes?.()}
-            className="mt-6 sm:mt-8 inline-flex items-center gap-2 bg-ink text-surface font-mono text-[11px] sm:text-[12px] uppercase tracking-[0.22em] px-6 py-3 sm:px-7 sm:py-3.5 hover:bg-rust transition-colors"
+            className="mt-6 sm:mt-8 btn-primary text-[11px] sm:text-[12px] px-6 py-3 sm:px-7 sm:py-3.5"
             data-testid="scenes-promo-banner"
           >
             Audition Scene <ArrowRight size={13} />

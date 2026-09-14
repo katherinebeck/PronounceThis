@@ -94,7 +94,7 @@ export function RecordingQueue() {
                 <Mic size={14} /> {blob ? "Re-record" : "Record"}
               </button>
             ) : (
-              <button type="button" onClick={stop} className="btn-primary justify-center bg-rust border-rust" data-testid="recording-queue-stop">
+              <button type="button" onClick={stop} className="btn-primary justify-center !bg-crimson !text-ink" data-testid="recording-queue-stop">
                 <Square size={14} /> Stop
               </button>
             )}
@@ -132,7 +132,7 @@ export function RecordingQueue() {
             </button>
           </div>
           {recording ? (
-            <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-rust animate-pulse">● Recording — say the word, then Stop</div>
+            <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-crimson inline-flex items-center gap-2"><span className="tally" /> Recording — say the word, then Stop</div>
           ) : processing ? (
             <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Trimming clicks and silence…</div>
           ) : null}

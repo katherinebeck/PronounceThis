@@ -216,5 +216,11 @@
 ## 2026-06 — Trial 3 → 5 free words
 - TRIAL_WORD_LIMIT=5 (auth.py); copy in LoginModal, WelcomeModal, PaywallModal; auth.jsx default 5. /api/auth/me returns trial_word_limit 5.
 
+## 2026-06 — Redesign: Dark Cinematic Studio (A24 × Apple × Linear)
+- design_guidelines.json rewritten by design agent. Implemented via Tailwind token remap (stage #0A0A0C, paper #121316, surface #1A1B20, elevated #252730, rule #2D303B, ink #F1F2F6 (text), muted2 #989DAE, rust→amber #E5A93C, crimson #E54D42, sage #38D39F) + index.css rewrite (CSS vars, dark shadcn HSL, spotlight radial + grain, amber btn-primary, pill nav, .glass-bar, .tally rec light, .reveal stagger). Fonts: Syne (display), American Typewriter → Courier Prime fallback (font-serif/body), JetBrains Mono (mono/IPA) via Google Fonts in index.html.
+- Header: sticky glass bar, pill tab nav, pill Sign in. Hero: amber kicker, "Pronounce This." with amber period, staggered reveal, search box with white-ish border + amber focus glow. Scene block: H2 "Scene Preparation." (same size as H1), sub "Prepare for your next audition…" text-xl/2xl, paragraph, amber CTA.
+- Modals overlay bg-stage/75; CaptionSearchModal player area bg-stage, highlight mark amber. Recording indicators use .tally (crimson) + crimson Stop button.
+- Tested: iteration_22 frontend regression (all pass except CaptionSearchModal contrast — fixed).
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

@@ -88,7 +88,7 @@ export default function WelcomeModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-stage/75 backdrop-blur-md p-4"
       data-testid="welcome-modal"
     >
       <div

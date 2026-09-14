@@ -134,7 +134,7 @@ export function DictionaryBuilder() {
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
             <div className="font-display text-5xl text-ink leading-none" data-testid="dictionary-word">{current.word}</div>
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
-              {rec.recording ? <span className="text-rust animate-pulse">● Recording</span> : rec.processing ? "Cleaning up…" : rec.blob ? "Take ready" : "Space to record"}
+              {rec.recording ? <span className="text-crimson inline-flex items-center gap-2"><span className="tally" /> Recording</span> : rec.processing ? "Cleaning up…" : rec.blob ? "Take ready" : "Space to record"}
             </div>
           </div>
 
@@ -160,7 +160,7 @@ export function DictionaryBuilder() {
                 <Mic size={14} /> {rec.blob ? "Re-record" : "Record"}
               </button>
             ) : (
-              <button type="button" onClick={rec.stop} className="btn-primary justify-center bg-rust border-rust" data-testid="dictionary-stop">
+              <button type="button" onClick={rec.stop} className="btn-primary justify-center !bg-crimson !text-ink" data-testid="dictionary-stop">
                 <Square size={14} /> Stop
               </button>
             )}

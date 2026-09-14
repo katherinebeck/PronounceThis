@@ -52,10 +52,11 @@ export default function AppRoot() {
         position="top-center"
         toastOptions={{
           style: {
-            background: "#1C1B1A",
-            color: "#FDFDFB",
+            background: "#1A1B20",
+            color: "#F1F2F6",
+            border: "1px solid #2D303B",
             borderRadius: 0,
-            fontFamily: "IBM Plex Mono, monospace",
+            fontFamily: "JetBrains Mono, monospace",
             fontSize: "12px",
             letterSpacing: "0.05em",
           },
@@ -257,16 +258,16 @@ function App() {
 function Header({ tab, onSwitchTab }) {
   return (
     <header
-      className="border-b thin-rule bg-surface px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-6 flex-wrap"
+      className="sticky top-0 z-40 border-b thin-rule glass-bar px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-6 flex-wrap"
       data-testid="app-header"
     >
       <div className="flex items-baseline gap-4">
-        <div className="font-display text-xl sm:text-2xl text-ink leading-none">
-          Pronounce This.
+        <div className="font-display font-bold text-lg sm:text-xl text-ink leading-none tracking-tight uppercase">
+          Pronounce This<span className="text-rust">.</span>
         </div>
       </div>
       <nav
-        className="flex items-center border thin-rule"
+        className="flex items-center gap-1 p-1 rounded-full bg-surface border thin-rule"
         data-testid="tab-nav"
         role="tablist"
       >
@@ -279,10 +280,10 @@ function Header({ tab, onSwitchTab }) {
               role="tab"
               aria-selected={active}
               className={
-                "font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.22em] px-3 sm:px-5 py-2 sm:py-2.5 border-r thin-rule last:border-r-0 transition-colors " +
+                "font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.22em] px-3 sm:px-5 py-2 rounded-full transition-colors " +
                 (active
-                  ? "bg-ink text-surface"
-                  : "bg-transparent text-ink hover:bg-paper")
+                  ? "bg-ink text-stage font-semibold"
+                  : "bg-transparent text-muted2 hover:text-ink")
               }
               data-testid={`tab-${t.id}`}
               onClick={() => onSwitchTab(t.id)}

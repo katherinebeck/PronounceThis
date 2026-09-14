@@ -25,7 +25,7 @@ function HighlightedSnippet({ text, query }) {
     <>
       {text.split(re).map((part, i) =>
         part.toLowerCase() === q.toLowerCase() ? (
-          <mark key={i} className="bg-ink text-paper px-1 rounded-sm not-italic">{part}</mark>
+          <mark key={i} className="bg-rust text-stage px-1 rounded-sm not-italic">{part}</mark>
         ) : (
           <span key={i}>{part}</span>
         )
@@ -129,7 +129,7 @@ export default function CaptionSearchModal({ open, query, onClose }) {
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 backdrop-blur-sm p-4 animate-fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-stage/75 backdrop-blur-md p-4 animate-fade-in"
       data-testid="caption-search-modal"
       onClick={onClose}
     >
@@ -181,9 +181,9 @@ export default function CaptionSearchModal({ open, query, onClose }) {
 
         {/* Player */}
         <div className="p-4 sm:p-5 bg-surface">
-          <div className="aspect-video bg-ink border thin-rule overflow-hidden relative">
+          <div className="aspect-video bg-stage border thin-rule overflow-hidden relative">
             {loading ? (
-              <div className="absolute inset-0 flex items-center gap-2 justify-center font-mono text-xs text-paper/80">
+              <div className="absolute inset-0 flex items-center gap-2 justify-center font-mono text-xs text-muted2">
                 <Loader2 size={14} className="animate-spin" /> Searching real
                 speakers…
               </div>
@@ -198,7 +198,7 @@ export default function CaptionSearchModal({ open, query, onClose }) {
                 data-testid="caption-search-iframe"
               />
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center p-6 text-center font-serif text-sm text-paper/80 italic leading-relaxed">
+              <div className="absolute inset-0 flex items-center justify-center p-6 text-center font-serif text-sm text-muted2 italic leading-relaxed">
                 {error ||
                   "No matches yet. Tap Refresh, or try a variant spelling."}
               </div>

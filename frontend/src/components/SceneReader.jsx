@@ -444,7 +444,7 @@ function TurnBlock({
         "relative group border-l-2 pl-6 py-1 transition-all " +
         (playing
           ? "border-rust bg-[rgba(200,90,79,0.06)]"
-          : "border-transparent hover:border-[#E5E1D8]") +
+          : "border-transparent hover:border-rule") +
         (dimOthers ? " opacity-45" : "") +
         (isMine ? " border-l-ink" : "")
       }
@@ -456,7 +456,7 @@ function TurnBlock({
           className={
             "shrink-0 inline-flex items-center justify-center w-8 h-8 border thin-rule transition-colors " +
             (playing
-              ? "bg-rust text-white border-rust"
+              ? "bg-rust text-stage border-rust"
               : "bg-surface hover:bg-paper hover:border-ink")
           }
           data-testid={`turn-play-${turn.index}`}
@@ -483,7 +483,7 @@ function TurnBlock({
             {turn.speaker}
             {isMine ? (
               <span
-                className="inline-flex items-center gap-1 text-[9px] tracking-[0.24em] text-ink bg-[#E5E1D8] px-1.5 py-0.5"
+                className="inline-flex items-center gap-1 text-[9px] tracking-[0.24em] text-ink bg-elevated px-1.5 py-0.5"
                 data-testid={`turn-you-badge-${turn.index}`}
               >
                 You

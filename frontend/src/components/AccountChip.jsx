@@ -26,7 +26,7 @@ export default function AccountChip() {
       <button
         type="button"
         onClick={openLogin}
-        className="font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.22em] px-3 sm:px-4 py-2 sm:py-2.5 border thin-rule bg-ink text-surface hover:bg-rust hover:border-rust transition-colors"
+        className="font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.22em] px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-ink text-stage font-semibold hover:bg-rust transition-colors"
         data-testid="header-signin"
       >
         Sign in
