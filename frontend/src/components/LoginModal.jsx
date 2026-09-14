@@ -159,7 +159,7 @@ export default function LoginModal() {
             </button>
 
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-5 text-center">
-              New here? Get 3 free words + 1 free scene on us.
+              New here? Get 5 free words + 1 free scene on us.
             </p>
           </form>
         )}

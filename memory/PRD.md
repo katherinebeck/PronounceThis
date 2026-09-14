@@ -213,5 +213,8 @@
 - All UI/brand strings, index.html title/meta, magic-link email sender/subject/body, FastAPI title, Stripe product names, README, backend/.env SENDER_NAME → "Pronounce This". (Production: re-publish; existing Stripe products keep their old names unless renamed in Stripe dashboard.)
 - PronouncePage hero: kicker "Pronounce This · The General American Accent Pronunciation Tool Specifically Designed For Actors"; H1 "Pronounce This."; sub "Type any word, name or location…". Scene block: H2 "Prepare for your next audition. Hear how to pronounce every word." + new paragraph (upload PDF, IPA, click to hear, laundry lists, download dialogue audio).
 
+## 2026-06 — Trial 3 → 5 free words
+- TRIAL_WORD_LIMIT=5 (auth.py); copy in LoginModal, WelcomeModal, PaywallModal; auth.jsx default 5. /api/auth/me returns trial_word_limit 5.
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

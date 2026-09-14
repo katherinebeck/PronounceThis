@@ -44,7 +44,7 @@ JWT_COOKIE_NAME = "accent_session"
 JWT_DAYS = 90                       # session lifetime
 MAGIC_LINK_TTL_MIN = 15             # magic link expiry
 MAGIC_LINK_RATE_LIMIT_MIN = 1       # 1 magic link per minute per email
-TRIAL_WORD_LIMIT = 3
+TRIAL_WORD_LIMIT = 5
 TRIAL_SCENE_LIMIT = 1
 
 APP_PUBLIC_URL = (os.environ.get("APP_PUBLIC_URL") or "").rstrip("/")

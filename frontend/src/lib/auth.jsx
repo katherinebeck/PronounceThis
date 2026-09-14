@@ -57,7 +57,7 @@ export function AuthProvider({ children }) {
   const isSubscriber = me?.subscription_status === "active";
   const trialWordRemaining = Math.max(
     0,
-    (me?.trial_word_limit ?? 3) - (me?.trial_word_used ?? 0),
+    (me?.trial_word_limit ?? 5) - (me?.trial_word_used ?? 0),
   );
   const trialSceneRemaining = Math.max(
     0,
