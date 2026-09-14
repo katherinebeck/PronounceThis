@@ -70,10 +70,7 @@ export default function PronouncePage({ onGoToScenes }) {
     <div className="flex-1 overflow-auto bg-paper" data-testid="pronounce-page">
       <div className="max-w-3xl mx-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12 lg:py-16">
         <div className="mb-8 sm:mb-10">
-          <div className="reveal font-mono text-sm sm:text-base uppercase tracking-[0.2em] text-rust mb-2">
-            Prepare for your next audition. Hear how to pronounce every word.
-          </div>
-          <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
+          <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-rust mb-3">
             The General American Accent Pronunciation Tool Specifically Designed For Actors
           </div>
           <h1 className="reveal reveal-2 font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
@@ -204,6 +201,7 @@ export default function PronouncePage({ onGoToScenes }) {
             Scene Preparation<span className="text-rust">.</span>
           </h2>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
+            Prepare for your next audition. Hear how to pronounce every word.
             Upload an audition scene as a PDF. Each word will be transcribed in
             American IPA, click any word to hear it spoken aloud, pull laundry
             lists by sound to practice tricky sounds and download an audio
