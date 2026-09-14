@@ -352,6 +352,31 @@ def transcribe_word(word: str) -> Tuple[Optional[str], List[str], List[str]]:
     can then fall back to an LLM-based transcription.
     """
     phones = get_arpabet(word)
+    custom = CUSTOM_IPA.get((word or "").lower().strip())
+    if custom:
+        return custom, phones or [], classify_ipa(custom)
     if not phones:
         return None, [], []
     return arpabet_to_ipa(phones), phones, classify_word(phones)
+
+
+# Coach-typed IPA (word -> IPA string) from the Admin "My Dictionary"
+# builder. Wins over CMU for display + categories; loaded at startup.
+CUSTOM_IPA: dict = {}
+
+_CMU_WORDS: List[str] = []
+
+
+def cmu_word_list() -> List[str]:
+    """Sorted, de-duplicated CMU headwords (letters/apostrophes only)."""
+    global _CMU_WORDS
+    if not _CMU_WORDS:
+        pronouncing.init_cmu()
+        _CMU_WORDS = sorted({w for w, _ in pronouncing.pronunciations
+                             if re.fullmatch(r"[a-z][a-z']*", w)})
+    return _CMU_WORDS
+
+
+def cmu_ipa(word: str) -> Optional[str]:
+    phones = get_arpabet(word)
+    return arpabet_to_ipa(phones) if phones else None

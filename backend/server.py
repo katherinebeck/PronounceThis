@@ -36,6 +36,7 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
 from phonetics import (
+    CUSTOM_IPA,
     PREFERRED_ARPA,
     SOUND_CATEGORIES,
     arpabet_to_ipa,
@@ -62,6 +63,7 @@ from auth import (
 )
 from kajabi import create_kajabi_router
 from admin import create_admin_router
+from dictionary import create_dictionary_router, load_custom_ipa
 from stripe_payments import create_stripe_router
 
 # --- DB ---------------------------------------------------------------------
@@ -822,11 +824,16 @@ def _refresh_categories(doc: Dict) -> Dict:
     for t in doc.get("tokens", []):
         if not t.get("is_word"):
             continue
+        key = normalize_word(t["text"])
         if t.get("source", "cmu") == "cmu":
-            phones = get_arpabet(normalize_word(t["text"]))
+            phones = get_arpabet(key)
             if phones:
                 t["arpabet"] = phones
                 t["ipa"] = arpabet_to_ipa(phones)
+        if key in CUSTOM_IPA:
+            t["ipa"] = CUSTOM_IPA[key]
+            t["categories"] = classify_ipa(t["ipa"])
+            continue
         if t.get("arpabet"):
             t["categories"] = classify_word(t["arpabet"])
         elif t.get("ipa"):
@@ -1291,6 +1298,7 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
 api_router.include_router(create_auth_router(db))
 api_router.include_router(create_kajabi_router(db))
 api_router.include_router(create_admin_router(db))
+api_router.include_router(create_dictionary_router(db))
 api_router.include_router(create_stripe_router(db))
 app.include_router(api_router)
 
@@ -1312,6 +1320,7 @@ async def _startup_indexes():
     await ensure_auth_indexes(db)
     async for pref in db.pronunciation_prefs.find({}, {"_id": 0}):
         PREFERRED_ARPA[pref["word"]] = pref["arpabet"]
+    await load_custom_ipa(db)
     # Scene ownership: pre-existing scenes have no uploader record; mark them
     # legacy (admin-only) without touching their content. Idempotent.
     await db.scenes.update_many(

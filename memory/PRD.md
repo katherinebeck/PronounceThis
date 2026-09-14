@@ -199,5 +199,12 @@
 - `phonetics.classify_word` / `classify_ipa`: a vowel or diphthong followed by ER, or by a syllable-closing R (R not followed by a vowel), is dropped from its vowel/diphthong list and counted under Rhotic R only (star, for, air, here, poor, card, fire, hour, player). Vowel + R across a syllable boundary keeps the vowel (very, sorry, Mary, hero, starry) — per coach's choice.
 - Existing scenes update automatically via `_refresh_categories` on load. Tests: `backend/tests/test_r_colored_vowels.py` (16 pass). Verified live on the "Little House" scene.
 
+## 2026-06 — My Dictionary builder + recording clean-up
+- `frontend/src/lib/audioTrim.js`: every mic take is decoded, the first/last 120 ms (Record/Stop click) hard-cut, leading/trailing silence trimmed (adaptive −38 dB / 4× noise floor), 8 ms fades, resampled to 24 kHz mono WAV. `lib/useRecorder.js` hook shared by RecordingQueue + DictionaryBuilder.
+- `backend/dictionary.py` (router `/api/admin/dictionary/*`): queue (A→Z through 124,911 clean CMU headwords, skipping done/skipped), word, entry (multipart word+ipa+optional audio), skip, entries (search), entries/delete, audio, export.csv, export.zip (csv + audio/<word>.ext). Collection `dictionary_entries` {word, ipa, cmu_ipa, ipa_custom, categories, has_audio, content_type, status done|skipped}. Audio still stored as `audio_cache` manual_override (served by /api/tts). Startup `load_custom_ipa` backfills entries from existing overrides.
+- `phonetics.CUSTOM_IPA` (coach-typed IPA) wins over CMU in `transcribe_word` and `_refresh_categories` → scenes, laundry lists, Pronounce page show her IPA; categories via classify_ipa.
+- Admin UI `DictionaryBuilder.jsx` (+ `IpaPalette.jsx`, `DictionaryTable.jsx`): progress bar, jump-to-word, big word, editable IPA prefilled from CMU with click-to-insert palette, Record/Stop/Listen/Save & next/Skip, Space = record toggle, Enter = save, cursor remembered in localStorage; searchable table with play/delete + CSV/zip export. RecordingQueue now saves through the dictionary endpoint (so its recordings appear in the table).
+- Tested: iteration_21 (backend 18/18, frontend flows pass; mic flow not testable headlessly — user to verify trim quality). Merriam-Webster integration now unnecessary (user's own recordings).
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

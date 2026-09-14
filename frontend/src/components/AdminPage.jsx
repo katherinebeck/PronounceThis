@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { PronunciationPrefs } from "./PronunciationPrefs";
 import { RecordingQueue } from "./RecordingQueue";
+import { DictionaryBuilder } from "./DictionaryBuilder";
 import { HiddenVideos } from "./HiddenVideos";
 import { LegacyScenes } from "./LegacyScenes";
 import {
@@ -950,6 +951,8 @@ export default function AdminPage() {
         <LegacyScenes />
 
         <RecordingQueue />
+
+        <DictionaryBuilder />
 
         <PronunciationPrefs />
 

@@ -1,19 +1,16 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { Loader2, Mic, Square, Play, Check, SkipForward, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import { useRecorder } from "@/lib/useRecorder";
 
 // Admin: words students heard as synthetic audio, most-played first.
 // Record each from the mic → saved as a permanent manual override.
 export function RecordingQueue() {
   const [words, setWords] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [blob, setBlob] = useState(null);
-  const [blobUrl, setBlobUrl] = useState(null);
-  const [recording, setRecording] = useState(false);
   const [saving, setSaving] = useState(false);
-  const recRef = useRef(null);
-  const chunksRef = useRef([]);
+  const { recording, processing, blob, blobUrl, start, stop, reset } = useRecorder();
   const current = words[0];
 
   const load = useCallback(async () => {
@@ -30,49 +27,15 @@ export function RecordingQueue() {
 
   useEffect(() => { load(); }, [load]);
 
-  const reset = () => {
-    if (blobUrl) URL.revokeObjectURL(blobUrl);
-    setBlob(null);
-    setBlobUrl(null);
-  };
-
-  const start = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
-        : MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "";
-      const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
-      chunksRef.current = [];
-      rec.ondataavailable = (e) => { if (e.data.size) chunksRef.current.push(e.data); };
-      rec.onstop = () => {
-        const b = new Blob(chunksRef.current, { type: rec.mimeType || "audio/webm" });
-        reset();
-        setBlob(b);
-        setBlobUrl(URL.createObjectURL(b));
-        stream.getTracks().forEach((t) => t.stop());
-      };
-      recRef.current = rec;
-      rec.start();
-      setRecording(true);
-    } catch {
-      toast.error("Microphone access was blocked. Allow the mic in your browser and try again.");
-    }
-  };
-
-  const stop = () => {
-    recRef.current?.stop();
-    setRecording(false);
-  };
-
   const save = async () => {
     if (!current || !blob) return;
     setSaving(true);
     try {
-      const ext = blob.type.includes("mp4") ? "m4a" : blob.type.includes("ogg") ? "ogg" : "webm";
       const fd = new FormData();
       fd.append("word", current.word);
-      fd.append("file", blob, `${current.word}.${ext}`);
-      await api.post("/admin/pronunciation-overrides", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      fd.append("ipa", current.ipa || "");
+      fd.append("file", blob, `${current.word}.wav`);
+      await api.post("/admin/dictionary/entry", fd, { headers: { "Content-Type": "multipart/form-data" } });
       toast.success(`Saved your recording of “${current.word}”`);
       reset();
       setWords((w) => w.slice(1));
@@ -127,7 +90,7 @@ export function RecordingQueue() {
 
           <div className="mt-5 flex flex-wrap items-center gap-3">
             {!recording ? (
-              <button type="button" onClick={start} className="btn-primary justify-center" data-testid="recording-queue-record">
+              <button type="button" onClick={start} disabled={processing} className="btn-primary justify-center" data-testid="recording-queue-record">
                 <Mic size={14} /> {blob ? "Re-record" : "Record"}
               </button>
             ) : (
@@ -170,6 +133,8 @@ export function RecordingQueue() {
           </div>
           {recording ? (
             <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-rust animate-pulse">● Recording — say the word, then Stop</div>
+          ) : processing ? (
+            <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Trimming clicks and silence…</div>
           ) : null}
         </div>
       )}

@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 21 end-to-end verification of the new Admin 'My Dictionary' builder. Backend: 18/18 pytest cases passed in /app/backend/tests/test_dictionary_endpoints.py covering /queue (start=because returns 'because' first; stats total ~124,911), /entry multipart (valid, invalid_ipa=400, ipa_or_audio_required=422 due to FastAPI Form(...) rejecting empty string, WAV upload, has_audio flag, content_type persisted), /skip (skipped counter increments), /entries prefix filter + delete, /audio (uploaded bytes returned as audio/wav; 404 when missing), /export.csv (correct 7-col header) & /export.zip (contains dictionary.csv + audio/<word>.wav), non-admin returns 401, CUSTOM_IPA hook proven via /api/pronounce (custom IPA returned; falls back to CMU after delete), /api/tts returns manual_override=true for uploaded word, legacy scene /laundry-list?sound= still 200 for admin. Frontend (headless Chromium, /admin after magic-link verify): admin-dictionary renders; progress bar, current word, prefilled IPA, all 31 palette buttons (θ insert at caret works), Jump form loads 'because', Skip advances, Save & next persists (toast 'Saved …' shown) and advances to next word, table shows saved row with 'edited' badge, delete removes row, Enter key in IPA input triggers save, RecordingQueue admin-recording-queue renders, export CSV/ZIP buttons present. Mic/recording flow not exercised (getUserMedia unavailable in this Chromium — noted for main agent).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/dictionary/entry", "issue": "When ipa is passed as empty string with no file, FastAPI Form(...) rejects with 422 before reaching the endpoint's own 400 'ipa_or_audio_required' guard. Cosmetic — client is still told the request is invalid, but the specific error code is unreachable. Consider `ipa: str = Form('')` if the custom message matters."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_dictionary_endpoints.py",
+    "/app/test_reports/pytest/dictionary_endpoints.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: relax Form(...) to Form('') so the endpoint's own 'ipa_or_audio_required' 400 surfaces to the client (minor)."
+  ],
+  "critical_code_review_comments": [
+    "dictionary.py `_clean_word` strips all non [a-z'] chars — so words containing underscores/dashes silently collapse (e.g. 'test_word' -> 'testword'). Fine for CMU words but any admin who types a hyphenated form (e.g. 'co-worker') will get 'coworker'. Consider warning the coach when the cleaned word differs from the entered word.",
+    "load_custom_ipa (server startup) upserts a done-status entry for every legacy audio_cache manual_override — including any word with underscores stripped to a different key; ordering is fine (uses $setOnInsert). No issue observed at startup; DB clean after cleanup fixture.",
+    "IPA regex on entry: `\\u0329` (syllabic) included, but common variants like nasal 'n̩' with dedicated symbols aren't; low priority.",
+    "export.zip streams entire audio_cache into memory — with the full CMU dictionary this may become memory-heavy. Consider a streaming ZipFile writer at scale (>10k audios)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_dictionary_endpoints.py (new)"
+  ],
+  "success_rate": {"backend": "100% (18/18)", "frontend": "100% of non-mic flows"},
+  "test_credentials": "Magic-link inserted into Mongo for katherine@katherinebeck.com then GET /api/auth/verify?token=… (see /app/memory/test_credentials.md).",
+  "seed_data_creation": "Ephemeral: test dictionary entries for 'zzzqqqtestword', 'testworddictonly', 'because', 'zynda', 'zebra' + audio_cache row for 'testworddictonly'. ALL cleaned up post-test — final DB query confirms 0 rows for these words in dictionary_entries and audio_cache. 'because' is NOT overridden.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest file /app/backend/tests/test_dictionary_endpoints.py is idempotent and self-cleans (module-scope teardown deletes all TEST_ entries and 'because'). It consumes one magic-link token per module run (5/email/hour Resend limit — insert token directly if hitting the limit). Mic-based Record→Stop→'Take ready'→Save-with-recording UI path was NOT exercised (getUserMedia denied in default Chromium). If main agent wants to test it, launch Chromium with --use-fake-device-for-media-stream --use-fake-ui-for-media-stream and simulate Space keypress. Backend WAV upload path IS covered end-to-end via the /entry multipart test which uploads a real 46-byte WAV, then GET /audio round-trips the identical bytes with content-type audio/wav.",
+  "rca of the issue": "N/A — no bugs blocking release. Only the 422-vs-400 nuance on missing-ipa+missing-file which is a cosmetic FastAPI validation quirk."
+}
