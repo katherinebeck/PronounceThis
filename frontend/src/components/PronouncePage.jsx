@@ -199,7 +199,7 @@ export default function PronouncePage({ onGoToScenes }) {
 
         {/* Audition scene invitation — same visual weight as the main hero
             so it reads as a second, equally-important on-ramp. */}
-        <div className="mt-14 sm:mt-20 pt-10 sm:pt-14 border-t thin-rule">
+        <div className="mt-10 sm:mt-12 pt-8 sm:pt-10 border-t border-ink/30">
           <h2 className="font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
             Scene Preparation<span className="text-rust">.</span>
           </h2>
