@@ -244,6 +244,11 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         if not EMAIL_RE.match(email):
             raise HTTPException(status_code=400, detail="invalid_email")
 
+        # Abuse caps: 5 links/email/hour, 20 links/IP/hour (429), then the
+        # gentler 1/min/email silent limiter below.
+        rate_limit(f"ml:email:{email}", 5, 3600)
+        rate_limit(f"ml:ip:{client_ip(request)}", 20, 3600)
+
         # Rate limit: 1 request/min/email.
         cutoff = _now() - timedelta(minutes=MAGIC_LINK_RATE_LIMIT_MIN)
         recent = await db.magic_links.find_one({
@@ -480,6 +485,46 @@ async def consume_trial(db: AsyncIOMotorDatabase, actor: Actor) -> None:
         return
     field = f"trial_{actor.consumed_trial_kind}_used"
     await db.users.update_one({"email": actor.email}, {"$inc": {field: 1}})
+
+
+# --- Simple in-process sliding-window rate limiter --------------------------
+_RL_BUCKETS: dict = {}
+
+
+def client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    if fwd:
+        return fwd.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def rate_limit(key: str, limit: int, window_seconds: int) -> None:
+    """Raise 429 if `key` exceeded `limit` events in the trailing window."""
+    import time as _time
+    now = _time.time()
+    bucket = [t for t in _RL_BUCKETS.get(key, []) if now - t < window_seconds]
+    if len(bucket) >= limit:
+        _RL_BUCKETS[key] = bucket
+        raise HTTPException(status_code=429, detail="rate_limited")
+    bucket.append(now)
+    _RL_BUCKETS[key] = bucket
+    if len(_RL_BUCKETS) > 50_000:   # crude memory guard
+        _RL_BUCKETS.clear()
+
+
+def is_admin_email(email: Optional[str]) -> bool:
+    admins = {e.strip().lower() for e in os.environ.get("ADMIN_EMAILS", "").split(",") if e.strip()}
+    return bool(email) and email.lower() in admins
+
+
+async def optional_login(request: Request, db: AsyncIOMotorDatabase) -> Optional[str]:
+    """Email of the logged-in caller, or None (never raises)."""
+    token = request.cookies.get(JWT_COOKIE_NAME)
+    email = _decode_jwt(token) if token else None
+    if not email:
+        return None
+    user = await db.users.find_one({"email": email}, {"_id": 0, "email": 1})
+    return email if user else None
 
 
 async def require_login(request: Request, db: AsyncIOMotorDatabase) -> str:

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { PronunciationPrefs } from "./PronunciationPrefs";
 import { RecordingQueue } from "./RecordingQueue";
 import { HiddenVideos } from "./HiddenVideos";
+import { LegacyScenes } from "./LegacyScenes";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -945,6 +946,8 @@ export default function AdminPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <LegacyScenes />
 
         <RecordingQueue />
 

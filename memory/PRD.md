@@ -184,3 +184,13 @@
 ## 2026-06 — Admin links never expire + editable access end date
 - Admin-issued magic links (POST /api/admin/magic-link) now expire in 10 years (still single-use); response expires_at=null. Emailed self-service links remain 15 min.
 - POST /api/admin/memberships/set-end {email, subscription_end_at: 'YYYY-MM-DD'|null}: edits/creates the manual_grant membership end (null = no end); refuses Stripe-paid members. Admin "Ends" column is click-to-edit (date input + save/cancel).
+
+## 2026-06 — Security hardening (authorized after audit)
+- Scenes: `owner_email` + `legacy` fields. Upload stamps owner. `_load_owned_scene` gate (owner or admin; 404 otherwise) on GET/reparse/DELETE/laundry-list/download-lines/turn TTS. GET /scenes scoped to owner. Startup migration marks pre-existing scenes owner_email=None, legacy=True (content untouched). Admin: GET /api/admin/scenes?unowned_only, POST /api/admin/scenes/assign; `LegacyScenes.jsx` in Admin. Frontend: server list authoritative (App.js refreshScenes → listScenes on auth change).
+- No claim-by-possession (user declined). Legacy scenes admin-only until assigned.
+- Gating: caption-search requires login (60/h/user, refresh 10/h). pronounce: 60/min/IP, Claude fallback only for logged-in users (30/h). Turn TTS owner-gated.
+- Rate limits (in-process sliding window, auth.py `rate_limit`): magic-link 5/email/h + 20/IP/h (429) before the existing 1/min silent limiter.
+- CORS: explicit list from CORS_ORIGINS (fallback APP_PUBLIC_URL); wildcard ignored. Preview .env set to app.katherinebeck.com + preview URL. PRODUCTION: set CORS_ORIGINS secret (or rely on APP_PUBLIC_URL fallback).
+- Stripe: past_due keeps access (dunning) until subscription.deleted/unpaid/canceled.
+- Verification script: backend/tests/verify_isolation.py (21 checks, ALL PASS).
+- Scene storage: avg 20 KB / max 84 KB per scene; 100+ scenes/user is negligible (turn audio cache ~89 KB per line is the larger cost).

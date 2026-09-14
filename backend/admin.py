@@ -98,6 +98,11 @@ class DismissWordBody(BaseModel):
     word: str
 
 
+class AssignSceneBody(BaseModel):
+    scene_id: str
+    email: EmailStr
+
+
 class PronunciationPrefBody(BaseModel):
     word: str
     arpabet: str   # e.g. "B IH0 K AH1 Z"
@@ -531,6 +536,40 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         from server import caption_service
         caption_service.invalidate_hidden()
         return {"ok": True, "deleted": res.deleted_count}
+
+    # --- Scenes: legacy (unowned) + manual assignment ----------------------
+    @router.get("/scenes")
+    async def admin_list_scenes(request: Request, unowned_only: bool = True, limit: int = 500):
+        await require_admin(request, db)
+        q = {"owner_email": None} if unowned_only else {}
+        cursor = db.scenes.find(q, {"_id": 0, "id": 1, "title": 1, "created_at": 1,
+                                    "owner_email": 1, "legacy": 1, "tokens": 1}).sort("created_at", -1)
+        out = []
+        async for s in cursor.to_list(limit) if False else cursor:
+            out.append({
+                "id": s["id"], "title": s.get("title", ""), "created_at": s.get("created_at"),
+                "owner_email": s.get("owner_email"), "legacy": bool(s.get("legacy")),
+                "word_count": sum(1 for t in s.get("tokens", []) if t.get("is_word")),
+            })
+            if len(out) >= limit:
+                break
+        return {"count": len(out), "scenes": out}
+
+    @router.post("/scenes/assign")
+    async def admin_assign_scene(body: AssignSceneBody, request: Request):
+        """Give a legacy/unowned scene to a user (admin-verified ownership)."""
+        admin_email = await require_admin(request, db)
+        email = body.email.strip().lower()
+        if not await db.users.find_one({"email": email}, {"_id": 0, "email": 1}):
+            raise HTTPException(status_code=404, detail="user_not_found")
+        res = await db.scenes.update_one(
+            {"id": body.scene_id},
+            {"$set": {"owner_email": email, "legacy": False,
+                      "assigned_by": admin_email, "assigned_at": _now_iso()}},
+        )
+        if res.matched_count == 0:
+            raise HTTPException(status_code=404, detail="scene_not_found")
+        return {"ok": True, "scene_id": body.scene_id, "owner_email": email}
 
     # --- Recording queue --------------------------------------------------
     @router.get("/recording-queue")

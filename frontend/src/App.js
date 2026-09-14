@@ -14,11 +14,7 @@ import AdminPage from "@/components/AdminPage";
 import PaymentSuccessPage from "@/components/PaymentSuccessPage";
 import PaymentCancelPage from "@/components/PaymentCancelPage";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { api } from "@/lib/api";
-import {
-  getScene,
-  fetchSoundCategories,
-} from "@/lib/api";
+import { api, listScenes, getScene, fetchSoundCategories } from "@/lib/api";
 import "@/App.css";
 
 const TABS = [
@@ -130,10 +126,18 @@ function App() {
     }
   };
 
+  // The server is the authority on which scenes belong to the signed-in
+  // user (scoped by owner_email). localStorage is only a display cache.
   const refreshScenes = useCallback(async () => {
-    const mine = readMyScenes();
-    setScenes(mine);
-    return mine;
+    try {
+      const mine = await listScenes();
+      writeMyScenes(mine);
+      setScenes(mine);
+      return mine;
+    } catch {
+      setScenes([]);
+      return [];
+    }
   }, []);
 
   useEffect(() => {
@@ -141,26 +145,30 @@ function App() {
       try {
         const cats = await fetchSoundCategories();
         setCategories(cats);
-        const mine = readMyScenes();
-        setScenes(mine);
-        if (mine.length > 0) {
-          try {
-            const full = await getScene(mine[0].id);
-            setActiveScene(full);
-          } catch {
-            const filtered = mine.slice(1);
-            writeMyScenes(filtered);
-            setScenes(filtered);
-          }
-        }
       } catch (e) {
-        // Backend unreachable on first load — the Pronounce tab still works.
         console.warn("Initial data load failed", e);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (auth.loading) return;
+    (async () => {
+      const mine = await refreshScenes();
+      if (mine.length > 0) {
+        try {
+          setActiveScene(await getScene(mine[0].id));
+        } catch (e) {
+          console.warn("Could not load first scene", e);
+        }
+      } else {
+        setActiveScene(null);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.loading, auth.me?.email]);
 
   const handleSelect = async (id) => {
     try {

@@ -348,7 +348,9 @@ async def _sync_subscription(
             cancel_at, tz=timezone.utc
         ).isoformat()
 
-    is_active = status in ("active", "trialing")
+    # past_due = Stripe is still retrying the card (dunning). Keep access
+    # until the subscription is actually deleted/unpaid/canceled.
+    is_active = status in ("active", "trialing", "past_due")
     await db.memberships.update_one(
         {"user_email": email, "offer_id": f"stripe:{lookup_key}"},
         {"$set": {

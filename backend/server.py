@@ -53,6 +53,10 @@ from auth import (
     require_access,
     require_login,
     require_subscriber,
+    optional_login,
+    is_admin_email,
+    rate_limit,
+    client_ip,
     consume_trial,
     ensure_indexes as ensure_auth_indexes,
 )
@@ -107,6 +111,8 @@ class Scene(BaseModel):
     tokens: List[WordToken]
     turns: List[Turn] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    owner_email: Optional[str] = None   # None only for legacy (pre-ownership) scenes
+    legacy: bool = False
 
 
 class SceneSummary(BaseModel):
@@ -575,7 +581,9 @@ async def sound_categories():
 
 
 @api_router.get("/pronounce", response_model=PronounceResponse)
-async def pronounce(word: str):
+async def pronounce(word: str, request: Request):
+    rate_limit(f"pron:ip:{client_ip(request)}", 60, 60)
+    caller = await optional_login(request, db)
     """Return IPA + ARPABET + sound categories for a single word or short phrase.
 
     Uses the CMU Pronouncing Dictionary first; falls back to Claude for
@@ -644,8 +652,12 @@ async def pronounce(word: str):
             word=raw, normalized=single_norm, ipa=wik_ipa,
             arpabet=[], categories=classify_ipa(wik_ipa), source="wiktionary",
         )
-    llm_map = await llm_transcribe_words([single_norm])
-    llm_ipa = llm_map.get(single_norm)
+    # Claude costs money: only for signed-in users, and metered.
+    llm_ipa = None
+    if caller:
+        rate_limit(f"pron:llm:{caller}", 30, 3600)
+        llm_map = await llm_transcribe_words([single_norm])
+        llm_ipa = llm_map.get(single_norm)
     return PronounceResponse(
         word=raw, normalized=single_norm, ipa=llm_ipa,
         arpabet=[], categories=classify_ipa(llm_ipa),
@@ -696,6 +708,8 @@ async def upload_scene(
         turns=[Turn(**t) for t in turns_public],
     )
 
+    scene.owner_email = actor.email
+    scene.legacy = False
     doc = scene.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
     doc["dialogue_only"] = True
@@ -772,9 +786,23 @@ async def _ensure_dialogue_only(doc: Dict) -> Dict:
     return doc
 
 
+async def _load_owned_scene(scene_id: str, request: Request) -> Dict:
+    """Fetch a scene the caller may access: its owner, or an admin.
+    Legacy (unowned) scenes are admin-only. 404s hide existence from others."""
+    email = await require_login(request, db)
+    doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Scene not found")
+    if doc.get("owner_email") != email and not is_admin_email(email):
+        raise HTTPException(status_code=404, detail="Scene not found")
+    return doc
+
+
 @api_router.get("/scenes", response_model=List[SceneSummary])
-async def list_scenes():
-    cursor = db.scenes.find({}, {"_id": 0, "id": 1, "title": 1, "tokens": 1, "created_at": 1})
+async def list_scenes(request: Request):
+    email = await require_login(request, db)
+    cursor = db.scenes.find({"owner_email": email},
+                            {"_id": 0, "id": 1, "title": 1, "tokens": 1, "created_at": 1})
     items = await cursor.to_list(500)
     out: List[SceneSummary] = []
     for s in items:
@@ -807,10 +835,8 @@ def _refresh_categories(doc: Dict) -> Dict:
 
 
 @api_router.get("/scenes/{scene_id}", response_model=Scene)
-async def get_scene(scene_id: str):
-    doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Scene not found")
+async def get_scene(scene_id: str, request: Request):
+    doc = await _load_owned_scene(scene_id, request)
     doc = _refresh_categories(await _ensure_dialogue_only(doc))
     if isinstance(doc.get("created_at"), str):
         doc["created_at"] = datetime.fromisoformat(doc["created_at"])
@@ -818,12 +844,10 @@ async def get_scene(scene_id: str):
 
 
 @api_router.post("/scenes/{scene_id}/reparse", response_model=Scene)
-async def reparse_scene(scene_id: str):
+async def reparse_scene(scene_id: str, request: Request):
     """Force a re-extraction of dialogue for a saved scene. Useful if the
     original extraction missed lines or grouped them oddly."""
-    doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Scene not found")
+    doc = await _load_owned_scene(scene_id, request)
     doc["dialogue_only"] = False  # Force re-run.
     doc = await _ensure_dialogue_only(doc)
     if isinstance(doc.get("created_at"), str):
@@ -832,7 +856,8 @@ async def reparse_scene(scene_id: str):
 
 
 @api_router.delete("/scenes/{scene_id}")
-async def delete_scene(scene_id: str):
+async def delete_scene(scene_id: str, request: Request):
+    await _load_owned_scene(scene_id, request)
     res = await db.scenes.delete_one({"id": scene_id})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -840,11 +865,8 @@ async def delete_scene(scene_id: str):
 
 
 @api_router.get("/scenes/{scene_id}/laundry-list")
-async def laundry_list(scene_id: str, sound: str):
-    doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Scene not found")
-    doc = _refresh_categories(doc)
+async def laundry_list(scene_id: str, sound: str, request: Request):
+    doc = _refresh_categories(await _load_owned_scene(scene_id, request))
 
     seen: set = set()
     matches: List[Dict] = []
@@ -1047,9 +1069,13 @@ async def suggest_spelling(q: str) -> Optional[str]:
 
 
 @api_router.get("/caption-search")
-async def caption_search(q: str, limit: int = 6, refresh: bool = False):
+async def caption_search(q: str, request: Request, limit: int = 6, refresh: bool = False):
     """Search curated American-speaker YouTube channels for videos where the
     given word/phrase is actually spoken in the captions."""
+    email = await require_login(request, db)
+    rate_limit(f"cap:{email}", 60, 3600)
+    if refresh:
+        rate_limit(f"cap:refresh:{email}", 10, 3600)
     q = (q or "").strip()
     if not q:
         raise HTTPException(status_code=400, detail="Missing query.")
@@ -1087,9 +1113,7 @@ async def download_my_lines(
     """
     from pydub import AudioSegment
 
-    doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Scene not found")
+    doc = await _load_owned_scene(scene_id, request)
     doc = await _ensure_dialogue_only(doc)
 
     voice_id: Optional[str] = None
@@ -1205,7 +1229,8 @@ async def list_reader_voices():
 
 @api_router.post("/scenes/{scene_id}/turns/{turn_index}/tts",
                  response_model=TurnTTSResponse)
-async def tts_turn(scene_id: str, turn_index: int, voice: Optional[str] = None):
+async def tts_turn(scene_id: str, turn_index: int, request: Request,
+                   voice: Optional[str] = None):
     """Generate (and cache) audio for one continuous speaker turn.
 
     `voice` is an optional key from READER_VOICES (e.g. "jessica" or "adam")
@@ -1213,9 +1238,7 @@ async def tts_turn(scene_id: str, turn_index: int, voice: Optional[str] = None):
     voice. Cache is keyed per (scene, turn, voice) so switching voices only
     costs a fresh synthesis for the new voice — previous voices stay warm.
     """
-    doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
-    if not doc:
-        raise HTTPException(status_code=404, detail="Scene not found")
+    doc = await _load_owned_scene(scene_id, request)
     doc = await _ensure_dialogue_only(doc)
 
     turns = doc.get("turns") or []
@@ -1274,7 +1297,11 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=[
+        o.strip().rstrip("/") for o in
+        (os.environ.get("CORS_ORIGINS") or os.environ["APP_PUBLIC_URL"]).split(",")
+        if o.strip() and o.strip() != "*"
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1285,6 +1312,13 @@ async def _startup_indexes():
     await ensure_auth_indexes(db)
     async for pref in db.pronunciation_prefs.find({}, {"_id": 0}):
         PREFERRED_ARPA[pref["word"]] = pref["arpabet"]
+    # Scene ownership: pre-existing scenes have no uploader record; mark them
+    # legacy (admin-only) without touching their content. Idempotent.
+    await db.scenes.update_many(
+        {"owner_email": {"$exists": False}},
+        {"$set": {"owner_email": None, "legacy": True}},
+    )
+    await db.scenes.create_index("owner_email")
     # Clips the coach flagged as non-General-American speakers.
     for vid, reason in [("_Sjvjvbz5X0", "CBS News — 'Gavin' speaker not GA")]:
         await db.hidden_videos.update_one(
