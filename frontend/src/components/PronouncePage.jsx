@@ -70,8 +70,11 @@ export default function PronouncePage({ onGoToScenes }) {
     <div className="flex-1 overflow-auto bg-paper" data-testid="pronounce-page">
       <div className="max-w-3xl mx-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12 lg:py-16">
         <div className="mb-8 sm:mb-10">
-          <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-rust mb-3">
-            Pronounce This · The General American Accent Pronunciation Tool Specifically Designed For Actors
+          <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-rust mb-1.5">
+            Pronounce This · Prepare for your next audition. Hear how to pronounce every word.
+          </div>
+          <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
+            The General American Accent Pronunciation Tool Specifically Designed For Actors
           </div>
           <h1 className="reveal reveal-2 font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
             Pronounce This<span className="text-rust">.</span>
@@ -200,9 +203,6 @@ export default function PronouncePage({ onGoToScenes }) {
           <h2 className="font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
             Scene Preparation<span className="text-rust">.</span>
           </h2>
-          <p className="mt-4 sm:mt-5 font-display font-semibold text-xl sm:text-2xl text-ink leading-snug max-w-2xl">
-            Prepare for your next audition. Hear how to pronounce every word.
-          </p>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Upload an audition scene as a PDF. Each word will be transcribed in
             American IPA, click any word to hear it spoken aloud, pull laundry
