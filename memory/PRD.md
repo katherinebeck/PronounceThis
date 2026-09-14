@@ -206,5 +206,8 @@
 - Admin UI `DictionaryBuilder.jsx` (+ `IpaPalette.jsx`, `DictionaryTable.jsx`): progress bar, jump-to-word, big word, editable IPA prefilled from CMU with click-to-insert palette, Record/Stop/Listen/Save & next/Skip, Space = record toggle, Enter = save, cursor remembered in localStorage; searchable table with play/delete + CSV/zip export. RecordingQueue now saves through the dictionary endpoint (so its recordings appear in the table).
 - Tested: iteration_21 (backend 18/18, frontend flows pass; mic flow not testable headlessly — user to verify trim quality). Merriam-Webster integration now unnecessary (user's own recordings).
 
+## 2026-06 — Removed "Unassigned scenes" section from Admin (user request)
+- `LegacyScenes.jsx` deleted; `/api/admin/scenes` endpoints kept. Legacy scenes remain admin-only in the data.
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.
