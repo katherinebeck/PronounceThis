@@ -70,7 +70,7 @@ export default function PronouncePage({ onGoToScenes }) {
     <div className="flex-1 overflow-auto bg-paper" data-testid="pronounce-page">
       <div className="max-w-3xl mx-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12 lg:py-16">
         <div className="mb-8 sm:mb-10">
-          <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-rust mb-1.5">
+          <div className="reveal font-mono text-sm sm:text-base uppercase tracking-[0.2em] text-rust mb-2">
             Pronounce This · Prepare for your next audition. Hear how to pronounce every word.
           </div>
           <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
