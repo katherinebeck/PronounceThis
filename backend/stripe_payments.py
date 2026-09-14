@@ -258,9 +258,9 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
 # --- Membership sync helpers ------------------------------------------------
 def _lookup_key_to_title(lookup_key: str) -> str:
     return {
-        "accent_coach_monthly": "American Accent Prep — Monthly",
-        "accent_coach_yearly": "American Accent Prep — Annual",
-    }.get(lookup_key, "American Accent Prep")
+        "accent_coach_monthly": "Pronounce This — Monthly",
+        "accent_coach_yearly": "Pronounce This — Annual",
+    }.get(lookup_key, "Pronounce This")
 
 
 async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:

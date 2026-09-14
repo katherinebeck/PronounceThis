@@ -66,7 +66,7 @@ export default function LoginModal() {
         <div className="flex items-center justify-between px-6 py-4 border-b thin-rule">
           <div>
             <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
-              Accent Prep
+              Pronounce This
             </div>
             <div className="font-display text-2xl text-ink mt-0.5">
               {status === "sent" ? "Check your email" : "Sign in"}

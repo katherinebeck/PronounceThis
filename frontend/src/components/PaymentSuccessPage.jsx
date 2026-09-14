@@ -58,7 +58,7 @@ export default function PaymentSuccessPage() {
     <div className="min-h-screen bg-paper flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-surface border thin-rule px-8 py-12 text-center">
         <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
-          Accent Prep
+          Pronounce This
         </div>
         {state === "checking" && (
           <>
@@ -112,7 +112,7 @@ export default function PaymentSuccessPage() {
               className="btn-primary mt-6 inline-flex"
               data-testid="payment-success-home"
             >
-              Back to Accent Prep
+              Back to Pronounce This
             </a>
           </>
         )}

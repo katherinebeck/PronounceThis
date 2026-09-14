@@ -262,7 +262,7 @@ function Header({ tab, onSwitchTab }) {
     >
       <div className="flex items-baseline gap-4">
         <div className="font-display text-xl sm:text-2xl text-ink leading-none">
-          American Accent Prep.
+          Pronounce This.
         </div>
       </div>
       <nav

@@ -21,7 +21,7 @@ EMERGENT_PRODUCT_ID = "accent_coach"
 TAX_CODE = "txcd_10103001"  # SaaS
 
 CATALOG = {
-    "name": "American Accent Prep — Membership",
+    "name": "Pronounce This — Membership",
     "prices": [
         {"lookup_key": "accent_coach_monthly", "amount": 900, "currency": "usd", "interval": "month"},
         {"lookup_key": "accent_coach_yearly", "amount": 9000, "currency": "usd", "interval": "year"},

@@ -72,7 +72,7 @@ mongo_client = AsyncIOMotorClient(mongo_url)
 db = mongo_client[os.environ["DB_NAME"]]
 
 # --- App --------------------------------------------------------------------
-app = FastAPI(title="American Accent Prep")
+app = FastAPI(title="Pronounce This")
 api_router = APIRouter(prefix="/api")
 
 caption_service = CaptionSearchService(db)
@@ -574,7 +574,7 @@ async def llm_transcribe_words(words: List[str]) -> Dict[str, str]:
 # --- Routes -----------------------------------------------------------------
 @api_router.get("/")
 async def root():
-    return {"message": "American Accent Prep API"}
+    return {"message": "Pronounce This API"}
 
 
 @api_router.get("/sound-categories")

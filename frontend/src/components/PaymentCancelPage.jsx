@@ -8,7 +8,7 @@ export default function PaymentCancelPage() {
     <div className="min-h-screen bg-paper flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-surface border thin-rule px-8 py-12 text-center">
         <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
-          Accent Prep
+          Pronounce This
         </div>
         <div className="inline-flex items-center justify-center w-14 h-14 border thin-rule bg-paper my-5">
           <XCircle size={22} className="text-muted2" />
@@ -24,7 +24,7 @@ export default function PaymentCancelPage() {
           in the app to try again.
         </p>
         <a href="/" className="btn-primary mt-6 inline-flex" data-testid="payment-cancel-home">
-          Back to Accent Prep
+          Back to Pronounce This
         </a>
       </div>
     </div>

@@ -49,7 +49,7 @@ TRIAL_SCENE_LIMIT = 1
 
 APP_PUBLIC_URL = (os.environ.get("APP_PUBLIC_URL") or "").rstrip("/")
 SENDER_EMAIL = os.environ["SENDER_EMAIL"]
-SENDER_NAME = os.environ.get("SENDER_NAME", "American Accent Prep")
+SENDER_NAME = os.environ.get("SENDER_NAME", "Pronounce This")
 FROM_HEADER = f"{SENDER_NAME} <{SENDER_EMAIL}>"
 
 resend.api_key = os.environ["RESEND_API_KEY"]
@@ -119,7 +119,7 @@ def _magic_link_email_html(login_url: str) -> str:
           <tr>
             <td style="padding:32px 32px 0 32px;">
               <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.28em;text-transform:uppercase;color:#8B8578;">
-                American Accent Prep · Sign in
+                Pronounce This · Sign in
               </div>
               <h1 style="margin:12px 0 20px 0;font-family:'Cormorant Garamond',Georgia,serif;font-weight:400;font-size:32px;color:#2A2620;">
                 Your sign-in link
@@ -133,7 +133,7 @@ def _magic_link_email_html(login_url: str) -> str:
             <td align="center" style="padding:8px 32px 24px 32px;">
               <a href="{login_url}"
                  style="display:inline-block;padding:14px 28px;background:#2A2620;color:#F5F1EA;text-decoration:none;font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:0.24em;text-transform:uppercase;">
-                Sign in to American Accent Prep
+                Sign in to Pronounce This
               </a>
             </td>
           </tr>
@@ -161,7 +161,7 @@ async def _send_magic_link_email(email: str, login_url: str) -> None:
     params = {
         "from": FROM_HEADER,
         "to": [email],
-        "subject": "Your American Accent Prep sign-in link",
+        "subject": "Your Pronounce This sign-in link",
         "html": _magic_link_email_html(login_url),
     }
     try:

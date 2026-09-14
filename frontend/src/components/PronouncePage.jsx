@@ -71,13 +71,13 @@ export default function PronouncePage({ onGoToScenes }) {
       <div className="max-w-3xl mx-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12 lg:py-16">
         <div className="mb-8 sm:mb-10">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-3">
-            Pronounce It · General American Accent Pronunciation Tool
+            Pronounce This · The General American Accent Pronunciation Tool Specifically Designed For Actors
           </div>
           <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98]">
-            Pronounce it.
+            Pronounce This.
           </h1>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
-            Type any word, character name or location to see it written
+            Type any word, name or location to see it written
             phonetically (IPA) and hear it spoken in an American accent.
           </p>
         </div>
@@ -201,12 +201,13 @@ export default function PronouncePage({ onGoToScenes }) {
             Scene Preparation · Full IPA Transcription
           </div>
           <h2 className="font-display text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98]">
-            Scene preparation.
+            Prepare for your next audition. Hear how to pronounce every word.
           </h2>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
-            Drop a PDF of an audition scene. Read every line in American IPA,
-            click any word to hear it, and isolate sounds into focused
-            practice lists.
+            Upload an audition scene as a PDF. Each word will be transcribed in
+            American IPA, click any word to hear it spoken aloud, pull laundry
+            lists by sound to practice tricky sounds and download an audio
+            sample of your character's dialogue for practice.
           </p>
           <button
             type="button"
