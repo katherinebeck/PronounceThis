@@ -195,5 +195,9 @@
 - Verification script: backend/tests/verify_isolation.py (21 checks, ALL PASS).
 - Scene storage: avg 20 KB / max 84 KB per scene; 100+ scenes/user is negligible (turn audio cache ~89 KB per line is the larger cost).
 
+## 2026-06 — Laundry lists: r-colored vowels are Rhotic R only
+- `phonetics.classify_word` / `classify_ipa`: a vowel or diphthong followed by ER, or by a syllable-closing R (R not followed by a vowel), is dropped from its vowel/diphthong list and counted under Rhotic R only (star, for, air, here, poor, card, fire, hour, player). Vowel + R across a syllable boundary keeps the vowel (very, sorry, Mary, hero, starry) — per coach's choice.
+- Existing scenes update automatically via `_refresh_categories` on load. Tests: `backend/tests/test_r_colored_vowels.py` (16 pass). Verified live on the "Little House" scene.
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

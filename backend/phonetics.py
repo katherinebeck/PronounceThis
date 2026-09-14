@@ -260,14 +260,31 @@ def _is_vowel(p: str) -> bool:
     return strip_stress(p) in VOWEL_ARPA
 
 
+def _r_colored(bare: List[str], i: int) -> bool:
+    """True when vowel at index i is r-colored: followed by ER, or by a
+    syllable-closing R (R not followed by a vowel). 'star', 'for', 'fire'
+    -> True; 'very', 'sorry', 'Mary' -> False."""
+    if i + 1 >= len(bare):
+        return False
+    nxt = bare[i + 1]
+    if nxt == "ER":
+        return True
+    if nxt != "R":
+        return False
+    return i + 2 >= len(bare) or bare[i + 2] not in VOWEL_ARPA
+
+
 def classify_word(phones: List[str]) -> List[str]:
     """Return the list of sound-category ids a word belongs to."""
     if not phones:
         return []
     cats: set = set()
-    for p in phones:
-        bare = strip_stress(p)
+    bare_all = [strip_stress(p) for p in phones]
+    for i, p in enumerate(phones):
+        bare = bare_all[i]
         if bare in ("R", "ER"):
+            cats.add("rhotic_r")
+        elif bare in VOWEL_ARPA and _r_colored(bare_all, i):
             cats.add("rhotic_r")
         elif bare == "AH":
             cats.add("v_schwa" if p.endswith("0") else "v_uh_stressed")
@@ -276,16 +293,55 @@ def classify_word(phones: List[str]) -> List[str]:
     return [c for c in _CATEGORY_ORDER if c in cats]
 
 
+_IPA_VOWEL_UNITS = ["eɪ", "aɪ", "oʊ", "aʊ", "ɔɪ", "i", "ɪ", "ɛ", "æ", "ə", "ʌ", "u", "ʊ", "ɔ", "ɑ", "a", "e", "o"]
+_IPA_R_VOWELS = {"ɝ", "ɚ"}
+_IPA_R_CONS = {"ɹ", "r"}
+_IPA_MARKS = "ˈˌːˑ.̩̃"
+
+
+def _ipa_units(ipa: str) -> List[str]:
+    units: List[str] = []
+    i = 0
+    while i < len(ipa):
+        if ipa[i] in _IPA_MARKS:
+            i += 1
+            continue
+        for v in _IPA_VOWEL_UNITS:
+            if ipa.startswith(v, i):
+                units.append(v)
+                i += len(v)
+                break
+        else:
+            units.append(ipa[i])
+            i += 1
+    return units
+
+
+def _is_ipa_vowel(u: str) -> bool:
+    return u in _IPA_VOWEL_UNITS or u in _IPA_R_VOWELS
+
+
 def classify_ipa(ipa: Optional[str]) -> List[str]:
     """Best-effort categories from an IPA string (LLM fallback words)."""
     if not ipa:
         return []
-    rest = ipa
+    units = _ipa_units(ipa)
     cats: set = set()
-    for sym, cat in _IPA_CATEGORY:
-        if sym in rest:
-            cats.add(cat)
-            rest = rest.replace(sym, " ")
+    lookup = dict(_IPA_CATEGORY)
+    for i, u in enumerate(units):
+        if u in _IPA_R_VOWELS or u in _IPA_R_CONS:
+            cats.add("rhotic_r")
+            continue
+        if u in _IPA_VOWEL_UNITS and i + 1 < len(units):
+            nxt = units[i + 1]
+            closes = nxt in _IPA_R_VOWELS or (
+                nxt in _IPA_R_CONS and (i + 2 >= len(units) or not _is_ipa_vowel(units[i + 2]))
+            )
+            if closes:
+                cats.add("rhotic_r")
+                continue
+        if u in lookup:
+            cats.add(lookup[u])
     return [c for c in _CATEGORY_ORDER if c in cats]
 
 
