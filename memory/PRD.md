@@ -257,5 +257,9 @@
 - Modals (Login, Paywall, Welcome, CaptionSearch): bottom-sheet on phones (items-end), solid bg-stage/90 overlay without backdrop-filter on <sm (iOS Safari fixed+blur bug), blur on sm+; max-h-[92dvh] overflow-y-auto; Escape closes Login/Paywall.
 - Upload 503 root cause (likely): Claude JSON output truncated at max_tokens=4096 on long scripts → parse fail → None → "script reader unavailable". Fix: max_tokens=16000 for dialogue extraction + _repair_truncated_json salvages complete items. Not mobile-specific; the same PDF failed regardless of device.
 
+## TO-DO (user-requested reminders)
+- **Reliability session** (after first ~20 paying members): background upload queue with progress + auto-retry; Admin "Scene uploads" health line (24h uploads / AI failures / salvage events); failure email to coach with PDF name; weekly Anthropic + ElevenLabs credit watchdog email.
+- **Phase 2 Atlas migration**: NOT started; database still on Emergent-managed Mongo. Plan in /app/memory/ATLAS_MIGRATION_PLAN.md; verification script at backend/tools/verify_migration.py. Waiting on user to create cluster + provide DB_NAME + approve cutover.
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.
