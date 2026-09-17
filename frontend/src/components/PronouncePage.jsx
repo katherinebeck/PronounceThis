@@ -74,7 +74,7 @@ export default function PronouncePage({ onGoToScenes }) {
             The General American Accent Pronunciation Tool Specifically Designed For Actors
           </div>
           <h1 className="reveal reveal-2 font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
-            Pronounce This<span className="text-rust">.</span>
+            Pronounce This Word<span className="text-rust">.</span>
           </h1>
           <p className="reveal reveal-3 mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Type any word, name or location to see it written
@@ -198,14 +198,10 @@ export default function PronouncePage({ onGoToScenes }) {
             so it reads as a second, equally-important on-ramp. */}
         <div className="mt-10 sm:mt-12 pt-8 sm:pt-10 border-t border-ink/30">
           <h2 className="font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
-            Scene Preparation<span className="text-rust">.</span>
+            Pronounce This Scene<span className="text-rust">.</span>
           </h2>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
-            Prepare for your next audition. Hear how to pronounce every word.
-            Upload an audition scene as a PDF. Each word will be transcribed in
-            American IPA, click any word to hear it spoken aloud, pull sound
-            lists to practice tricky sounds and download an audio
-            sample of your character's dialogue for practice.
+            Upload a scene. Hear the scene pronounced in the General American accent.
           </p>
           <button
             type="button"
@@ -213,7 +209,7 @@ export default function PronouncePage({ onGoToScenes }) {
             className="mt-6 sm:mt-8 btn-primary text-[11px] sm:text-[12px] px-6 py-3 sm:px-7 sm:py-3.5"
             data-testid="scenes-promo-banner"
           >
-            Audition Scene <ArrowRight size={13} />
+            Upload a scene <ArrowRight size={13} />
           </button>
         </div>
       </div>
