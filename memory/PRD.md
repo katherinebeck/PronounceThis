@@ -252,5 +252,10 @@
 - READER_VOICES: jessica (Female voice) / david (Male voice); labels are generic per user request. Old 'tim' key removed (SceneReader clears stale pref).
 - SceneReader CharacterPicker/VoicePicker: prominent elevated cards with amber labels "Choose your character" / "Choose your scene partner's voice", display-font values, appearance-none selects. Voice select defaults to first voice (Female).
 
+## 2026-09 — Mobile pass + long-script upload robustness
+- Header: brand + AccountChip on row 1; TabNav hidden on mobile, full-width segmented tab bar below header (data-testid mobile-tab-bar). No more wrapped Sign in on the left.
+- Modals (Login, Paywall, Welcome, CaptionSearch): bottom-sheet on phones (items-end), solid bg-stage/90 overlay without backdrop-filter on <sm (iOS Safari fixed+blur bug), blur on sm+; max-h-[92dvh] overflow-y-auto; Escape closes Login/Paywall.
+- Upload 503 root cause (likely): Claude JSON output truncated at max_tokens=4096 on long scripts → parse fail → None → "script reader unavailable". Fix: max_tokens=16000 for dialogue extraction + _repair_truncated_json salvages complete items. Not mobile-specific; the same PDF failed regardless of device.
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

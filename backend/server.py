@@ -310,6 +310,47 @@ def build_turns_for_scene(doc: Dict) -> List[Dict]:
             for t in turns]
 
 
+def _repair_truncated_json(text: str) -> Optional[dict]:
+    """Salvage a JSON object whose output was cut off mid-array: keep every
+    complete {...} item in "dialogue" and close the structure."""
+    start = text.find('"dialogue"')
+    if start < 0:
+        return None
+    arr = text.find("[", start)
+    if arr < 0:
+        return None
+    items, depth, item_start = [], 0, None
+    i = arr + 1
+    in_str = False
+    while i < len(text):
+        ch = text[i]
+        if in_str:
+            if ch == "\\":
+                i += 1
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch == "{":
+            if depth == 0:
+                item_start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and item_start is not None:
+                try:
+                    items.append(json.loads(text[item_start:i + 1]))
+                except Exception:
+                    pass
+                item_start = None
+        elif ch == "]" and depth == 0:
+            break
+        i += 1
+    if not items:
+        return None
+    return {"dialogue": items, "proper_nouns": []}
+
+
 async def extract_dialogue_via_llm(raw_text: str) -> Optional[Dict]:
     """Use Claude Sonnet 4.5 to pull SPOKEN dialogue AND proper nouns out of a
     script excerpt.
@@ -354,7 +395,8 @@ async def extract_dialogue_via_llm(raw_text: str) -> Optional[Dict]:
         "If no dialogue is present, return dialogue: []. If no proper nouns, "
         "return proper_nouns: []."
     )
-    raw = await llm.complete(system, raw_text)
+    # Long scripts need room: a 10-page scene is ~6-8k output tokens.
+    raw = await llm.complete(system, raw_text, max_tokens=16000)
     if raw is None:
         return None
 
@@ -363,9 +405,13 @@ async def extract_dialogue_via_llm(raw_text: str) -> Optional[Dict]:
                      flags=re.IGNORECASE)
     try:
         data = json.loads(cleaned)
-    except Exception as e:
-        logger.warning("LLM dialogue parse failed: %s :: %s", e, cleaned[:200])
-        return None
+    except Exception:
+        data = _repair_truncated_json(cleaned)
+        if data is None:
+            logger.warning("LLM dialogue parse failed :: %s", cleaned[:200])
+            return None
+        logger.warning("LLM dialogue JSON was truncated; salvaged %d lines",
+                       len(data.get("dialogue") or []))
     if not isinstance(data, dict):
         return None
 

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Mail, Loader2, Check } from "lucide-react";
 import { requestMagicLink } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -8,6 +8,13 @@ import { toast } from "sonner";
 // they click it → they're in. Zero passwords.
 export default function LoginModal() {
   const { loginOpen, closeLogin, openPaywall } = useAuth();
+
+  useEffect(() => {
+    if (!loginOpen) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") closeLogin(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [loginOpen, closeLogin]);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle"); // idle | sending | sent | error
   const [error, setError] = useState("");
@@ -55,12 +62,12 @@ export default function LoginModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-stage/75 backdrop-blur-md p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto"
       data-testid="login-modal"
       onClick={reset}
     >
       <div
-        className="relative w-full max-w-md bg-surface border thin-rule shadow-2xl"
+        className="relative w-full max-w-md bg-surface border thin-rule shadow-2xl max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b thin-rule">

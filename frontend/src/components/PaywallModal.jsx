@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { createStripeCheckout } from "@/lib/api";
@@ -8,6 +8,13 @@ import { toast } from "sonner";
 // The subscribe buttons open Stripe Checkout for the selected plan.
 export default function PaywallModal() {
   const { paywallOpen, closePaywall, paywallReason, me } = useAuth();
+
+  useEffect(() => {
+    if (!paywallOpen) return undefined;
+    const onKey = (e) => { if (e.key === "Escape") closePaywall(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [paywallOpen, closePaywall]);
   const [loading, setLoading] = useState(null); // lookup_key currently checking-out
   if (!paywallOpen) return null;
 
@@ -51,12 +58,12 @@ export default function PaywallModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-stage/75 backdrop-blur-md p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto"
       data-testid="paywall-modal"
       onClick={closePaywall}
     >
       <div
-        className="relative w-full max-w-lg bg-surface border thin-rule shadow-2xl"
+        className="relative w-full max-w-lg bg-surface border thin-rule shadow-2xl max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b thin-rule">

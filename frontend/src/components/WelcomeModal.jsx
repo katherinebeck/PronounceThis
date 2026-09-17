@@ -88,11 +88,11 @@ export default function WelcomeModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-stage/75 backdrop-blur-md p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto"
       data-testid="welcome-modal"
     >
       <div
-        className="relative w-full max-w-md bg-surface border thin-rule shadow-2xl"
+        className="relative w-full max-w-md bg-surface border thin-rule shadow-2xl max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <button

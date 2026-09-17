@@ -255,45 +255,54 @@ function App() {
   );
 }
 
+function TabNav({ tab, onSwitchTab, className = "" }) {
+  return (
+    <nav
+      className={"flex items-center gap-1 p-1 rounded-full bg-surface border thin-rule " + className}
+      data-testid="tab-nav"
+      role="tablist"
+    >
+      {TABS.map((t) => {
+        const active = tab === t.id;
+        return (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            className={
+              "flex-1 sm:flex-none font-mono text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.22em] px-3 sm:px-5 py-2 rounded-full transition-colors " +
+              (active
+                ? "bg-ink text-stage font-semibold"
+                : "bg-transparent text-muted2 hover:text-ink")
+            }
+            data-testid={`tab-${t.id}`}
+            onClick={() => onSwitchTab(t.id)}
+          >
+            {t.label}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 function Header({ tab, onSwitchTab }) {
   return (
     <header
-      className="sticky top-0 z-40 border-b thin-rule glass-bar px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-6 flex-wrap"
+      className="sticky top-0 z-40 border-b thin-rule glass-bar"
       data-testid="app-header"
     >
-      <div className="flex items-baseline gap-4">
-        <div className="font-display font-bold text-lg sm:text-xl text-ink leading-none tracking-tight uppercase">
+      <div className="px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-6">
+        <div className="font-display font-bold text-base sm:text-xl text-ink leading-none tracking-tight uppercase whitespace-nowrap">
           Pronounce This<span className="text-rust">.</span>
         </div>
+        <TabNav tab={tab} onSwitchTab={onSwitchTab} className="hidden sm:flex" />
+        <AccountChip />
       </div>
-      <nav
-        className="flex items-center gap-1 p-1 rounded-full bg-surface border thin-rule"
-        data-testid="tab-nav"
-        role="tablist"
-      >
-        {TABS.map((t) => {
-          const active = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              className={
-                "font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.18em] sm:tracking-[0.22em] px-3 sm:px-5 py-2 rounded-full transition-colors " +
-                (active
-                  ? "bg-ink text-stage font-semibold"
-                  : "bg-transparent text-muted2 hover:text-ink")
-              }
-              data-testid={`tab-${t.id}`}
-              onClick={() => onSwitchTab(t.id)}
-            >
-              {t.label}
-            </button>
-          );
-        })}
-      </nav>
-      <AccountChip />
+      <div className="sm:hidden px-4 pb-3" data-testid="mobile-tab-bar">
+        <TabNav tab={tab} onSwitchTab={onSwitchTab} className="w-full" />
+      </div>
     </header>
   );
 }
