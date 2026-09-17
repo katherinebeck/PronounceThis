@@ -75,7 +75,7 @@ export default function WelcomeModal() {
       body: (
         <>
           Upload a scene PDF. Every word gets phonetic transcription. Pull a
-          "laundry list" of sounds in your scene for targeted drills, then
+          "sound list" of sounds in your scene for targeted drills, then
           download your character's dialogue as a single MP3 you can practice
           against on repeat.
         </>

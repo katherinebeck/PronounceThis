@@ -123,3 +123,8 @@ export async function downloadMyLines(sceneId, { character, voice = null } = {})
   const filename = match?.[1] || `${character || "lines"}.mp3`;
   return { blob: response.data, filename };
 }
+
+export async function reportUnplayable(video_id, code) {
+  const { data } = await api.post("/caption-search/unplayable", { video_id, code });
+  return data;
+}

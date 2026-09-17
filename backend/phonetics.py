@@ -377,6 +377,20 @@ def cmu_word_list() -> List[str]:
     return _CMU_WORDS
 
 
+_CMU_BY_FREQ: List[str] = []
+
+
+def cmu_words_by_frequency() -> List[str]:
+    """CMU headwords, most common English words first (wordfreq Zipf),
+    ties and never-seen words alphabetical at the back."""
+    global _CMU_BY_FREQ
+    if not _CMU_BY_FREQ:
+        from wordfreq import zipf_frequency
+        words = cmu_word_list()
+        _CMU_BY_FREQ = sorted(words, key=lambda w: (-zipf_frequency(w, "en"), w))
+    return _CMU_BY_FREQ
+
+
 def cmu_ipa(word: str) -> Optional[str]:
     phones = get_arpabet(word)
     return arpabet_to_ipa(phones) if phones else None

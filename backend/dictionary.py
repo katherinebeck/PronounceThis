@@ -4,7 +4,6 @@ records each word and confirms/edits its IPA. Saved entries drive display
 from __future__ import annotations
 
 import base64
-import bisect
 import csv
 import io
 import re
@@ -18,7 +17,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 
 from auth import require_admin
-from phonetics import CUSTOM_IPA, classify_ipa, cmu_ipa, cmu_word_list
+from phonetics import CUSTOM_IPA, classify_ipa, cmu_ipa, cmu_word_list, cmu_words_by_frequency
 
 ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
                        "audio/webm", "audio/ogg", "audio/mp4", "audio/m4a"}
@@ -77,8 +76,13 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
     @router.get("/queue")
     async def queue(request: Request, start: Optional[str] = None, limit: int = 12):
         await require_admin(request, db)
-        words = cmu_word_list()
-        pos = bisect.bisect_left(words, _clean_word(start)) if start else 0
+        words = cmu_words_by_frequency()
+        pos = 0
+        if start:
+            try:
+                pos = words.index(_clean_word(start))
+            except ValueError:
+                pos = 0
         limit = max(1, min(limit, 50))
         out: list = []
         while pos < len(words) and len(out) < limit:

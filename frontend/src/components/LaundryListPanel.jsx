@@ -75,7 +75,7 @@ export default function LaundryListPanel({
           Sound Workouts
         </div>
         <div className="font-display text-3xl leading-none text-ink">
-          Laundry Lists
+          Sound Lists
         </div>
         <p className="mt-3 text-sm text-muted2 font-serif leading-relaxed">
           Pull every word from the scene that contains a target sound. Practice

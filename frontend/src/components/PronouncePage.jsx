@@ -203,8 +203,8 @@ export default function PronouncePage({ onGoToScenes }) {
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Prepare for your next audition. Hear how to pronounce every word.
             Upload an audition scene as a PDF. Each word will be transcribed in
-            American IPA, click any word to hear it spoken aloud, pull laundry
-            lists by sound to practice tricky sounds and download an audio
+            American IPA, click any word to hear it spoken aloud, pull sound
+            lists to practice tricky sounds and download an audio
             sample of your character's dialogue for practice.
           </p>
           <button

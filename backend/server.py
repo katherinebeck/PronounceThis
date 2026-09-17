@@ -1083,6 +1083,31 @@ async def suggest_spelling(q: str) -> Optional[str]:
     return fixed
 
 
+class UnplayableBody(BaseModel):
+    video_id: str
+    code: int = 0
+
+
+@api_router.post("/caption-search/unplayable")
+async def caption_unplayable(body: UnplayableBody, request: Request):
+    """Player reported a clip that will not play (deleted, private, or
+    embedding disabled). Hide it so nobody hits it again."""
+    email = await require_login(request, db)
+    rate_limit(f"cap:unplayable:{email}", 60, 3600)
+    vid = re.sub(r"[^A-Za-z0-9_-]", "", body.video_id)[:20]
+    if not vid:
+        raise HTTPException(status_code=400, detail="bad_video_id")
+    await db.hidden_videos.update_one(
+        {"video_id": vid},
+        {"$setOnInsert": {"video_id": vid, "reason": f"player_error_{body.code}", "auto": True,
+                          "reported_by": email, "channel_title": "", "title": "",
+                          "created_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    await db.caption_transcript_cache.update_many({"video_id": vid}, {"$set": {"embeddable": False}})
+    return {"ok": True}
+
+
 @api_router.get("/caption-search")
 async def caption_search(q: str, request: Request, limit: int = 6, refresh: bool = False):
     """Search curated American-speaker YouTube channels for videos where the

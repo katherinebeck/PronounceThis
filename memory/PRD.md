@@ -234,5 +234,11 @@
 - Tests: backend/tests/test_sales_flow.py (5) + testing agent iteration_23 (10/10 backend, frontend success page). Real Stripe Checkout UI completion not automated — user to run one $9 test-mode purchase.
 - Audit docs: /app/memory/SALES_READINESS_AUDIT.md. Remaining (user, Stripe Dashboard): save Customer Portal config (cancel at period end, switch monthly↔annual, card update, invoices), rename product to "Pronounce This", live prices with same lookup_keys, live webhook https://app.katherinebeck.com/api/stripe/webhook, live keys + STRIPE_MODE=live in production secrets; Kit: native Stripe→Kit integration + tags + welcome sequence.
 
+## 2026-09 — Real Speakers channels + auto-hide, frequency-ordered dictionary, "Sound lists"
+- caption_search.CURATED_HANDLES: +30 American channels (SAG-AFTRA Foundation, EW, People, E! News, Extra, MTV, Vulture, Jennifer Hudson, LIVE Kelly & Mark, Tamron Hall, Inside Edition, FOX 5 NY, Breakfast Club, Hot 97, Complex, REVOLT, Lex Fridman, Lewis Howes, The Moth, Pod Save America, Daily Stoic, MFM, Basement Yard, Casey Neistat, DeFranco, Ryan Trahan, Dude Perfect, Jubilee, Try Guys, Colin & Samir, Great Big Story). Skipped non-GA speakers (Diary of a CEO, Ali Abdaal, Peter McKinnon, Jay Shetty) and unresolvable handles (Sway, Marc Maron). 153 channels total; daily cron indexes new ones.
+- Unplayable clips: CaptionSearchModal now uses the YouTube IFrame API (ClipPlayer.jsx); onError → POST /api/caption-search/unplayable {video_id, code} → hidden_videos (auto:true, reason player_error_N) + caption_transcript_cache.embeddable=false; modal drops the clip and moves on.
+- My Dictionary queue order = wordfreq Zipf frequency desc (phonetics.cmu_words_by_frequency), rare/never-seen words alphabetical at the back; jump-to-word positions by rank. `wordfreq` added to requirements.
+- UI copy: "Laundry lists" → "Sound lists" (panel title, hero/upload paragraphs, welcome modal). API route names unchanged.
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

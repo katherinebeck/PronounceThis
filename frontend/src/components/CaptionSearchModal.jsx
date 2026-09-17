@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { X, ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink } from "lucide-react";
-import { captionSearch } from "@/lib/api";
+import { captionSearch, reportUnplayable } from "@/lib/api";
+import { ClipPlayer } from "./ClipPlayer";
 import { toast } from "sonner";
 
 function decodeEntities(s) {
@@ -108,23 +109,26 @@ export default function CaptionSearchModal({ open, query, onClose }) {
     setIndex((i) => (i - 1 + results.length) % results.length);
   };
 
-  const embedSrc = useMemo(() => {
-    if (!current) return null;
-    // Word-accurate cues need only a 1s lead-in; interpolated ones get 2s.
+  // Word-accurate cues need only a 1s lead-in; interpolated ones get 2s.
+  const startSeconds = useMemo(() => {
+    if (!current) return 0;
     const lead = current.precise ? 1 : 2;
-    const start = Math.max(0, Math.floor(current.offset_seconds || 0) - lead);
-    // Autoplay is fine here: the modal only opens on a direct user click,
-    // which satisfies the browser autoplay policy.
-    const params = new URLSearchParams({
-      start: String(start),
-      autoplay: "1",
-      rel: "0",
-      modestbranding: "1",
-    });
-    return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(
-      current.video_id
-    )}?${params.toString()}`;
+    return Math.max(0, Math.floor(current.offset_seconds || 0) - lead);
   }, [current]);
+
+  // Clip refused to play (deleted / private / embed disabled): hide it for
+  // everyone and move on without the user having to do anything.
+  const onUnplayable = (code) => {
+    if (!current) return;
+    const dead = current.video_id;
+    reportUnplayable(dead, code).catch(() => {});
+    setResults((rs) => {
+      const rest = rs.filter((r) => r.video_id !== dead);
+      setIndex((i) => (rest.length ? Math.min(i, rest.length - 1) : 0));
+      if (!rest.length) setError("Those clips are no longer available. Tap Refresh to search again.");
+      return rest;
+    });
+  };
 
   if (!open) return null;
   return (
@@ -187,15 +191,12 @@ export default function CaptionSearchModal({ open, query, onClose }) {
                 <Loader2 size={14} className="animate-spin" /> Searching real
                 speakers…
               </div>
-            ) : embedSrc ? (
-              <iframe
-                key={embedSrc}
-                title={current?.title || query}
-                className="w-full h-full"
-                src={embedSrc}
-                allow="autoplay; encrypted-media; picture-in-picture"
-                allowFullScreen
-                data-testid="caption-search-iframe"
+            ) : current ? (
+              <ClipPlayer
+                videoId={current.video_id}
+                start={startSeconds}
+                title={current.title || query}
+                onUnplayable={onUnplayable}
               />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center p-6 text-center font-serif text-sm text-muted2 italic leading-relaxed">

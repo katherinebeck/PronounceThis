@@ -31,3 +31,11 @@ def test_custom_ipa_for_non_cmu_word(monkeypatch):
 
 def test_cmu_ipa_none_for_unknown():
     assert cmu_ipa("zzzzqqq") is None
+
+
+def test_frequency_order_puts_common_words_first():
+    from phonetics import cmu_words_by_frequency
+    words = cmu_words_by_frequency()
+    assert words[0] == "the"
+    assert words.index("because") < words.index("hermione") < words.index("aaberg")
+    assert len(words) == len(cmu_word_list())
