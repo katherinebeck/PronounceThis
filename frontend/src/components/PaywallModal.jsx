@@ -42,7 +42,7 @@ export default function PaywallModal() {
 
   const subhead =
     paywallReason === "join"
-      ? "Pick a plan and pay with Stripe. A one-tap sign-in link lands in your inbox right after — no password, ever."
+      ? "Choose monthly or join annual (get 2 months free). A one-tap sign-in link lands in your inbox right after — no password, ever."
       : paywallReason === "scene"
       ? "Upload another audition scene, generate line-by-line audio, and download an actor's lines as one MP3 — all with a membership."
       : paywallReason === "word"
@@ -61,10 +61,7 @@ export default function PaywallModal() {
       >
         <div className="flex items-center justify-between px-6 py-4 border-b thin-rule">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
-              Membership
-            </div>
-            <div className="font-display text-2xl text-ink mt-0.5">
+            <div className="font-display text-2xl text-ink">
               {headline}
             </div>
           </div>
