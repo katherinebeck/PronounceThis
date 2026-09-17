@@ -222,5 +222,9 @@
 - Modals overlay bg-stage/75; CaptionSearchModal player area bg-stage, highlight mark amber. Recording indicators use .tally (crimson) + crimson Stop button.
 - Tested: iteration_22 frontend regression (all pass except CaptionSearchModal contrast — fixed).
 
+## 2026-09 — Upload error triage
+- User saw 'No spoken dialogue detected' on production. Preview upload of the same script works (Claude 200). Root cause (very likely): production still runs the OLD Anthropic key which expired 2026-09-15 → Claude returns 401 → regex fallback can't parse that PDF layout → 400. Fix = set new ANTHROPIC_API_KEY in production secrets + re-publish.
+- Hardening: build_dialogue_only_scene now returns 503 'script reader temporarily unavailable' when the LLM failed AND regex found nothing, instead of blaming the PDF.
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

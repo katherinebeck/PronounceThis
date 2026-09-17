@@ -524,6 +524,14 @@ async def build_dialogue_only_scene(raw_text: str) -> tuple:
             d["index"] = i
 
     if not dialogue:
+        if llm_out is None:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Our script reader is temporarily unavailable, so this PDF "
+                    "couldn't be parsed. Please try again in a few minutes."
+                ),
+            )
         raise HTTPException(
             status_code=400,
             detail=(
