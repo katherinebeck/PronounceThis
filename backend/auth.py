@@ -49,7 +49,7 @@ TRIAL_SCENE_LIMIT = 1
 
 APP_PUBLIC_URL = (os.environ.get("APP_PUBLIC_URL") or "").rstrip("/")
 SENDER_EMAIL = os.environ["SENDER_EMAIL"]
-SENDER_NAME = os.environ.get("SENDER_NAME", "Pronounce This")
+SENDER_NAME = "Pronounce This"
 FROM_HEADER = f"{SENDER_NAME} <{SENDER_EMAIL}>"
 
 resend.api_key = os.environ["RESEND_API_KEY"]
