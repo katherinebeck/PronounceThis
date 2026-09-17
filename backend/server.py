@@ -915,6 +915,8 @@ def _eleven_client():
 
 
 TTS_VERSION = 2  # bump when synthesis settings change so cached audio regenerates
+# Default ElevenLabs voice for single words + untargeted lines (Jessica Anne Bogart).
+DEFAULT_VOICE_ID = "lxYfHSkYm1EzQzGhdbfc"
 
 
 def _phoneme_markup(text: str) -> str:
@@ -949,9 +951,10 @@ async def tts(req: TTSRequest, request: Request):
     # Plain entries: accept legacy (no version) or current; reject the
     # short-lived v2 turbo renders that sounded off on common words.
     ok_version = (cached or {}).get("tts_version") != 2
+    same_voice = (cached or {}).get("voice_id") == DEFAULT_VOICE_ID
     if cached and cached.get("audio_b64") and (
-        cached.get("manual_override") or (ok_version if not req.phonetic
-                                          else cached.get("tts_version") == TTS_VERSION)
+        cached.get("manual_override") or (same_voice and (
+            ok_version if not req.phonetic else cached.get("tts_version") == TTS_VERSION))
     ):
         await consume_trial(db, actor)
         if not cached.get("manual_override"):
@@ -964,7 +967,7 @@ async def tts(req: TTSRequest, request: Request):
             manual_override=bool(cached.get("manual_override")),
         )
 
-    voice_id = os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+    voice_id = DEFAULT_VOICE_ID
 
     def _generate() -> bytes:
         client = _eleven_client()
@@ -1002,6 +1005,7 @@ async def tts(req: TTSRequest, request: Request):
             {"word": cache_key},
             {"$set": {"word": cache_key, "audio_b64": audio_b64,
                       "tts_version": TTS_VERSION if req.phonetic else 3,
+                      "voice_id": DEFAULT_VOICE_ID,
                       "created_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,
         )
@@ -1047,7 +1051,7 @@ def _synthesize(text: str, voice_id: Optional[str] = None) -> bytes:
     with phoneme tags so the line follows the chosen pronunciation; all
     other lines keep the original multilingual voice."""
     client = _eleven_client()
-    vid = voice_id or os.environ.get("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")
+    vid = voice_id or DEFAULT_VOICE_ID
     spoken, tagged = _preferred_markup(text)
     stream = client.text_to_speech.convert(
         text=spoken,
@@ -1187,7 +1191,7 @@ async def download_my_lines(
         cached = await db.turn_audio_cache.find_one(
             {"key": cache_key}, {"_id": 0},
         )
-        if cached and cached.get("audio_b64"):
+        if cached and cached.get("audio_b64") and cached.get("voice_id") == (voice_id or DEFAULT_VOICE_ID):
             audio_bytes = base64.b64decode(cached["audio_b64"])
         else:
             try:
@@ -1208,6 +1212,7 @@ async def download_my_lines(
                             "key": cache_key,
                             "text": turn["text"],
                             "audio_b64": audio_b64,
+                            "voice_id": voice_id or DEFAULT_VOICE_ID,
                             "created_at": datetime.now(timezone.utc).isoformat(),
                         }},
                         upsert=True,
@@ -1249,15 +1254,15 @@ async def download_my_lines(
 # server in charge of which voices are permissible (never trust an arbitrary
 # id from the client) and gives us stable IDs the frontend can display.
 READER_VOICES = {
-    "jessica": "r1KmysJdVYZjJCm4mL3b",  # female US
-    "adam":    "pNInz6obpgDQGcFmaJgB",  # male US
+    "jessica": DEFAULT_VOICE_ID,          # Jessica Anne Bogart — female US
+    "tim":     "apOzcbHULxCnvWfHPd41",    # Tim Hook — male US
 }
 
 READER_VOICE_META = [
     {"key": "jessica", "label": "Jessica", "gender": "female",
-     "description": "American English, warm, natural"},
-    {"key": "adam",    "label": "Adam",    "gender": "male",
-     "description": "American English, deep, natural"},
+     "description": "American English, confident, conversational"},
+    {"key": "tim",     "label": "Tim",     "gender": "male",
+     "description": "American English, bright, natural"},
 ]
 
 
@@ -1296,7 +1301,7 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
 
     cache_key = f"{scene_id}:{turn_index}" + (f":{voice_key}" if voice_key else "")
     cached = await db.turn_audio_cache.find_one({"key": cache_key}, {"_id": 0})
-    if cached and cached.get("audio_b64"):
+    if cached and cached.get("audio_b64") and cached.get("voice_id") == (voice_id or DEFAULT_VOICE_ID):
         return TurnTTSResponse(
             scene_id=scene_id, turn_index=turn_index,
             speaker=turn.get("speaker"), audio_b64=cached["audio_b64"],
@@ -1318,6 +1323,7 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
             {"key": cache_key},
             {"$set": {"key": cache_key, "scene_id": scene_id, "text": turn["text"],
                       "turn_index": turn_index, "audio_b64": audio_b64,
+                      "voice_id": voice_id or DEFAULT_VOICE_ID,
                       "created_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,
         )

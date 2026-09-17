@@ -240,5 +240,10 @@
 - My Dictionary queue order = wordfreq Zipf frequency desc (phonetics.cmu_words_by_frequency), rare/never-seen words alphabetical at the back; jump-to-word positions by rank. `wordfreq` added to requirements.
 - UI copy: "Laundry lists" → "Sound lists" (panel title, hero/upload paragraphs, welcome modal). API route names unchanged.
 
+## 2026-09 — ElevenLabs voices → Jessica Anne Bogart (lxYfHSkYm1EzQzGhdbfc) + Tim Hook (apOzcbHULxCnvWfHPd41)
+- server.DEFAULT_VOICE_ID = Jessica for single words / untargeted lines (ELEVENLABS_VOICE_ID env no longer read; .env value updated for tidiness). READER_VOICES = jessica/tim (old adam key removed; SceneReader clears stale saved pref).
+- audio_cache + turn_audio_cache entries now carry voice_id; entries from another voice are treated as misses and regenerate on first play (agreed cost). Manual recordings (manual_override) unaffected and always win.
+- Verified: reader-voices lists Jessica/Tim; word 'beautiful' regenerated with Jessica then cached; turn TTS voice=tim OK, voice=adam → 400.
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

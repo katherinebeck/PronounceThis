@@ -89,6 +89,13 @@ export default function SceneReader({ scene, highlightSet }) {
       .catch(() => setVoices([]));
   }, []);
 
+  // A saved voice that no longer exists (e.g. after a voice swap) falls back to default.
+  useEffect(() => {
+    if (voices.length && prefs.voice && !voices.some((v) => v.key === prefs.voice)) {
+      setPrefs({ voice: null });
+    }
+  }, [voices, prefs.voice, setPrefs]);
+
   const stats = useMemo(() => {
     const words = (scene?.tokens || []).filter((t) => t.is_word);
     const transcribed = words.filter((w) => w.ipa).length;
