@@ -1255,14 +1255,14 @@ async def download_my_lines(
 # id from the client) and gives us stable IDs the frontend can display.
 READER_VOICES = {
     "jessica": DEFAULT_VOICE_ID,          # Jessica Anne Bogart — female US
-    "tim":     "apOzcbHULxCnvWfHPd41",    # Tim Hook — male US
+    "david":   "Zv7P8CISODgj9wDHyyI9",    # David — male US
 }
 
 READER_VOICE_META = [
-    {"key": "jessica", "label": "Jessica", "gender": "female",
+    {"key": "jessica", "label": "Female voice", "gender": "female",
      "description": "American English, confident, conversational"},
-    {"key": "tim",     "label": "Tim",     "gender": "male",
-     "description": "American English, bright, natural"},
+    {"key": "david",   "label": "Male voice",   "gender": "male",
+     "description": "American English, warm, natural"},
 ]
 
 

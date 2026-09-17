@@ -248,5 +248,9 @@
 ## 2026-09 — Header: Sign in + Get started
 - Logged-out header shows outline "Sign in" (magic-link modal) + amber "Get started" pill → PaywallModal reason "join" ("Join Pronounce This" + Monthly/Annual cards → guest checkout). LoginModal has "Ready to join? See plans →". data-testids: header-signin, header-get-started, login-see-plans.
 
+## 2026-09 — Male voice → David (Zv7P8CISODgj9wDHyyI9); pickers redesigned
+- READER_VOICES: jessica (Female voice) / david (Male voice); labels are generic per user request. Old 'tim' key removed (SceneReader clears stale pref).
+- SceneReader CharacterPicker/VoicePicker: prominent elevated cards with amber labels "Choose your character" / "Choose your scene partner's voice", display-font values, appearance-none selects. Voice select defaults to first voice (Female).
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

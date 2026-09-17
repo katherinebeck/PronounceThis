@@ -387,46 +387,57 @@ export default function SceneReader({ scene, highlightSet }) {
   );
 }
 
+const pickerCls =
+  "flex items-center gap-3 border border-ink/40 bg-elevated px-4 py-3 hover:border-rust focus-within:border-rust transition-colors";
+const pickerLabel = "font-mono text-[10px] uppercase tracking-[0.24em] text-rust";
+const pickerSelect =
+  "appearance-none bg-transparent outline-none font-display font-semibold text-base text-ink pr-1 cursor-pointer";
+
 function CharacterPicker({ speakers, value, onChange }) {
   return (
-    <label className="inline-flex items-center gap-2 border thin-rule bg-surface px-3 py-2 font-mono text-[11px] uppercase tracking-[0.22em]">
-      <User size={12} className="text-muted2" />
-      <span className="text-muted2">You are</span>
-      <select
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        className="bg-transparent outline-none text-ink pr-1"
-        data-testid="character-picker"
-      >
-        <option value="">— pick —</option>
-        {speakers.map((s) => (
-          <option key={s} value={s}>{s}</option>
-        ))}
-      </select>
-      <ChevronDown size={11} className="text-muted2 -ml-1" />
+    <label className={pickerCls} data-testid="character-picker-wrap">
+      <User size={16} className="text-rust shrink-0" />
+      <div className="flex flex-col leading-tight">
+        <span className={pickerLabel}>Choose your character</span>
+        <span className="inline-flex items-center gap-1">
+          <select
+            value={value || ""}
+            onChange={(e) => onChange(e.target.value || null)}
+            className={pickerSelect}
+            data-testid="character-picker"
+          >
+            <option value="">Pick who you're playing…</option>
+            {speakers.map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="text-muted2" />
+        </span>
+      </div>
     </label>
   );
 }
 
 function VoicePicker({ voices, value, onChange }) {
   return (
-    <label className="inline-flex items-center gap-2 border thin-rule bg-surface px-3 py-2 font-mono text-[11px] uppercase tracking-[0.22em]">
-      <Volume2 size={12} className="text-muted2" />
-      <span className="text-muted2">Voice</span>
-      <select
-        value={value || ""}
-        onChange={(e) => onChange(e.target.value || null)}
-        className="bg-transparent outline-none text-ink pr-1"
-        data-testid="voice-picker"
-      >
-        <option value="">Default</option>
-        {voices.map((v) => (
-          <option key={v.key} value={v.key}>
-            {v.label} ({v.gender})
-          </option>
-        ))}
-      </select>
-      <ChevronDown size={11} className="text-muted2 -ml-1" />
+    <label className={pickerCls} data-testid="voice-picker-wrap">
+      <Volume2 size={16} className="text-rust shrink-0" />
+      <div className="flex flex-col leading-tight">
+        <span className={pickerLabel}>Choose your scene partner's voice</span>
+        <span className="inline-flex items-center gap-1">
+          <select
+            value={value || voices[0]?.key || ""}
+            onChange={(e) => onChange(e.target.value || null)}
+            className={pickerSelect}
+            data-testid="voice-picker"
+          >
+            {voices.map((v) => (
+              <option key={v.key} value={v.key}>{v.label}</option>
+            ))}
+          </select>
+          <ChevronDown size={14} className="text-muted2" />
+        </span>
+      </div>
     </label>
   );
 }
