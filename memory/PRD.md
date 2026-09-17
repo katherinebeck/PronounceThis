@@ -226,5 +226,13 @@
 - User saw 'No spoken dialogue detected' on production. Preview upload of the same script works (Claude 200). Root cause (very likely): production still runs the OLD Anthropic key which expired 2026-09-15 → Claude returns 401 → regex fallback can't parse that PDF layout → 400. Fix = set new ANTHROPIC_API_KEY in production secrets + re-publish.
 - Hardening: build_dialogue_only_scene now returns 503 'script reader temporarily unavailable' when the LLM failed AND regex found nothing, instead of blaming the PDF.
 
+## 2026-09 — Sales readiness (code side) — approved by user
+- Sales page lives in Kajabi: https://www.katherinebeck.com/pronounce-this (user builds). Checkout links for its buttons: GET /api/payments/checkout?plan=monthly and ?plan=annual (303 → Stripe Checkout, no login; rate-limited 20/h/IP; origin from APP_PUBLIC_URL).
+- POST /api/payments/checkout no longer requires login (optional_login reuses Stripe customer when signed in). `_session_email` reads customer_details.email for guests; `_grant_from_session` creates the user + membership. `/payments/status` returns `email`.
+- PaymentSuccessPage: if not logged in after payment → auto-requests a magic link to the checkout email, shows "Payment received. Check your inbox." + Resend (enabled after 60 s to respect the 1/min limiter).
+- Plan-change fix: `_sub_lookup_key` uses subscription.items[0].price.lookup_key (metadata fallback); `_supersede_stripe_rows` keeps one active stripe:* membership per user (old row → cancelled/superseded). `sync_from_stripe_customer` counts past_due as active.
+- Tests: backend/tests/test_sales_flow.py (5) + testing agent iteration_23 (10/10 backend, frontend success page). Real Stripe Checkout UI completion not automated — user to run one $9 test-mode purchase.
+- Audit docs: /app/memory/SALES_READINESS_AUDIT.md. Remaining (user, Stripe Dashboard): save Customer Portal config (cancel at period end, switch monthly↔annual, card update, invoices), rename product to "Pronounce This", live prices with same lookup_keys, live webhook https://app.katherinebeck.com/api/stripe/webhook, live keys + STRIPE_MODE=live in production secrets; Kit: native Stripe→Kit integration + tags + welcome sequence.
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.

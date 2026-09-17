@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="10" time="4.637" timestamp="2026-09-17T07:58:21.037210+00:00" hostname="agent-env-1974ef4e-0ea6-47fc-8722-7c39a621e136"><testcase classname="tests.test_sales_e2e.TestGuestCheckoutGet" name="test_annual_303" time="0.935" /><testcase classname="tests.test_sales_e2e.TestGuestCheckoutGet" name="test_monthly_303" time="0.701" /><testcase classname="tests.test_sales_e2e.TestGuestCheckoutGet" name="test_weekly_400_unknown_plan" time="0.117" /><testcase classname="tests.test_sales_e2e.TestPostCheckout" name="test_guest_post_returns_url" time="0.684" /><testcase classname="tests.test_sales_e2e.TestPostCheckout" name="test_admin_post_binds_customer" time="1.343"><failure message="AttributeError: get">/root/.venv/lib/python3.11/site-packages/stripe/_stripe_object.py:171: in __getattr__
+    return self[k]
+           ^^^^^^^
+/root/.venv/lib/python3.11/site-packages/stripe/_stripe_object.py:224: in __getitem__
+    raise err
+/root/.venv/lib/python3.11/site-packages/stripe/_stripe_object.py:203: in __getitem__
+    return self._data[k]
+           ^^^^^^^^^^^^^
+E   KeyError: 'get'
+
+The above exception was the direct cause of the following exception:
+tests/test_sales_e2e.py:119: in test_admin_post_binds_customer
+    assert (s.metadata or {}).get("app_user_email") == ADMIN_EMAIL
+           ^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/stripe/_stripe_object.py:173: in __getattr__
+    raise AttributeError(*err.args) from err
+E   AttributeError: get</failure></testcase><testcase classname="tests.test_sales_e2e.TestGuestGrant" name="test_simulated_completion_creates_user_and_active_membership" time="0.010" /><testcase classname="tests.test_sales_e2e.TestPlanChange" name="test_monthly_to_annual_to_pastdue_to_cancelled" time="0.007" /><testcase classname="tests.test_sales_e2e.TestRegressions" name="test_me_unauth_returns_stripe_prices" time="0.134" /><testcase classname="tests.test_sales_e2e.TestRegressions" name="test_portal_requires_login" time="0.126" /><testcase classname="tests.test_sales_e2e.TestRegressions" name="test_webhook_bad_signature_400" time="0.126" /></testsuite></testsuites>
