@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { X, ArrowRight, Loader2, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { createStripeCheckout } from "@/lib/api";
+import TrialSignupForm from "./TrialSignupForm";
 import { toast } from "sonner";
 
 // Shown when a trial-gated (or subscriber-only) request comes back 402.
@@ -84,6 +85,11 @@ export default function PaywallModal() {
         </div>
 
         <div className="px-6 py-6">
+          {paywallReason === "join" && !me?.email ? (
+            <div className="mb-6 pb-6 border-b thin-rule">
+              <TrialSignupForm />
+            </div>
+          ) : null}
           <p className="font-serif text-base text-ink leading-relaxed mb-6">
             {subhead}
           </p>

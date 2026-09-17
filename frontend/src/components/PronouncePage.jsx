@@ -201,7 +201,7 @@ export default function PronouncePage({ onGoToScenes }) {
             Pronounce This Scene<span className="text-rust">.</span>
           </h2>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
-            Upload a scene. Hear the scene pronounced in the General American accent.
+            Upload a scene. Hear the scene pronounced in an American accent.
           </p>
           <button
             type="button"

@@ -7,7 +7,7 @@ import { toast } from "sonner";
 // Passwordless email login. User types email → we email a one-tap link →
 // they click it → they're in. Zero passwords.
 export default function LoginModal() {
-  const { loginOpen, closeLogin, openPaywall } = useAuth();
+  const { loginOpen, closeLogin } = useAuth();
 
   useEffect(() => {
     if (!loginOpen) return undefined;
@@ -164,33 +164,6 @@ export default function LoginModal() {
                 <>Send me a sign-in link</>
               )}
             </button>
-
-            <div className="mt-6 pt-5 border-t thin-rule" data-testid="login-new-here">
-              <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted2 mb-3">
-                New here?
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div className="border thin-rule bg-paper px-4 py-3">
-                  <div className="font-display font-semibold text-base text-ink leading-tight">Try it free</div>
-                  <p className="font-serif text-xs text-muted2 mt-1 leading-snug">
-                    5 free words + 1 free scene. Just enter your email above.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => { closeLogin(); openPaywall("join"); }}
-                  className="text-left border border-rust/60 bg-rust/10 hover:bg-rust hover:text-stage px-4 py-3 transition-colors group"
-                  data-testid="login-see-plans"
-                >
-                  <div className="font-display font-semibold text-base text-ink group-hover:text-stage leading-tight">
-                    Join from $9/mo →
-                  </div>
-                  <p className="font-serif text-xs text-muted2 group-hover:text-stage/80 mt-1 leading-snug">
-                    Unlimited words, scenes and Real Speakers. Cancel anytime.
-                  </p>
-                </button>
-              </div>
-            </div>
           </form>
         )}
       </div>
