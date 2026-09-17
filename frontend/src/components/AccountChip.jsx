@@ -7,7 +7,7 @@ import { toast } from "sonner";
 // Header account chip: shows "Sign in" for anonymous users, or a small
 // menu with email + status + logout for logged-in users.
 export default function AccountChip() {
-  const { me, isAuthenticated, isSubscriber, openLogin, logout,
+  const { me, isAuthenticated, isSubscriber, openLogin, openPaywall, logout,
           trialWordRemaining, trialSceneRemaining } = useAuth();
   const [open, setOpen] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -23,14 +23,24 @@ export default function AccountChip() {
 
   if (!isAuthenticated) {
     return (
-      <button
-        type="button"
-        onClick={openLogin}
-        className="font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.22em] px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-ink text-stage font-semibold hover:bg-rust transition-colors"
-        data-testid="header-signin"
-      >
-        Sign in
-      </button>
+      <div className="flex items-center gap-2" data-testid="header-auth-actions">
+        <button
+          type="button"
+          onClick={openLogin}
+          className="font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.22em] px-3 sm:px-4 py-2 sm:py-2.5 rounded-full border thin-rule text-ink hover:border-ink transition-colors"
+          data-testid="header-signin"
+        >
+          Sign in
+        </button>
+        <button
+          type="button"
+          onClick={() => openPaywall("join")}
+          className="font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.22em] px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-rust text-stage font-semibold hover:bg-rustDeep transition-colors"
+          data-testid="header-get-started"
+        >
+          Get started
+        </button>
+      </div>
     );
   }
 

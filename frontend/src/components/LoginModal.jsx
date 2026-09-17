@@ -7,7 +7,7 @@ import { toast } from "sonner";
 // Passwordless email login. User types email → we email a one-tap link →
 // they click it → they're in. Zero passwords.
 export default function LoginModal() {
-  const { loginOpen, closeLogin } = useAuth();
+  const { loginOpen, closeLogin, openPaywall } = useAuth();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("idle"); // idle | sending | sent | error
   const [error, setError] = useState("");
@@ -161,6 +161,14 @@ export default function LoginModal() {
             <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-5 text-center">
               New here? Get 5 free words + 1 free scene on us.
             </p>
+            <button
+              type="button"
+              onClick={() => { closeLogin(); openPaywall("join"); }}
+              className="block mx-auto mt-3 font-mono text-[10px] uppercase tracking-[0.22em] text-rust hover:text-rustDeep"
+              data-testid="login-see-plans"
+            >
+              Ready to join? See plans →
+            </button>
           </form>
         )}
       </div>

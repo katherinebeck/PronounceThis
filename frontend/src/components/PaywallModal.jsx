@@ -32,14 +32,18 @@ export default function PaywallModal() {
   };
 
   const headline =
-    paywallReason === "scene"
+    paywallReason === "join"
+      ? "Join Pronounce This"
+      : paywallReason === "scene"
       ? "You've used your free scene"
       : paywallReason === "word"
       ? "You've used your 5 free words"
       : "Members only";
 
   const subhead =
-    paywallReason === "scene"
+    paywallReason === "join"
+      ? "Pick a plan and pay with Stripe. A one-tap sign-in link lands in your inbox right after — no password, ever."
+      : paywallReason === "scene"
       ? "Upload another audition scene, generate line-by-line audio, and download an actor's lines as one MP3 — all with a membership."
       : paywallReason === "word"
       ? "Hear as many words as you like, drill sound categories, and unlock Real-Speaker video clips with a membership."

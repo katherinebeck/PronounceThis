@@ -245,5 +245,8 @@
 - audio_cache + turn_audio_cache entries now carry voice_id; entries from another voice are treated as misses and regenerate on first play (agreed cost). Manual recordings (manual_override) unaffected and always win.
 - Verified: reader-voices lists Jessica/Tim; word 'beautiful' regenerated with Jessica then cached; turn TTS voice=tim OK, voice=adam → 400.
 
+## 2026-09 — Header: Sign in + Get started
+- Logged-out header shows outline "Sign in" (magic-link modal) + amber "Get started" pill → PaywallModal reason "join" ("Join Pronounce This" + Monthly/Annual cards → guest checkout). LoginModal has "Ready to join? See plans →". data-testids: header-signin, header-get-started, login-see-plans.
+
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.
