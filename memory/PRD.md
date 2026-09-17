@@ -263,3 +263,12 @@
 
 ## 2026-06 — Anthropic key rotation
 - ANTHROPIC_API_KEY replaced in backend/.env (old key expires 2026-09-15). Only that line changed. Verified by testing agent (iteration_20: 6/6 pass) — api.anthropic.com 200, no Emergent fallback. User must re-publish for production.
+
+
+## 2026-06 (June) — Onboarding & copy updates
+- Get Started modal: header "Try it free" → email capture (magic link) → "Join Pronounce This" + monthly/annual plans (unchanged).
+- Sign in modal: removed "New here?" cards (Try it free / Join $9).
+- Anonymous visitors no longer get an auto-opened sign-in popup on load (App.js skips listScenes when unauthenticated).
+- Scenes tab: "Pronounce This Scene" upload panel now always pinned at the top of the page, above the library + reader.
+- Copy: "Upload a scene. Hear it pronounced in an American accent." (Word page).
+- Production: user confirmed new ANTHROPIC_API_KEY works after redeploy. Design changes need a fresh Publish to go live.

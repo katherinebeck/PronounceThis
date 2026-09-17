@@ -39,8 +39,11 @@ export default function PaywallModal() {
     }
   };
 
+  const showTrial = paywallReason === "join" && !me?.email;
   const headline =
-    paywallReason === "join"
+    showTrial
+      ? "Try it free"
+      : paywallReason === "join"
       ? "Join Pronounce This"
       : paywallReason === "scene"
       ? "You've used your free scene"
@@ -85,9 +88,14 @@ export default function PaywallModal() {
         </div>
 
         <div className="px-6 py-6">
-          {paywallReason === "join" && !me?.email ? (
+          {showTrial ? (
             <div className="mb-6 pb-6 border-b thin-rule">
               <TrialSignupForm />
+            </div>
+          ) : null}
+          {showTrial ? (
+            <div className="font-display text-2xl text-ink mb-3" data-testid="paywall-join-heading">
+              Join Pronounce This
             </div>
           ) : null}
           <p className="font-serif text-base text-ink leading-relaxed mb-6">

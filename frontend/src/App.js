@@ -156,6 +156,11 @@ function App() {
 
   useEffect(() => {
     if (auth.loading) return;
+    if (!auth.isAuthenticated) {
+      setScenes([]);
+      setActiveScene(null);
+      return;
+    }
     (async () => {
       const mine = await refreshScenes();
       if (mine.length > 0) {
@@ -169,7 +174,7 @@ function App() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.loading, auth.me?.email]);
+  }, [auth.loading, auth.isAuthenticated, auth.me?.email]);
 
   const handleSelect = async (id) => {
     try {
@@ -219,7 +224,13 @@ function App() {
       {tab === "pronounce" ? (
         <PronouncePage onGoToScenes={() => switchTab("scenes")} />
       ) : (
-        <div className="flex flex-col md:flex-row flex-1 min-h-0">
+        <div className="flex flex-col flex-1 min-h-0" data-testid="scenes-page">
+          <div className="bg-paper border-b thin-rule">
+            <div className="max-w-6xl mx-auto px-5 sm:px-8 py-6 sm:py-8">
+              <UploadDropzone onUploaded={handleNewScene} />
+            </div>
+          </div>
+          <div className="flex flex-col md:flex-row flex-1 min-h-0">
           <ScenesSidebar
             scenes={scenes}
             activeId={activeScene?.id}
@@ -246,9 +257,10 @@ function App() {
                 />
               </>
             ) : (
-              <ScenesEmptyState onUploaded={handleNewScene} />
+              <ScenesEmptyState />
             )}
           </main>
+          </div>
         </div>
       )}
     </div>
@@ -307,12 +319,12 @@ function Header({ tab, onSwitchTab }) {
   );
 }
 
-function ScenesEmptyState({ onUploaded }) {
+function ScenesEmptyState() {
   return (
-    <div className="flex-1 overflow-auto bg-paper">
-      <div className="max-w-4xl mx-auto px-5 sm:px-8 py-8 sm:py-16 lg:py-24">
-        <UploadDropzone onUploaded={onUploaded} />
-      </div>
+    <div className="flex-1 flex items-center justify-center bg-paper px-6 py-16" data-testid="scenes-empty-state">
+      <p className="font-serif text-base text-muted2 italic text-center max-w-md">
+        Your transcribed scenes will appear here. Upload a PDF above to get started.
+      </p>
     </div>
   );
 }

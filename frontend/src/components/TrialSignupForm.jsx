@@ -40,10 +40,9 @@ export default function TrialSignupForm() {
 
   return (
     <div data-testid="trial-signup">
-      <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted2 mb-2">
+      <div className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted2 mb-3">
         New here? Try Pronounce This for free
       </div>
-      <div className="font-display font-semibold text-xl text-ink leading-tight mb-3">Try it free</div>
       <form onSubmit={onSubmit} className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2 pointer-events-none" />
