@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Loader2, Check, XCircle } from "lucide-react";
-import { getPaymentStatus } from "@/lib/api";
+import { Loader2, Check, XCircle, Mail } from "lucide-react";
+import { getPaymentStatus, requestMagicLink } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 
 // Landing spot after a Stripe Checkout completes. Polls until we see
@@ -8,8 +8,21 @@ import { useAuth } from "@/lib/auth";
 // auth state so their account chip flips to "Member".
 export default function PaymentSuccessPage() {
   const { refresh } = useAuth();
-  const [state, setState] = useState("checking"); // checking | ok | failed | timeout
+  const [state, setState] = useState("checking"); // checking | ok | link | failed | timeout
   const [tries, setTries] = useState(0);
+  const [email, setEmail] = useState("");
+  const [resent, setResent] = useState(false);
+  const [canResend, setCanResend] = useState(false);
+
+  useEffect(() => {
+    if (state !== "link") return undefined;
+    const t = setTimeout(() => setCanResend(true), 60000);
+    return () => clearTimeout(t);
+  }, [state]);
+
+  const sendLink = async (to) => {
+    try { await requestMagicLink(to); } catch { /* silent: rate-limited or transient */ }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -28,9 +41,15 @@ export default function PaymentSuccessPage() {
         const s = await getPaymentStatus(sid);
         if (cancelled) return;
         if (s.payment_status === "paid") {
-          await refresh();
-          setState("ok");
-          setTimeout(() => window.location.assign("/"), 1500);
+          const me = await refresh();
+          if (me?.authenticated) {
+            setState("ok");
+            setTimeout(() => window.location.assign("/"), 1500);
+          } else {
+            setEmail(s.email || "");
+            if (s.email) await sendLink(s.email);
+            setState("link");
+          }
           return;
         }
         if (attempt >= 15) {
@@ -90,6 +109,30 @@ export default function PaymentSuccessPage() {
             <p className="font-serif text-sm text-muted2 italic mt-2">
               Redirecting…
             </p>
+          </>
+        )}
+        {state === "link" && (
+          <>
+            <div className="inline-flex items-center justify-center w-14 h-14 border thin-rule bg-paper my-5">
+              <Mail size={22} className="text-rust" />
+            </div>
+            <p className="font-display text-xl text-ink" data-testid="payment-success-status">
+              Payment received. Check your inbox.
+            </p>
+            <p className="font-serif text-sm text-muted2 italic mt-3 leading-relaxed">
+              We've emailed a one-tap sign-in link to{" "}
+              <span className="not-italic text-ink" data-testid="payment-success-email">{email || "your email"}</span>.
+              Open it on any device to start using Pronounce This — no password needed.
+            </p>
+            <button
+              type="button"
+              disabled={resent || !email || !canResend}
+              onClick={async () => { await sendLink(email); setResent(true); }}
+              className="btn-secondary mt-6 disabled:opacity-50"
+              data-testid="payment-success-resend"
+            >
+              {resent ? "Link sent again" : canResend ? "Resend the link" : "Not there yet? Resend available in a minute"}
+            </button>
           </>
         )}
         {(state === "failed" || state === "timeout") && (

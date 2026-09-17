@@ -28,11 +28,12 @@ from typing import Optional
 
 import stripe
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
-from auth import require_login
+from auth import client_ip, optional_login, rate_limit, require_login
 
 logger = logging.getLogger(__name__)
 
@@ -88,39 +89,35 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
         )
         return cust.id
 
-    @router.post("/payments/checkout")
-    async def create_checkout(body: CheckoutRequest, request: Request):
-        email = await require_login(request, db)
-        prices = stripe.Price.list(
-            lookup_keys=[body.lookup_key], active=True, limit=1
-        ).data
+    async def _start_checkout(lookup_key: str, origin_url: str, email: Optional[str]) -> str:
+        prices = stripe.Price.list(lookup_keys=[lookup_key], active=True, limit=1).data
         if not prices:
-            raise HTTPException(400, f"unknown_price:{body.lookup_key}")
+            raise HTTPException(400, f"unknown_price:{lookup_key}")
         price = prices[0]
         if not price.recurring:
             raise HTTPException(400, "price_not_recurring")
-
-        customer_id = await _get_or_create_customer(email)
-        session = stripe.checkout.Session.create(
-            customer=customer_id,
+        base = origin_url.rstrip("/")
+        params: dict = dict(
             line_items=[{"price": price.id, "quantity": 1}],
             mode="subscription",
-            success_url=(
-                f"{body.origin_url.rstrip('/')}/payment/success"
-                "?session_id={CHECKOUT_SESSION_ID}"
-            ),
-            cancel_url=f"{body.origin_url.rstrip('/')}/payment/cancel",
-            client_reference_id=email,
-            metadata={"app_user_email": email, "lookup_key": body.lookup_key},
-            subscription_data={
-                "metadata": {"app_user_email": email, "lookup_key": body.lookup_key},
-            },
+            success_url=f"{base}/payment/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{base}/payment/cancel",
+            metadata={"lookup_key": lookup_key},
+            subscription_data={"metadata": {"lookup_key": lookup_key}},
             allow_promotion_codes=True,
         )
+        if email:
+            params["customer"] = await _get_or_create_customer(email)
+            params["client_reference_id"] = email
+            params["metadata"]["app_user_email"] = email
+            params["subscription_data"]["metadata"]["app_user_email"] = email
+        # Guest checkout: subscription mode always creates a Customer and
+        # collects the email, which _session_email() reads back.
+        session = stripe.checkout.Session.create(**params)
         await db.payment_transactions.insert_one({
             "session_id": session.id,
             "email": email,
-            "lookup_key": body.lookup_key,
+            "lookup_key": lookup_key,
             "amount": (price.unit_amount or 0),
             "currency": price.currency,
             "status": "initiated",
@@ -128,7 +125,29 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "created_at": _now_iso(),
             "updated_at": _now_iso(),
         })
-        return {"checkout_url": session.url, "session_id": session.id}
+        return session.url
+
+    @router.post("/payments/checkout")
+    async def create_checkout(body: CheckoutRequest, request: Request):
+        email = await optional_login(request, db)
+        url = await _start_checkout(body.lookup_key, body.origin_url, email)
+        return {"checkout_url": url}
+
+    PLAN_KEYS = {"monthly": "accent_coach_monthly", "annual": "accent_coach_yearly",
+                 "yearly": "accent_coach_yearly"}
+
+    @router.get("/payments/checkout")
+    async def checkout_link(request: Request, plan: str = "monthly"):
+        """Sales-page link: GET /api/payments/checkout?plan=monthly|annual → Stripe."""
+        lookup_key = PLAN_KEYS.get(plan.lower())
+        if not lookup_key:
+            raise HTTPException(400, "unknown_plan")
+        rate_limit(f"checkout:ip:{client_ip(request)}", 20, 3600)
+        email = await optional_login(request, db)
+        origin = (os.environ.get("APP_PUBLIC_URL") or request.headers.get("origin")
+                  or str(request.base_url)).rstrip("/")
+        url = await _start_checkout(lookup_key, origin, email)
+        return RedirectResponse(url, status_code=303)
 
     @router.get("/payments/status/{session_id}")
     async def get_status(session_id: str):
@@ -148,6 +167,7 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
                             "status": "completed",
                             "payment_status": "paid",
                             "stripe_subscription_id": s.get("subscription"),
+                            "email": _session_email(s),
                             "updated_at": _now_iso(),
                         }},
                     )
@@ -163,6 +183,7 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "session_id": record["session_id"],
             "status": record["status"],
             "payment_status": record["payment_status"],
+            "email": record.get("email"),
         }
 
     @router.post("/payments/portal")
@@ -217,6 +238,7 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
                         "status": "completed",
                         "payment_status": obj.get("payment_status", "paid"),
                         "stripe_subscription_id": obj.get("subscription"),
+                        "email": _session_email(obj),
                         "updated_at": _now_iso(),
                     }},
                 )
@@ -263,18 +285,47 @@ def _lookup_key_to_title(lookup_key: str) -> str:
     }.get(lookup_key, "Pronounce This")
 
 
+def _session_email(session: dict) -> str:
+    """App-user email for a Checkout Session: our metadata (logged-in
+    checkout) or the email Stripe collected (guest checkout)."""
+    return (
+        (session.get("metadata") or {}).get("app_user_email")
+        or session.get("client_reference_id")
+        or (session.get("customer_details") or {}).get("email")
+        or session.get("customer_email")
+        or ""
+    ).strip().lower()
+
+
+def _sub_lookup_key(sub: dict) -> str:
+    """Current plan from the subscription's price (survives Portal plan
+    switches); metadata is only the fallback."""
+    items = ((sub.get("items") or {}).get("data") or [])
+    for it in items:
+        key = ((it.get("price") or {}).get("lookup_key") or "")
+        if key:
+            return key
+    return (sub.get("metadata") or {}).get("lookup_key", "")
+
+
+async def _supersede_stripe_rows(db: AsyncIOMotorDatabase, email: str, keep_offer_id: str) -> None:
+    """One Stripe membership row per user: retire other stripe:* rows."""
+    await db.memberships.update_many(
+        {"user_email": email, "offer_id": {"$regex": "^stripe:", "$ne": keep_offer_id},
+         "status": "active"},
+        {"$set": {"status": "cancelled", "subscription_end_at": _now_iso(),
+                  "last_event": "superseded", "updated_at": _now_iso()}},
+    )
+
+
 async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
     """Given a Stripe Checkout Session (subscription mode), flip the user's
     membership to active. Called from both /status poll (as a fallback) and
     the checkout.session.completed webhook."""
     session = _to_dict(session)
-    email = (
-        (session.get("metadata") or {}).get("app_user_email")
-        or session.get("client_reference_id")
-        or ""
-    ).strip().lower()
+    email = _session_email(session)
     if not email:
-        logger.warning("checkout.session missing email metadata")
+        logger.warning("checkout.session missing email")
         return
     sub_id = session.get("subscription")
     lookup_key = (session.get("metadata") or {}).get("lookup_key", "")
@@ -311,6 +362,7 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
         }},
         upsert=True,
     )
+    await _supersede_stripe_rows(db, email, f"stripe:{lookup_key}")
     logger.info(f"stripe → active: {email} / {lookup_key}")
 
 
@@ -339,7 +391,7 @@ async def _sync_subscription(
         logger.warning(f"subscription {sub.get('id')} has no linkable email")
         return
 
-    lookup_key = metadata.get("lookup_key", "")
+    lookup_key = _sub_lookup_key(sub)
     status = sub.get("status")   # active | trialing | past_due | canceled | ...
     cancel_at = sub.get("cancel_at")  # int unix seconds if scheduled
     subscription_end_at: Optional[str] = None
@@ -365,6 +417,8 @@ async def _sync_subscription(
         }},
         upsert=True,
     )
+    if is_active:
+        await _supersede_stripe_rows(db, email, f"stripe:{lookup_key}")
     logger.info(f"stripe sub sync: {email} status={status} end={subscription_end_at}")
 
 
@@ -452,7 +506,7 @@ async def sync_from_stripe_customer(
     for sub in subs:
         await _sync_subscription(db, sub, email_override=email)
         synced += 1
-        if sub.get("status") in ("active", "trialing"):
+        if sub.get("status") in ("active", "trialing", "past_due"):
             active_found = True
 
     return {
