@@ -68,7 +68,7 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
 
     async def _entry(word: str) -> dict:
         e = await db.dictionary_entries.find_one({"word": word}, {"_id": 0}) or {}
-        ipa = e.get("ipa") or cmu_ipa(word)
+        ipa = e.get("ipa") if e.get("ipa_custom") else (cmu_ipa(word) or e.get("ipa"))
         return {"word": word, "ipa": ipa, "cmu_ipa": cmu_ipa(word),
                 "ipa_custom": bool(e.get("ipa_custom")), "has_audio": bool(e.get("has_audio")),
                 "status": e.get("status"), "in_cmu": bool(cmu_ipa(word))}

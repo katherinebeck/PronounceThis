@@ -176,30 +176,92 @@ def get_arpabet(word: str) -> Optional[List[str]]:
 
 
 def arpabet_to_ipa(phones: List[str]) -> str:
-    """Convert an ARPABET phone list to a compact American IPA string.
+    """Convert an ARPABET phone list to dictionary-style American IPA.
 
-    Stress markers: primary -> ˈ, secondary -> ˌ, prefixed before the syllable
-    onset of the stressed vowel. We use a simple syllable-agnostic placement:
-    the marker is placed immediately before the stressed vowel symbol.
-    Unstressed AH (AH0) is rendered as the schwa ə, mirroring General American.
+    Cambridge conventions: syllables separated by "·", stress marks (ˈ / ˌ)
+    placed before the onset of the stressed syllable and doubling as the
+    boundary there, no stress mark on monosyllables. ER1/ER2 -> ɝ (stressed,
+    "sERver"), ER0 -> ɚ (unstressed schwa + r-coloring, "servER"), AH0 -> ə.
     """
-    out: List[str] = []
-    for p in phones:
-        m = re.match(r"^([A-Z]+)(\d?)$", p)
-        if not m:
-            continue
-        base, stress = m.group(1), m.group(2)
-        if base == "AH" and stress == "0":
-            ipa = "ə"
-        else:
-            ipa = ARPA_TO_IPA.get(base, "")
-        if stress == "1":
-            out.append("ˈ" + ipa)
-        elif stress == "2":
-            out.append("ˌ" + ipa)
-        else:
-            out.append(ipa)
-    return "".join(out)
+    syllables = syllabify(phones)
+    if not syllables:
+        return ""
+    multi = len(syllables) > 1
+    parts: List[str] = []
+    for i, syl in enumerate(syllables):
+        stress = ""
+        text = ""
+        for p in syl:
+            m = re.match(r"^([A-Z]+)(\d?)$", p)
+            if not m:
+                continue
+            base, s = m.group(1), m.group(2)
+            if base in VOWEL_ARPA:
+                stress = s
+            if base == "AH" and s == "0":
+                text += "ə"
+            elif base == "ER" and s == "0":
+                text += "ɚ"
+            else:
+                text += ARPA_TO_IPA.get(base, "")
+        mark = ""
+        if multi and stress == "1":
+            mark = "ˈ"
+        elif multi and stress == "2":
+            mark = "ˌ"
+        if i > 0 and not mark:
+            mark = "·"
+        parts.append(mark + text)
+    return "".join(parts)
+
+
+_LAX_VOWELS = {"IH", "EH", "AE", "AH", "UH"}
+_ONSETS = {
+    ("P", "R"), ("P", "L"), ("B", "R"), ("B", "L"), ("T", "R"), ("T", "W"),
+    ("D", "R"), ("D", "W"), ("K", "R"), ("K", "L"), ("K", "W"), ("G", "R"),
+    ("G", "L"), ("G", "W"), ("F", "R"), ("F", "L"), ("TH", "R"), ("TH", "W"),
+    ("SH", "R"), ("S", "P"), ("S", "T"), ("S", "K"), ("S", "M"), ("S", "N"),
+    ("S", "L"), ("S", "W"), ("S", "F"), ("HH", "Y"), ("K", "Y"), ("P", "Y"),
+    ("B", "Y"), ("F", "Y"), ("M", "Y"), ("V", "Y"), ("N", "Y"), ("T", "Y"),
+    ("D", "Y"), ("L", "Y"), ("G", "Y"),
+    ("S", "P", "R"), ("S", "P", "L"), ("S", "T", "R"), ("S", "K", "R"),
+    ("S", "K", "W"), ("S", "K", "L"), ("S", "P", "Y"), ("S", "K", "Y"),
+}
+
+
+def _is_onset(cluster: List[str]) -> bool:
+    return len(cluster) == 1 or tuple(cluster) in _ONSETS
+
+
+def syllabify(phones: List[str]) -> List[List[str]]:
+    """Split ARPABET phones into syllables the way learner dictionaries do.
+
+    Between two vowels the longest cluster that can begin an English syllable
+    goes to the next syllable, except that a stressed lax vowel (ɪ ɛ æ ʌ ʊ)
+    keeps at least one consonant as its coda ("hap·py", "mas·ter").
+    """
+    vowel_idx = [i for i, p in enumerate(phones) if strip_stress(p) in VOWEL_ARPA]
+    if not vowel_idx:
+        return [list(phones)] if phones else []
+    syllables: List[List[str]] = []
+    start = 0
+    for n, vi in enumerate(vowel_idx):
+        if n + 1 >= len(vowel_idx):
+            syllables.append(list(phones[start:]))
+            break
+        cluster = list(phones[vi + 1:vowel_idx[n + 1]])
+        v = phones[vi]
+        lax_stressed = strip_stress(v) in _LAX_VOWELS and not v.endswith("0")
+        split = 0
+        for k in range(len(cluster) + 1):
+            if not cluster[k:] or _is_onset(cluster[k:]):
+                split = k
+                break
+        if lax_stressed and cluster and split == 0:
+            split = 1
+        syllables.append(list(phones[start:vi + 1 + split]))
+        start = vi + 1 + split
+    return syllables
 
 
 # ---- Sound classification --------------------------------------------------
@@ -296,7 +358,7 @@ def classify_word(phones: List[str]) -> List[str]:
 _IPA_VOWEL_UNITS = ["eɪ", "aɪ", "oʊ", "aʊ", "ɔɪ", "i", "ɪ", "ɛ", "æ", "ə", "ʌ", "u", "ʊ", "ɔ", "ɑ", "a", "e", "o"]
 _IPA_R_VOWELS = {"ɝ", "ɚ"}
 _IPA_R_CONS = {"ɹ", "r"}
-_IPA_MARKS = "ˈˌːˑ.̩̃"
+_IPA_MARKS = "ˈˌːˑ.·̩̃"
 
 
 def _ipa_units(ipa: str) -> List[str]:
