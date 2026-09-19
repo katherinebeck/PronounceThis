@@ -272,3 +272,13 @@
 - Scenes tab: "Pronounce This Scene" upload panel now always pinned at the top of the page, above the library + reader.
 - Copy: "Upload a scene. Hear it pronounced in an American accent." (Word page).
 - Production: user confirmed new ANTHROPIC_API_KEY works after redeploy. Design changes need a fresh Publish to go live.
+
+## 2026-06 — Limits, Real Speakers inline, IPA syllables
+- IPA now Cambridge-style: syllable dots (·), stress before syllable, ɝ (stressed) vs ɚ (unstressed). Existing scenes recompute on read.
+- Scene uploads capped at 10 pages (MAX_SCENE_PAGES); scenes auto-expire after 90 days (TTL on expires_at_dt, backfilled).
+- Real Speaker Examples now embedded inline under word results (no button/modal on Word page); scene promo hidden once a result shows.
+- Admin-only "Not American · hide" button on clips (POST /admin/hidden-videos). /me now returns is_admin.
+- Auto-hide of unplayable clips now needs 2 distinct reporters (unplayable_reports collection) — single browser glitches no longer hide clips globally.
+- Caption ranking: news channels -2.0, scripted/late-night/explainer channels +1.5.
+- Copy: eyebrow without "General"; "Hear it spoken in an American accent"; sidebar "Scenes are kept for 90 days".
+- Pricing note: raise prices by editing setup_stripe.py amounts and re-running; existing subscribers stay grandfathered.

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink } from "lucide-react";
-import { captionSearch, reportUnplayable } from "@/lib/api";
+import { X, ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink, EyeOff } from "lucide-react";
+import { captionSearch, reportUnplayable, adminHideVideo } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { ClipPlayer } from "./ClipPlayer";
 import { toast } from "sonner";
 
@@ -38,7 +39,8 @@ function HighlightedSnippet({ text, query }) {
 // YouGlish-style single-clip player. Opens on the first result, cued to the
 // word, and lets you tap ▶ / ◀ to jump to the next / previous clip. No
 // sidebar, no transcript spam — just the word, spoken.
-export default function CaptionSearchModal({ open, query, onClose }) {
+export default function CaptionSearchModal({ open, query, onClose, inline = false }) {
+  const { me } = useAuth();
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState([]);
   const [index, setIndex] = useState(0);
@@ -85,9 +87,9 @@ export default function CaptionSearchModal({ open, query, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, query]);
 
-  // Keyboard: Esc closes, ←/→ cycles clips.
+  // Keyboard: Esc closes, ←/→ cycles clips (modal only).
   useEffect(() => {
-    if (!open) return;
+    if (!open || inline) return;
     const onKey = (e) => {
       if (e.key === "Escape") onClose?.();
       if (e.key === "ArrowRight") next();
@@ -130,28 +132,45 @@ export default function CaptionSearchModal({ open, query, onClose }) {
     });
   };
 
+  // Admin: this speaker isn't General American — hide the clip for everyone.
+  const hideForEveryone = async () => {
+    if (!current) return;
+    const dead = current.video_id;
+    try {
+      await adminHideVideo(dead, `Hidden from Real Speakers for "${query}"`);
+      toast.success("Clip hidden for everyone.");
+      setResults((rs) => {
+        const rest = rs.filter((r) => r.video_id !== dead);
+        setIndex((i) => (rest.length ? Math.min(i, rest.length - 1) : 0));
+        return rest;
+      });
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Could not hide clip.");
+    }
+  };
+
   if (!open) return null;
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto animate-fade-in"
-      data-testid="caption-search-modal"
-      onClick={onClose}
-    >
+  const body = (
       <div
-        className="relative w-full max-w-3xl bg-surface border thin-rule shadow-2xl max-h-[95vh] flex flex-col"
+        className={
+          inline
+            ? "relative w-full bg-surface border thin-rule flex flex-col"
+            : "relative w-full max-w-3xl bg-surface border thin-rule shadow-2xl max-h-[95vh] flex flex-col"
+        }
         onClick={(e) => e.stopPropagation()}
+        data-testid={inline ? "real-speakers-inline" : undefined}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b thin-rule gap-3">
           <div className="min-w-0">
             <div className="font-mono text-[9px] sm:text-[10px] uppercase tracking-[0.22em] sm:tracking-[0.28em] text-muted2">
-              Real Speakers · American
+              {inline ? "Real Speaker Examples" : "Real Speakers · American"}
             </div>
             <div
               className="font-display text-xl sm:text-2xl text-ink mt-0.5 truncate"
               data-testid="caption-search-query"
             >
-              {query}
+              {inline ? `Watch Americans say “${query}”` : query}
             </div>
             {corrected ? (
               <div className="font-serif text-xs text-muted2 italic mt-0.5" data-testid="caption-search-corrected">
@@ -171,15 +190,17 @@ export default function CaptionSearchModal({ open, query, onClose }) {
               <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
               <span className="hidden sm:inline">Refresh</span>
             </button>
-            <button
-              type="button"
-              className="text-muted2 hover:text-ink p-1"
-              onClick={onClose}
-              data-testid="caption-search-close"
-              aria-label="Close"
-            >
-              <X size={20} />
-            </button>
+            {!inline ? (
+              <button
+                type="button"
+                className="text-muted2 hover:text-ink p-1"
+                onClick={onClose}
+                data-testid="caption-search-close"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -260,9 +281,21 @@ export default function CaptionSearchModal({ open, query, onClose }) {
             </p>
           ) : null}
 
-          {/* Optional "Open on YouTube" — minimal footer */}
+          {/* Footer: admin hide + Open on YouTube */}
           {current ? (
-            <div className="mt-3 flex justify-end">
+            <div className="mt-3 flex justify-between items-center gap-3">
+              {me?.is_admin ? (
+                <button
+                  type="button"
+                  onClick={hideForEveryone}
+                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 hover:text-rust inline-flex items-center gap-1.5"
+                  data-testid="caption-search-admin-hide"
+                  title="Not an American speaker — hide this clip for everyone"
+                >
+                  <EyeOff size={11} />
+                  Not American · hide
+                </button>
+              ) : <span />}
               <a
                 className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 hover:text-ink inline-flex items-center gap-1.5"
                 href={current.youtube_url}
@@ -277,6 +310,15 @@ export default function CaptionSearchModal({ open, query, onClose }) {
           ) : null}
         </div>
       </div>
+  );
+  if (inline) return body;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto animate-fade-in"
+      data-testid="caption-search-modal"
+      onClick={onClose}
+    >
+      {body}
     </div>
   );
 }

@@ -19,7 +19,7 @@ import logging
 import os
 import re
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -81,6 +81,9 @@ wiktionary_ipa = WiktionaryIPA(db)
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+MAX_SCENE_PAGES = 10
+SCENE_RETENTION_DAYS = 90
 
 
 # --- Models -----------------------------------------------------------------
@@ -737,7 +740,17 @@ async def upload_scene(
     raw = await file.read()
     try:
         reader = PdfReader(io.BytesIO(raw))
+        if len(reader.pages) > MAX_SCENE_PAGES:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"This PDF has {len(reader.pages)} pages. Please upload a "
+                    f"scene of {MAX_SCENE_PAGES} pages or less."
+                ),
+            )
         pages = [(p.extract_text() or "") for p in reader.pages]
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("PDF parse error")
         raise HTTPException(status_code=400, detail=f"Could not read PDF: {e}")
@@ -768,6 +781,7 @@ async def upload_scene(
     scene.legacy = False
     doc = scene.model_dump()
     doc["created_at"] = doc["created_at"].isoformat()
+    doc["expires_at_dt"] = datetime.now(timezone.utc) + timedelta(days=SCENE_RETENTION_DAYS)
     doc["dialogue_only"] = True
     doc["dialogue"] = dialogue
     doc["proper_nouns"] = proper_nouns
@@ -1141,12 +1155,21 @@ class UnplayableBody(BaseModel):
 @api_router.post("/caption-search/unplayable")
 async def caption_unplayable(body: UnplayableBody, request: Request):
     """Player reported a clip that will not play (deleted, private, or
-    embedding disabled). Hide it so nobody hits it again."""
+    embedding disabled). Player errors can be browser-specific, so a clip is
+    only hidden for everyone once two different accounts report it."""
     email = await require_login(request, db)
     rate_limit(f"cap:unplayable:{email}", 60, 3600)
     vid = re.sub(r"[^A-Za-z0-9_-]", "", body.video_id)[:20]
     if not vid:
         raise HTTPException(status_code=400, detail="bad_video_id")
+    rep = await db.unplayable_reports.find_one_and_update(
+        {"video_id": vid},
+        {"$addToSet": {"reporters": email},
+         "$set": {"last_code": body.code, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True, return_document=True,
+    )
+    if len(rep.get("reporters") or []) < 2:
+        return {"ok": True, "hidden": False}
     await db.hidden_videos.update_one(
         {"video_id": vid},
         {"$setOnInsert": {"video_id": vid, "reason": f"player_error_{body.code}", "auto": True,
@@ -1155,7 +1178,8 @@ async def caption_unplayable(body: UnplayableBody, request: Request):
         upsert=True,
     )
     await db.caption_transcript_cache.update_many({"video_id": vid}, {"$set": {"embeddable": False}})
-    return {"ok": True}
+    caption_service.invalidate_hidden()
+    return {"ok": True, "hidden": True}
 
 
 @api_router.get("/caption-search")
@@ -1413,6 +1437,23 @@ async def _startup_indexes():
         {"$set": {"owner_email": None, "legacy": True}},
     )
     await db.scenes.create_index("owner_email")
+    # 90-day retention: TTL on a BSON datetime; backfill older scenes so the
+    # rule applies uniformly (never expires legacy/admin scenes).
+    await db.scenes.create_index("expires_at_dt", expireAfterSeconds=0)
+    async for s in db.scenes.find(
+        {"expires_at_dt": {"$exists": False}, "legacy": {"$ne": True}},
+        {"_id": 1, "created_at": 1},
+    ):
+        try:
+            created = datetime.fromisoformat(s["created_at"])
+        except Exception:
+            created = datetime.now(timezone.utc)
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        await db.scenes.update_one(
+            {"_id": s["_id"]},
+            {"$set": {"expires_at_dt": created + timedelta(days=SCENE_RETENTION_DAYS)}},
+        )
     # Clips the coach flagged as non-General-American speakers.
     for vid, reason in [("_Sjvjvbz5X0", "CBS News — 'Gavin' speaker not GA")]:
         await db.hidden_videos.update_one(

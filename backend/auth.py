@@ -79,6 +79,7 @@ class AuthMeResponse(BaseModel):
     # Stripe subscription plan surface for the paywall.
     stripe_prices: list = []
     has_stripe_customer: bool = False
+    is_admin: bool = False
 
 
 # --- Helpers ----------------------------------------------------------------
@@ -418,6 +419,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             trial_scene_used=user.get("trial_scene_used", 0),
             stripe_prices=stripe_prices,
             has_stripe_customer=bool(user.get("stripe_customer_id")),
+            is_admin=is_admin_email(email),
             **offer_urls,
         )
 

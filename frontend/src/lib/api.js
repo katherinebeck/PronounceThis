@@ -128,3 +128,8 @@ export async function reportUnplayable(video_id, code) {
   const { data } = await api.post("/caption-search/unplayable", { video_id, code });
   return data;
 }
+
+export async function adminHideVideo(video_id, reason) {
+  const { data } = await api.post("/admin/hidden-videos", { url_or_id: video_id, reason });
+  return data;
+}

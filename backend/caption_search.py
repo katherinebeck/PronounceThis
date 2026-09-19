@@ -35,6 +35,15 @@ YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
 # -> channelId at runtime (and cache) so we don't hard-code potentially stale
 # ids. Keep this list focused on speakers with clear, natural General
 # American English (news anchors, US late-night hosts, dialect coaches, etc).
+_NEWS_CHANNEL_KEYS = (
+    "npr", "cbs news", "pbs newshour", "abc news", "cnn", "nbc news", "60 minutes",
+    "cbs sunday morning", "today", "cnbc", "fox 5", "inside edition", "e! news",
+)
+_SCRIPTED_CHANNEL_KEYS = (
+    "tonight show", "ellen", "conan", "team coco", "kimmel", "late show", "daily show",
+    "seth meyers", "vox", "crashcourse", "scishow", "veritasium", "big think",
+    "masterclass", "the moth", "wired", "casey neistat", "philip defranco",
+)
 CURATED_HANDLES: List[Dict[str, str]] = [
     # News / broadcast
     {"handle": "NPR",              "label": "NPR"},
@@ -519,6 +528,18 @@ class CaptionSearchService:
         return best
 
     @staticmethod
+    def _channel_bias(channel_title: str) -> float:
+        """News channels interview non-American guests constantly; scripted
+        hosts (late night, talk, explainers) are reliably General American.
+        Nudge ranking so the first clips a student hears are the safe ones."""
+        t = (channel_title or "").lower()
+        if any(k in t for k in _NEWS_CHANNEL_KEYS):
+            return -2.0
+        if any(k in t for k in _SCRIPTED_CHANNEL_KEYS):
+            return 1.5
+        return 0.0
+
+    @staticmethod
     def _score_hit(hit: Dict[str, Any]) -> float:
         """Higher is better. Prefer word-accurate cues, short clean
         segments with a little context, and penalize shouty/crosstalk
@@ -783,6 +804,8 @@ class CaptionSearchService:
             )
             if not hit:
                 continue
+            ch_title = meta.get("channel_title") or doc.get("channel_title") or ""
+            hit["score"] += self._channel_bias(ch_title)
             if "embeddable" not in doc:
                 unchecked.append(doc["video_id"])
             results.append({

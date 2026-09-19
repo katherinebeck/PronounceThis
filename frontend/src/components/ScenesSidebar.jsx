@@ -188,8 +188,8 @@ export default function ScenesSidebar({
           </ul>
         )}
       </div>
-      <div className="hidden md:flex px-6 py-4 border-t thin-rule font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 items-center gap-2">
-        <Upload size={12} /> Saved locally in your session
+      <div className="hidden md:flex px-6 py-4 border-t thin-rule font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 items-center gap-2" data-testid="scene-retention-note">
+        <Upload size={12} /> Scenes are kept for 90 days
       </div>
     </aside>
   );

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Volume2, Loader2, Search, Book, ArrowRight } from "lucide-react";
+import { Volume2, Loader2, Search, ArrowRight } from "lucide-react";
 import { pronounceWord, fetchSoundCategories } from "@/lib/api";
 import { playWord } from "@/lib/audio";
 import YouglishModal from "./CaptionSearchModal";
@@ -14,7 +14,6 @@ export default function PronouncePage({ onGoToScenes }) {
   const [loading, setLoading] = useState(false);
   const [playingHint, setPlayingHint] = useState(false);
   const [categoriesMeta, setCategoriesMeta] = useState([]);
-  const [ygQuery, setYgQuery] = useState(null);
 
   useEffect(() => {
     fetchSoundCategories().then(setCategoriesMeta).catch(() => {});
@@ -52,13 +51,7 @@ export default function PronouncePage({ onGoToScenes }) {
     if (!result?.word) return;
     setPlayingHint(true);
     try {
-      const audio = await playWord(result.word, { phonetic: looksProper(input.trim()) });
-      // If ElevenLabs generated this (no admin override) AND the word looks
-      // like a proper noun, also open Real Speakers so the student can
-      // sanity-check against a real human.
-      if (audio && !audio.manualOverride && looksProper(input.trim())) {
-        setYgQuery(input.trim());
-      }
+      await playWord(result.word, { phonetic: looksProper(input.trim()) });
     } catch (err) {
       toast.error(err.friendly || "Audio playback failed.");
     } finally {
@@ -71,14 +64,15 @@ export default function PronouncePage({ onGoToScenes }) {
       <div className="max-w-3xl mx-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12 lg:py-16">
         <div className="mb-8 sm:mb-10">
           <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-rust mb-3">
-            The General American Accent Pronunciation Tool Specifically Designed For Actors
+            The American Accent Pronunciation Tool Specifically Designed For Actors
           </div>
           <h1 className="reveal reveal-2 font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
             Pronounce This Word<span className="text-rust">.</span>
           </h1>
           <p className="reveal reveal-3 mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Type any word, name or location to see it written
-            phonetically (IPA) and hear it spoken in an American accent.
+            phonetically (IPA), hear it spoken in an American accent, and
+            watch real Americans say it in video clips right below.
           </p>
         </div>
 
@@ -154,14 +148,6 @@ export default function PronouncePage({ onGoToScenes }) {
                     </>
                   )}
                 </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  data-testid="pronounce-youglish"
-                  onClick={() => setYgQuery(result.word)}
-                >
-                  <Book size={12} /> Real Speaker Examples
-                </button>
               </div>
             </div>
 
@@ -194,14 +180,21 @@ export default function PronouncePage({ onGoToScenes }) {
           </div>
         ) : null}
 
-        {/* Audition scene invitation — same visual weight as the main hero
-            so it reads as a second, equally-important on-ramp. */}
-        <div className="mt-10 sm:mt-12 pt-8 sm:pt-10 border-t border-ink/30">
+        {result?.word ? (
+          <div className="mt-6 animate-fade-in" data-testid="pronounce-real-speakers">
+            <YouglishModal open inline query={result.word} />
+          </div>
+        ) : null}
+
+        {/* Audition scene invitation — only on the empty search page; once a
+            word result is up the page belongs to that word. */}
+        {!result ? (
+        <div className="mt-10 sm:mt-12 pt-8 sm:pt-10 border-t border-ink/30" data-testid="scene-promo">
           <h2 className="font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
             Pronounce This Scene<span className="text-rust">.</span>
           </h2>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
-            Upload a scene. Hear it pronounced in an American accent.
+            Upload a scene. Hear it spoken in an American accent.
           </p>
           <button
             type="button"
@@ -212,12 +205,8 @@ export default function PronouncePage({ onGoToScenes }) {
             Upload a scene <ArrowRight size={13} />
           </button>
         </div>
+        ) : null}
       </div>
-      <YouglishModal
-        open={Boolean(ygQuery)}
-        query={ygQuery || ""}
-        onClose={() => setYgQuery(null)}
-      />
     </div>
   );
 }
