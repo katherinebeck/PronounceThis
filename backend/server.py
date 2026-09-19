@@ -1478,12 +1478,21 @@ async def _startup_indexes():
     DAILY_CHECK_SECONDS = 24 * 3600             # check every 24h
 
     async def _run_full_ingest() -> None:
-        """One pass over all curated channels. Non-overlapping."""
+        """One pass over all curated channels. Non-overlapping; a lock older
+        than 6h is a crash leftover (pod restart) and is taken over."""
         status = await db.ingest_status.find_one(
             {"job": "channels"}, {"_id": 0}
         )
         if status and status.get("running"):
-            return
+            stale = True
+            try:
+                started = datetime.fromisoformat(status.get("started_at", "").replace("Z", "+00:00"))
+                stale = (datetime.now(timezone.utc) - started).total_seconds() > 6 * 3600
+            except Exception:
+                pass
+            if not stale:
+                return
+            logger.warning("ingest supervisor: taking over stale lock from %s", status.get("started_at"))
         try:
             await db.ingest_status.update_one(
                 {"job": "channels"},
@@ -1545,7 +1554,15 @@ async def _startup_indexes():
                 ",".join(sorted(h["handle"].lower() for h in CURATED_HANDLES)).encode()
             ).hexdigest()[:12]
             status = await db.ingest_status.find_one({"job": "channels"}, {"_id": 0}) or {}
-            if indexed < 200 or status.get("channel_sig") != channel_sig:
+            last_full = status.get("last_full_finished_at")
+            full_overdue = True
+            if last_full:
+                try:
+                    full_overdue = (datetime.now(timezone.utc) - datetime.fromisoformat(
+                        last_full.replace("Z", "+00:00"))).total_seconds() >= WEEKLY_INTERVAL_SECONDS
+                except Exception:
+                    full_overdue = True
+            if indexed < 200 or status.get("channel_sig") != channel_sig or full_overdue:
                 logger.info(
                     "ingest supervisor: startup ingest (indexed=%d, channels changed=%s)",
                     indexed, status.get("channel_sig") != channel_sig,
