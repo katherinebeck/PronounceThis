@@ -3,6 +3,7 @@ import { Volume2, Loader2, Search, ArrowRight } from "lucide-react";
 import { pronounceWord, fetchSoundCategories } from "@/lib/api";
 import { playWord } from "@/lib/audio";
 import YouglishModal from "./CaptionSearchModal";
+import HeteronymVariants from "./HeteronymVariants";
 import { toast } from "sonner";
 
 // A small, focused word-lookup workbench: type anything, get IPA + ARPABET +
@@ -46,6 +47,7 @@ export default function PronouncePage({ onGoToScenes }) {
   // for one, we auto-open Real Speakers alongside the Play so the student
   // hears at least one real native speaker say the word.
   const looksProper = (w) => /[A-Z]/.test(w || "") || /\s/.test(w || "");
+  const hasVariants = (result?.variants?.length || 0) > 1;
 
   const play = async () => {
     if (!result?.word) return;
@@ -120,7 +122,7 @@ export default function PronouncePage({ onGoToScenes }) {
                 <div className="font-serif text-4xl sm:text-5xl lg:text-6xl text-ink leading-none break-words">
                   {result.word}
                 </div>
-                {result.ipa ? (
+                {hasVariants ? null : result.ipa ? (
                   <div className="font-mono text-xl sm:text-2xl lg:text-3xl text-rust mt-3 tracking-tight break-words" data-testid="pronounce-ipa">
                     {result.ipa}
                   </div>
@@ -130,6 +132,7 @@ export default function PronouncePage({ onGoToScenes }) {
                   </div>
                 )}
               </div>
+              {hasVariants ? null : (
               <div className="flex flex-col gap-2">
                 <button
                   type="button"
@@ -149,9 +152,14 @@ export default function PronouncePage({ onGoToScenes }) {
                   )}
                 </button>
               </div>
+              )}
             </div>
 
-            {result.categories?.length ? (
+            {hasVariants ? (
+              <HeteronymVariants word={result.word} variants={result.variants} catLookup={catLookup} />
+            ) : null}
+
+            {!hasVariants && result.categories?.length ? (
               <div className="px-5 sm:px-8 py-5 sm:py-6" data-testid="pronounce-categories">
                 <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted2 mb-3">
                   Sounds in this word

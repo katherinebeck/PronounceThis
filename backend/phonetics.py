@@ -8,7 +8,7 @@ phenomena (rhotic R, light vs dark L, flap T, schwa, diphthongs, etc.).
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import pronouncing
 
@@ -173,6 +173,116 @@ def get_arpabet(word: str) -> Optional[List[str]]:
     if not pronunciations:
         return None
     return pronunciations[0].split()
+
+
+# ---- Heteronyms: same spelling, different pronunciation by part of speech --
+
+# Noun/verb pairs whose only difference is stress placement (PRO-duce vs
+# pro-DUCE). Both variants come from CMU; we just decide which is which by
+# where the primary stress falls.
+_STRESS_SHIFT_WORDS = {
+    "address", "affix", "ally", "combine", "compound", "compress", "concert",
+    "conduct", "conflict", "console", "construct", "content", "contest",
+    "contract", "contrast", "converse", "convert", "convict", "decrease",
+    "defect", "desert", "digest", "discharge", "discount", "escort", "essay",
+    "exploit", "extract", "ferment", "impact", "implant", "import", "imprint",
+    "incense", "incline", "increase", "insert", "insult", "intrigue", "object",
+    "perfect", "permit", "pervert", "present", "produce", "progress", "project",
+    "protest", "rebel", "recall", "recess", "record", "refund", "refuse",
+    "reject", "research", "retake", "segment", "subject", "survey", "suspect",
+    "torment", "transfer", "transport", "update", "upgrade", "upset",
+}
+# First-syllable-stress label when it isn't simply "Noun".
+_FIRST_STRESS_LABEL = {
+    "perfect": "Adjective", "content": "Adjective / Noun", "present": "Noun / Adjective",
+    "compound": "Noun / Adjective", "converse": "Adjective / Noun", "upset": "Noun / Adjective",
+    "rebel": "Noun", "ally": "Noun", "essay": "Noun", "research": "Noun",
+}
+
+# Pairs where the vowel itself changes, or CMU lacks one of the two forms.
+# (label, gloss, ARPABET)
+_MANUAL_HETERONYMS: Dict[str, List[Tuple[str, str, str]]] = {
+    "export":    [("Noun", "the goods", "EH1 K S P AO0 R T"), ("Verb", "to ship abroad", "IH0 K S P AO1 R T")],
+    "invite":    [("Noun", "an invitation (casual)", "IH1 N V AY0 T"), ("Verb", "to ask someone", "IH0 N V AY1 T")],
+    "entrance":  [("Noun", "a doorway", "EH1 N T R AH0 N S"), ("Verb", "to enchant", "IH0 N T R AE1 N S")],
+    "read":      [("Present tense", "I read every day", "R IY1 D"), ("Past tense", "I read it yesterday", "R EH1 D")],
+    "lead":      [("Verb", "to guide", "L IY1 D"), ("Noun", "the metal", "L EH1 D")],
+    "live":      [("Verb", "to be alive", "L IH1 V"), ("Adjective", "a live show", "L AY1 V")],
+    "close":     [("Verb", "to shut", "K L OW1 Z"), ("Adjective", "nearby", "K L OW1 S")],
+    "wind":      [("Noun", "the weather", "W IH1 N D"), ("Verb", "to wind a clock", "W AY1 N D")],
+    "bow":       [("Verb / Noun", "to bend; front of a ship", "B AW1"), ("Noun", "a ribbon or weapon", "B OW1")],
+    "tear":      [("Verb / Noun", "to rip", "T EH1 R"), ("Noun", "a teardrop", "T IH1 R")],
+    "bass":      [("Noun", "the fish", "B AE1 S"), ("Noun", "the instrument / low voice", "B EY1 S")],
+    "dove":      [("Noun", "the bird", "D AH1 V"), ("Verb", "past tense of dive", "D OW1 V")],
+    "sow":       [("Verb", "to plant seeds", "S OW1"), ("Noun", "a female pig", "S AW1")],
+    "wound":     [("Noun / Verb", "an injury", "W UW1 N D"), ("Verb", "past tense of wind", "W AW1 N D")],
+    "row":       [("Noun / Verb", "a line; to row a boat", "R OW1"), ("Noun", "a quarrel", "R AW1")],
+    "use":       [("Verb", "to use something", "Y UW1 Z"), ("Noun", "the use of it", "Y UW1 S")],
+    "excuse":    [("Verb", "excuse me", "IH0 K S K Y UW1 Z"), ("Noun", "an excuse", "IH0 K S K Y UW1 S")],
+    "abuse":     [("Verb", "to abuse", "AH0 B Y UW1 Z"), ("Noun", "the abuse", "AH0 B Y UW1 S")],
+    "house":     [("Noun", "a house", "HH AW1 S"), ("Verb", "to house someone", "HH AW1 Z")],
+    "minute":    [("Noun", "sixty seconds", "M IH1 N AH0 T"), ("Adjective", "tiny", "M AY0 N UW1 T")],
+    "separate":  [("Verb", "to separate them", "S EH1 P ER0 EY2 T"), ("Adjective", "separate rooms", "S EH1 P R AH0 T")],
+    "estimate":  [("Verb", "to estimate", "EH1 S T AH0 M EY2 T"), ("Noun", "an estimate", "EH1 S T AH0 M AH0 T")],
+    "graduate":  [("Verb", "to graduate", "G R AE1 JH UW0 EY2 T"), ("Noun", "a graduate", "G R AE1 JH UW0 AH0 T")],
+    "alternate": [("Verb", "to alternate", "AO1 L T ER0 N EY2 T"), ("Adjective / Noun", "an alternate route", "AO1 L T ER0 N AH0 T")],
+    "moderate":  [("Verb", "to moderate", "M AA1 D ER0 EY2 T"), ("Adjective", "moderate heat", "M AA1 D ER0 AH0 T")],
+    "advocate":  [("Verb", "to advocate", "AE1 D V AH0 K EY2 T"), ("Noun", "an advocate", "AE1 D V AH0 K AH0 T")],
+    "associate": [("Verb", "to associate", "AH0 S OW1 S IY0 EY2 T"), ("Noun", "a business associate", "AH0 S OW1 S IY0 AH0 T")],
+    "delegate":  [("Verb", "to delegate", "D EH1 L AH0 G EY2 T"), ("Noun", "a delegate", "D EH1 L AH0 G AH0 T")],
+    "elaborate": [("Verb", "to elaborate", "IH0 L AE1 B ER0 EY2 T"), ("Adjective", "an elaborate plan", "IH0 L AE1 B ER0 AH0 T")],
+    "deliberate": [("Verb", "to deliberate", "D IH0 L IH1 B ER0 EY2 T"), ("Adjective", "a deliberate choice", "D IH0 L IH1 B ER0 AH0 T")],
+    "duplicate": [("Verb", "to duplicate", "D UW1 P L AH0 K EY2 T"), ("Noun / Adjective", "a duplicate", "D UW1 P L AH0 K AH0 T")],
+    "intimate":  [("Verb", "to hint at", "IH1 N T AH0 M EY2 T"), ("Adjective", "an intimate dinner", "IH1 N T AH0 M AH0 T")],
+    "appropriate": [("Verb", "to take for oneself", "AH0 P R OW1 P R IY0 EY2 T"), ("Adjective", "appropriate behavior", "AH0 P R OW1 P R IY0 AH0 T")],
+    "articulate": [("Verb", "to articulate", "AA0 R T IH1 K Y AH0 L EY2 T"), ("Adjective", "an articulate speaker", "AA0 R T IH1 K Y AH0 L AH0 T")],
+    "approximate": [("Verb", "to approximate", "AH0 P R AA1 K S AH0 M EY2 T"), ("Adjective", "an approximate figure", "AH0 P R AA1 K S AH0 M AH0 T")],
+    "coordinate": [("Verb", "to coordinate", "K OW0 AO1 R D AH0 N EY2 T"), ("Noun", "a coordinate", "K OW0 AO1 R D AH0 N AH0 T")],
+    "attribute": [("Verb", "to attribute", "AH0 T R IH1 B Y UW0 T"), ("Noun", "an attribute", "AE1 T R AH0 B Y UW2 T")],
+    "polish":    [("Verb / Noun", "to polish; shoe polish", "P AA1 L IH0 SH"), ("Adjective", "from Poland", "P OW1 L IH0 SH")],
+    "resume":    [("Verb", "to continue", "R IH0 Z UW1 M"), ("Noun", "a CV / résumé", "R EH1 Z AH0 M EY2")],
+    "learned":   [("Past tense", "I learned it", "L ER1 N D"), ("Adjective", "a learned scholar", "L ER1 N IH0 D")],
+    "blessed":   [("Past tense", "he blessed them", "B L EH1 S T"), ("Adjective", "blessed are the meek", "B L EH1 S IH0 D")],
+    "primer":    [("Noun", "a first coat of paint", "P R AY1 M ER0"), ("Noun", "an introductory book", "P R IH1 M ER0")],
+    "does":      [("Verb", "she does", "D AH1 Z"), ("Noun", "female deer (plural)", "D OW1 Z")],
+    "mobile":    [("Adjective", "able to move", "M OW1 B AH0 L"), ("Noun", "a hanging sculpture", "M OW1 B IY0 L")],
+    "number":    [("Noun", "a number", "N AH1 M B ER0"), ("Adjective", "more numb", "N AH1 M ER0")],
+    "putting":   [("Verb", "putting it down", "P UH1 T IH0 NG"), ("Verb", "putting in golf", "P AH1 T IH0 NG")],
+    "buffet":    [("Noun", "a spread of food", "B AH0 F EY1"), ("Verb", "to strike repeatedly", "B AH1 F AH0 T")],
+}
+
+
+def _primary_stress_syllable(phones: List[str]) -> int:
+    vi = [p for p in phones if strip_stress(p) in VOWEL_ARPA]
+    for n, p in enumerate(vi):
+        if p.endswith("1"):
+            return n
+    return -1
+
+
+def heteronym_variants(word: str) -> List[Dict]:
+    """Return [] or two+ {label, gloss, arpabet, ipa, categories} entries for
+    words whose pronunciation depends on part of speech."""
+    w = word.lower().strip()
+    out: List[Dict] = []
+    if w in _MANUAL_HETERONYMS:
+        for label, gloss, arp in _MANUAL_HETERONYMS[w]:
+            phones = arp.split()
+            out.append({"label": label, "gloss": gloss, "arpabet": phones,
+                        "ipa": arpabet_to_ipa(phones), "categories": classify_word(phones)})
+        return out
+    if w not in _STRESS_SHIFT_WORDS:
+        return []
+    first = next((v for v in cmu_variants(w) if _primary_stress_syllable(v) == 0), None)
+    second = next((v for v in cmu_variants(w) if _primary_stress_syllable(v) == 1), None)
+    if not first or not second:
+        return []
+    return [
+        {"label": _FIRST_STRESS_LABEL.get(w, "Noun"), "gloss": "stress on the 1st syllable",
+         "arpabet": first, "ipa": arpabet_to_ipa(first), "categories": classify_word(first)},
+        {"label": "Verb", "gloss": "stress on the 2nd syllable",
+         "arpabet": second, "ipa": arpabet_to_ipa(second), "categories": classify_word(second)},
+    ]
 
 
 def arpabet_to_ipa(phones: List[str]) -> str:

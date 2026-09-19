@@ -78,8 +78,10 @@ export async function fetchSoundCategories() {
   return data.categories;
 }
 
-export async function fetchTTS(word, phonetic = false) {
-  const { data } = await api.post("/tts", { word, phonetic });
+export async function fetchTTS(word, phonetic = false, arpabet = null) {
+  const body = { word, phonetic };
+  if (arpabet) body.arpabet = arpabet;
+  const { data } = await api.post("/tts", body);
   return data; // { word, audio_b64, mime, cached }
 }
 

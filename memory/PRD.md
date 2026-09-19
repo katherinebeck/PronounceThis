@@ -282,3 +282,9 @@
 - Caption ranking: news channels -2.0, scripted/late-night/explainer channels +1.5.
 - Copy: eyebrow without "General"; "Hear it spoken in an American accent"; sidebar "Scenes are kept for 90 days".
 - Pricing note: raise prices by editing setup_stripe.py amounts and re-running; existing subscribers stay grandfathered.
+
+## 2026-06 — Heteronyms + Real Speakers index fix
+- Heteronyms (produce/record/read/minute/-ate words…): /pronounce returns `variants` [{label, gloss, ipa, arpabet, categories}]; Word page shows two cards each with its own Hear button. /tts accepts `arpabet` for phoneme-exact audio (cache key word#PHONES). Table in phonetics.py (_STRESS_SHIFT_WORDS auto from CMU + _MANUAL_HETERONYMS).
+- ROOT CAUSE of thin YouTube results: ingest job stuck with running=True since Sep 8 (426 videos/25 channels). Fixed: stale lock (no progress 30 min) is taken over; fresh process clears lock on boot; weekly refresh checked at startup. Index now growing across 146 channels.
+- Admin: channel index section shows videos indexed, channels with videos / curated, this run, last full pass, stale warning + resume, per-channel breakdown. New Hidden clips section (paste URL to hide, restore).
+- Known dev quirk: hot reload can hang while ingest threads (yt-dlp) are running → `sudo supervisorctl restart backend`.

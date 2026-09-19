@@ -44,7 +44,9 @@ from phonetics import (
     classify_ipa,
     classify_word,
     get_arpabet,
+    heteronym_variants,
     transcribe_word,
+    validate_arpabet,
 )
 from caption_search import CaptionSearchService
 from wiktionary import WiktionaryIPA
@@ -133,6 +135,8 @@ class TTSRequest(BaseModel):
     # Ordinary words: plain multilingual synthesis (more natural for
     # isolated function words like "in" / "because").
     phonetic: bool = False
+    # Explicit CMU ARPABET ("P R OW1 D UW0 S") for heteronym variants.
+    arpabet: Optional[str] = None
 
 
 class TTSResponse(BaseModel):
@@ -146,6 +150,14 @@ class TTSResponse(BaseModel):
     manual_override: bool = False
 
 
+class PronunciationVariant(BaseModel):
+    label: str
+    gloss: str = ""
+    ipa: str
+    arpabet: List[str] = Field(default_factory=list)
+    categories: List[str] = Field(default_factory=list)
+
+
 class PronounceResponse(BaseModel):
     """Result of a single-word IPA lookup (no audio)."""
     word: str
@@ -154,6 +166,8 @@ class PronounceResponse(BaseModel):
     arpabet: List[str] = Field(default_factory=list)
     categories: List[str] = Field(default_factory=list)
     source: str  # "cmu" | "llm" | "none"
+    # Heteronyms (PRO-duce vs pro-DUCE): one entry per part of speech.
+    variants: List[PronunciationVariant] = Field(default_factory=list)
 
 
 class TurnTTSResponse(BaseModel):
@@ -699,9 +713,14 @@ async def pronounce(word: str, request: Request):
     single_norm = norm_parts[0] if len(parts) == 1 else "".join(norm_parts)
     ipa, arpa, cats = transcribe_word(single_norm)
     if ipa:
+        variants = heteronym_variants(single_norm) if len(parts) == 1 else []
+        if variants:
+            v0 = variants[0]
+            ipa, arpa, cats = v0["ipa"], v0["arpabet"], v0["categories"]
         return PronounceResponse(
             word=raw, normalized=single_norm, ipa=ipa,
             arpabet=arpa, categories=cats, source="cmu",
+            variants=[PronunciationVariant(**v) for v in variants],
         )
 
     # CMU miss → Wiktionary (GA IPA) → Claude fallback.
@@ -1000,13 +1019,23 @@ async def tts(req: TTSRequest, request: Request):
     actor = await require_access(request, db, kind="word")
 
     base_key = word.lower()
+    # Explicit phonemes (heteronym variants) always synthesize phonetically
+    # and cache under their own key; manual overrides don't apply to them.
+    variant_phones = validate_arpabet(req.arpabet) if req.arpabet else None
+    if req.arpabet and not variant_phones:
+        raise HTTPException(status_code=400, detail="invalid_arpabet")
+    if variant_phones:
+        req.phonetic = True
     # Coach-preferred pronunciations must be audible, not just displayed.
     if normalize_word(word) in PREFERRED_ARPA:
         req.phonetic = True
     # Manual overrides always win, regardless of mode.
-    override = await db.audio_cache.find_one(
+    override = None if variant_phones else await db.audio_cache.find_one(
         {"word": base_key, "manual_override": True}, {"_id": 0})
-    cache_key = f"{base_key}#ph" if req.phonetic else base_key
+    if variant_phones:
+        cache_key = f"{base_key}#{'_'.join(variant_phones)}"
+    else:
+        cache_key = f"{base_key}#ph" if req.phonetic else base_key
     cached = override or await db.audio_cache.find_one({"word": cache_key}, {"_id": 0})
     # Plain entries: accept legacy (no version) or current; reject the
     # short-lived v2 turbo renders that sounded off on common words.
@@ -1035,7 +1064,10 @@ async def tts(req: TTSRequest, request: Request):
         # like "Harry" are said exactly as the IPA shown on screen.
         # Ordinary words: plain multilingual_v2 (original engine).
         # A trailing period cues a declarative (falling-pitch) reading.
-        spoken = _phoneme_markup(word) if req.phonetic else word
+        if variant_phones:
+            spoken = f'<phoneme alphabet="cmu-arpabet" ph="{" ".join(variant_phones)}">{word}</phoneme>'
+        else:
+            spoken = _phoneme_markup(word) if req.phonetic else word
         if not spoken.endswith((".", "!", "?")):
             spoken += "."
         stream = client.text_to_speech.convert(
@@ -1478,16 +1510,16 @@ async def _startup_indexes():
     DAILY_CHECK_SECONDS = 24 * 3600             # check every 24h
 
     async def _run_full_ingest() -> None:
-        """One pass over all curated channels. Non-overlapping; a lock older
-        than 6h is a crash leftover (pod restart) and is taken over."""
+        """One pass over all curated channels. Non-overlapping; a lock with no
+        progress for 30 min is a crash leftover and is taken over."""
         status = await db.ingest_status.find_one(
             {"job": "channels"}, {"_id": 0}
         )
         if status and status.get("running"):
             stale = True
             try:
-                started = datetime.fromisoformat(status.get("started_at", "").replace("Z", "+00:00"))
-                stale = (datetime.now(timezone.utc) - started).total_seconds() > 6 * 3600
+                last = status.get("updated_at") or status.get("started_at") or ""
+                stale = (datetime.now(timezone.utc) - datetime.fromisoformat(last.replace("Z", "+00:00"))).total_seconds() > 30 * 60
             except Exception:
                 pass
             if not stale:
@@ -1543,6 +1575,10 @@ async def _startup_indexes():
         """
         try:
             await asyncio.sleep(20)  # let pod finish booting
+            # A fresh process means any "running" lock belongs to a dead run.
+            await db.ingest_status.update_one(
+                {"job": "channels", "running": True}, {"$set": {"running": False}}
+            )
             indexed = await db.caption_transcript_cache.count_documents(
                 {"has_transcript": True}
             )

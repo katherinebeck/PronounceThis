@@ -285,15 +285,56 @@ export default function AdminPage() {
       if (data?.already_running) {
         toast.info("Channel ingest already running");
       } else {
-        toast.success(
-          "Channel ingest started — fetches all 115 channels' recent videos"
-        );
+        toast.success("Channel ingest started — indexing every curated channel in the background");
       }
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Could not start ingest");
     } finally {
       setIngestStarting(false);
       setTimeout(loadPrewarmStatus, 2000);
+    }
+  };
+
+  // ------------------------ Hidden Real Speaker clips ------------------------
+  const [hiddenVideos, setHiddenVideos] = useState([]);
+  const [hideInput, setHideInput] = useState("");
+  const [hideBusy, setHideBusy] = useState(false);
+
+  const loadHidden = useCallback(async () => {
+    if (!authorized) return;
+    try {
+      const { data } = await api.get("/admin/hidden-videos");
+      setHiddenVideos(data.videos || []);
+    } catch {
+      setHiddenVideos([]);
+    }
+  }, [authorized]);
+
+  useEffect(() => { loadHidden(); }, [loadHidden]);
+
+  const hideByUrl = async (e) => {
+    e.preventDefault();
+    if (!hideInput.trim()) return;
+    setHideBusy(true);
+    try {
+      await api.post("/admin/hidden-videos", { url_or_id: hideInput.trim(), reason: "Not an American speaker" });
+      toast.success("Clip hidden for everyone.");
+      setHideInput("");
+      loadHidden();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Could not hide clip");
+    } finally {
+      setHideBusy(false);
+    }
+  };
+
+  const unhide = async (video_id) => {
+    try {
+      await api.post("/admin/hidden-videos/delete", { video_id });
+      toast.success("Clip restored.");
+      loadHidden();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Could not restore clip");
     }
   };
 
@@ -674,40 +715,55 @@ export default function AdminPage() {
         {/* Bulk ingest full transcripts from all curated channels */}
         <section className="bg-surface border thin-rule p-6" data-testid="admin-ingest">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
-            Real Speakers · deep index
+            Real Speakers · YouTube channel index
           </div>
           <h2 className="font-display text-2xl text-ink mb-4">
-            Bulk ingest channel transcripts
+            Channel transcript index
           </h2>
           <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
-            Walks every one of our 115 curated American-speaker YouTube
-            channels, fetches up to 200 recent videos each (~23,000 videos
-            total), and stores their full transcripts locally. Once
-            complete, ANY word ever spoken in these channels is instantly
-            searchable — no more "no video found" for common words like
-            "dog", "summer", "winter". Runs in the background for several
-            hours; safe to run repeatedly (skips already-indexed videos).
+            Walks every one of our {ingestStatus?.curated_channels ?? "curated"} American-speaker
+            YouTube channels, fetches up to 200 recent videos each and stores
+            their transcripts locally so any word spoken in them is instantly
+            searchable. Refreshes itself weekly; safe to run any time (skips
+            videos already indexed).
           </p>
+          {ingestStatus?.stale_lock ? (
+            <div className="mb-4 border border-rust/60 bg-rust/10 px-4 py-3 font-serif text-sm text-ink flex items-center gap-2" data-testid="admin-ingest-stale">
+              <AlertTriangle size={14} className="text-rust shrink-0" />
+              The last run stalled (server restart). Press the button below to take over and resume.
+            </div>
+          ) : null}
           {ingestStatus ? (
             <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3 mb-4">
               <div>
                 <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
                   Videos indexed
                 </div>
-                <div className="font-display text-2xl text-ink">
+                <div className="font-display text-2xl text-ink" data-testid="admin-ingest-videos">
                   {ingestStatus.videos_indexed ?? 0}
+                </div>
+              </div>
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
+                  Channels with videos
+                </div>
+                <div className="font-display text-2xl text-ink">
+                  {ingestStatus.channels_with_videos ?? 0}
+                  <span className="font-mono text-sm text-muted2 ml-1">
+                    / {ingestStatus.curated_channels ?? 0}
+                  </span>
                 </div>
               </div>
               {ingestStatus.job ? (
                 <>
                   <div>
                     <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
-                      Channels
+                      This run
                     </div>
                     <div className="font-display text-2xl text-ink">
                       {ingestStatus.job.channels_done ?? 0}
                       <span className="font-mono text-sm text-muted2 ml-1">
-                        / {ingestStatus.job.channels_total ?? 0}
+                        / {ingestStatus.job.channels_total ?? 0} channels
                       </span>
                     </div>
                   </div>
@@ -719,6 +775,16 @@ export default function AdminPage() {
                       {ingestStatus.job.running ? "Running…" : "Idle"}
                     </div>
                   </div>
+                  <div>
+                    <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
+                      Last full pass
+                    </div>
+                    <div className="font-display text-lg text-ink">
+                      {ingestStatus.job.last_full_finished_at
+                        ? new Date(ingestStatus.job.last_full_finished_at).toLocaleDateString()
+                        : "Never completed"}
+                    </div>
+                  </div>
                 </>
               ) : null}
             </div>
@@ -726,19 +792,89 @@ export default function AdminPage() {
           <button
             type="button"
             onClick={startIngest}
-            disabled={ingestStarting || ingestStatus?.job?.running}
+            disabled={ingestStarting || (ingestStatus?.job?.running && !ingestStatus?.stale_lock)}
             className="btn-primary"
             data-testid="admin-ingest-start"
           >
-            {ingestStarting || ingestStatus?.job?.running ? (
+            {ingestStarting || (ingestStatus?.job?.running && !ingestStatus?.stale_lock) ? (
               <Loader2 size={14} className="animate-spin" />
             ) : (
               <RefreshCw size={14} />
             )}
-            {ingestStatus?.job?.running
-              ? "Ingest running"
-              : "Ingest all channels now"}
+            {ingestStatus?.stale_lock
+              ? "Resume stalled index"
+              : ingestStatus?.job?.running
+              ? "Indexing running"
+              : "Index all channels now"}
           </button>
+          {ingestStatus?.by_channel?.length ? (
+            <details className="mt-5" data-testid="admin-ingest-by-channel">
+              <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 hover:text-ink">
+                Videos per channel
+              </summary>
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-1 max-h-72 overflow-auto scrollbar-thin">
+                {ingestStatus.by_channel.map((c) => (
+                  <div key={c.channel} className="flex justify-between gap-3 font-serif text-sm text-ink border-b thin-rule py-1">
+                    <span className="truncate">{c.channel}</span>
+                    <span className="font-mono text-xs text-muted2 tabular-nums">{c.videos}</span>
+                  </div>
+                ))}
+              </div>
+            </details>
+          ) : null}
+        </section>
+
+        {/* Hidden Real Speaker clips */}
+        <section className="bg-surface border thin-rule p-6" data-testid="admin-hidden-videos">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
+            Real Speakers · hidden clips
+          </div>
+          <h2 className="font-display text-2xl text-ink mb-2">
+            Hidden clips
+            <span className="font-mono text-sm text-muted2 ml-2">{hiddenVideos.length}</span>
+          </h2>
+          <p className="font-serif text-sm text-muted2 italic mb-4 leading-relaxed">
+            Clips you flagged as non-American speakers (or that stopped
+            playing). Paste a YouTube link to hide one, or restore any by mistake.
+          </p>
+          <form onSubmit={hideByUrl} className="flex flex-col sm:flex-row gap-2 mb-4">
+            <input
+              type="text"
+              value={hideInput}
+              onChange={(e) => setHideInput(e.target.value)}
+              placeholder="https://www.youtube.com/watch?v=…"
+              className="flex-1 px-3 py-2.5 bg-paper border thin-rule font-mono text-sm text-ink focus:outline-none focus:border-ink"
+              data-testid="admin-hide-input"
+            />
+            <button type="submit" className="btn-primary justify-center" disabled={hideBusy || !hideInput.trim()} data-testid="admin-hide-submit">
+              {hideBusy ? <Loader2 size={14} className="animate-spin" /> : <ShieldOff size={14} />} Hide clip
+            </button>
+          </form>
+          {hiddenVideos.length ? (
+            <ul className="divide-y thin-rule max-h-72 overflow-auto scrollbar-thin">
+              {hiddenVideos.map((v) => (
+                <li key={v.video_id} className="py-2.5 flex items-center justify-between gap-3" data-testid={`admin-hidden-${v.video_id}`}>
+                  <div className="min-w-0">
+                    <a
+                      href={`https://www.youtube.com/watch?v=${v.video_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-xs text-rust hover:underline"
+                    >
+                      {v.video_id}
+                    </a>
+                    <span className="font-serif text-sm text-ink ml-2">{v.channel_title || ""}</span>
+                    <div className="font-serif text-xs text-muted2 italic truncate">{v.reason || ""}</div>
+                  </div>
+                  <button type="button" className="btn-secondary !px-3 !py-1.5 shrink-0" onClick={() => unhide(v.video_id)} data-testid={`admin-unhide-${v.video_id}`}>
+                    Restore
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="font-serif text-sm text-muted2 italic">No hidden clips.</div>
+          )}
         </section>
 
         {/* User list */}

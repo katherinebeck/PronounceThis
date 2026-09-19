@@ -901,12 +901,20 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         import asyncio as _asyncio
         await require_admin(request, db)
 
-        # Guard against overlapping runs.
+        # Guard against overlapping runs; a lock with no progress for
+        # 30 min is a crash leftover and may be taken over.
         status = await db.ingest_status.find_one(
             {"job": "channels"}, {"_id": 0}
         )
         if status and status.get("running"):
-            return {"ok": True, "already_running": True, "status": status}
+            stale = True
+            try:
+                last = status.get("updated_at") or status.get("started_at") or ""
+                stale = (datetime.now(timezone.utc) - datetime.fromisoformat(last.replace("Z", "+00:00"))).total_seconds() > 30 * 60
+            except Exception:
+                pass
+            if not stale:
+                return {"ok": True, "already_running": True, "status": status}
 
         await db.ingest_status.update_one(
             {"job": "channels"},
@@ -962,31 +970,45 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
                     {"$set": {
                         "running": False,
                         "finished_at": _now_iso(),
+                        "last_full_finished_at": _now_iso(),
                     }},
                 )
 
         _asyncio.create_task(_run())
-        return {
-            "ok": True,
-            "note": (
-                "Ingestion running in background. Poll "
-                "GET /api/admin/ingest/status. Expect several hours to "
-                "complete — fetches ~1 transcript/second, gated to be "
-                "gentle on YouTube. ~23,000 videos total (115 channels × 200)."
-            ),
-        }
+        return {"ok": True}
 
     @router.get("/ingest/status")
     async def ingest_status(request: Request):
         await require_admin(request, db)
+        from caption_search import CURATED_HANDLES
         s = await db.ingest_status.find_one(
             {"job": "channels"}, {"_id": 0}
         )
-        # Also return a quick count of videos currently in the transcript
-        # cache with usable captions.
         indexed = await db.caption_transcript_cache.count_documents(
             {"has_transcript": True}
         )
-        return {"job": s, "videos_indexed": indexed}
+        by_channel = []
+        async for d in db.caption_transcript_cache.aggregate([
+            {"$match": {"has_transcript": True}},
+            {"$group": {"_id": "$channel_meta.channel_title", "n": {"$sum": 1}}},
+            {"$sort": {"n": -1}}, {"$limit": 200},
+        ]):
+            by_channel.append({"channel": d["_id"] or "(unknown)", "videos": d["n"]})
+        stale = False
+        if s and s.get("running"):
+            try:
+                last = s.get("updated_at") or s.get("started_at") or ""
+                stale = (datetime.now(timezone.utc) - datetime.fromisoformat(last.replace("Z", "+00:00"))).total_seconds() > 30 * 60
+            except Exception:
+                stale = True
+        return {
+            "job": s,
+            "videos_indexed": indexed,
+            "curated_channels": len(CURATED_HANDLES),
+            "channels_with_videos": len(by_channel),
+            "by_channel": by_channel,
+            "stale_lock": stale,
+            "hidden_videos": await db.hidden_videos.count_documents({}),
+        }
 
     return router
