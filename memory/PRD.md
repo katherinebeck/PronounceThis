@@ -293,3 +293,9 @@
 - Production domain now https://pronouncethis.us (app.katherinebeck.com unlinked). Secrets APP_PUBLIC_URL / CORS_ORIGINS updated by user; Stripe webhook URL updated. Needs Republish for secrets to apply.
 - Scenes: heteronyms resolved per sentence at upload (`_resolve_heteronyms_in_context`, Claude batch label + neighbour-word fallback). Token gets `variant_label`; `_refresh_categories` preserves it; WordBlock/LaundryList play with token arpabet.
 - Link preview: index.html title/og/twitter = "Pronounce This - The American accent pronunciation tool".
+
+## 2026-06 — Admin cleanup
+- Removed "Prewarm popular words" section from Admin UI (channel index makes it redundant; backend endpoints left in place).
+- Single "Hidden clips" section (HiddenVideos.jsx) placed under the channel index; duplicate removed.
+- All users: Search button (email or plan title), 25 per page with Prev/Next; GET /admin/users?q=&page=&limit= returns total/page/limit.
+- Dictionary builder IPA validator now accepts "·" and nasal tilde; palette has "·".

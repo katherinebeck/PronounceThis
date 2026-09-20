@@ -19,6 +19,7 @@ import base64
 import csv
 import io
 import os
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -247,16 +248,27 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
     async def list_users(
         request: Request,
         q: Optional[str] = None,
-        limit: int = 100,
+        page: int = 1,
+        limit: int = 25,
     ):
         await require_admin(request, db)
+        limit = max(1, min(limit, 100))
+        page = max(1, page)
         query: dict = {}
         if q:
-            query["email"] = {"$regex": q.lower(), "$options": "i"}
+            rx = {"$regex": re.escape(q.strip()), "$options": "i"}
+            # Match on email, or on a membership's offer/plan title (name-ish).
+            member_emails = await db.memberships.distinct(
+                "user_email", {"offer_title": rx}
+            )
+            query["$or"] = [{"email": rx}, {"email": {"$in": member_emails}}]
+        total = await db.users.count_documents(query)
         users = await (
             db.users.find(query, {"_id": 0})
             .sort("created_at", -1)
-            .to_list(min(limit, 500))
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .to_list(limit)
         )
         # Attach a quick membership summary per user.
         emails = [u["email"] for u in users]
@@ -280,7 +292,8 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 }
         for u in users:
             u["membership"] = by_email.get(u["email"])
-        return {"count": len(users), "users": users}
+        return {"count": len(users), "total": total, "page": page,
+                "limit": limit, "users": users}
 
     # --- Data export (CSV) ----------------------------------------------
     USER_COLS = ["email", "created_at", "last_login_at", "stripe_customer_id",

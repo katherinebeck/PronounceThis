@@ -54,12 +54,16 @@ export function HiddenVideos() {
   return (
     <section className="bg-surface border thin-rule p-6" data-testid="admin-hidden-videos">
       <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
-        Real Speakers
+        Real Speakers · hidden clips
       </div>
-      <h2 className="font-display text-2xl text-ink mb-4">Hide a video</h2>
+      <h2 className="font-display text-2xl text-ink mb-4">
+        Hidden clips
+        <span className="font-mono text-sm text-muted2 ml-2" data-testid="hidden-video-count">{videos.length}</span>
+      </h2>
       <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
-        Heard a speaker who isn’t General American? Paste the YouTube link and that
-        clip disappears from Real Speakers for everyone — the channel stays.
+        Heard a speaker who isn’t American? Use the “Not American · hide” link under any
+        clip, or paste the YouTube link here. Hidden clips disappear from Real Speakers for
+        everyone — the channel stays. Clips reported as unplayable by two members land here too.
       </p>
       <form onSubmit={hide} className="grid gap-3 sm:grid-cols-[2fr_1fr_auto]">
         <input type="url" required placeholder="https://www.youtube.com/watch?v=…" value={url}

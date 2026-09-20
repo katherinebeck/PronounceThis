@@ -20,6 +20,10 @@ export default function AdminPage() {
   const [authorized, setAuthorized] = useState(null); // null | true | false
   const [users, setUsers] = useState([]);
   const [query, setQuery] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 25;
   const [loading, setLoading] = useState(false);
   const [granting, setGranting] = useState(false);
   const [grantEmail, setGrantEmail] = useState("");
@@ -47,15 +51,28 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const { data } = await api.get("/admin/users", {
-        params: query ? { q: query } : {},
+        params: { page, limit: PAGE_SIZE, ...(query ? { q: query } : {}) },
       });
       setUsers(data.users || []);
+      setTotal(data.total ?? (data.users || []).length);
     } catch (e) {
       toast.error("Could not load users");
     } finally {
       setLoading(false);
     }
-  }, [authorized, query]);
+  }, [authorized, query, page]);
+
+  const submitSearch = (e) => {
+    e?.preventDefault?.();
+    setPage(1);
+    setQuery(searchDraft.trim());
+  };
+  const clearSearch = () => {
+    setSearchDraft("");
+    setPage(1);
+    setQuery("");
+  };
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   useEffect(() => {
     load();
@@ -235,20 +252,12 @@ export default function AdminPage() {
     }
   };
 
-  // ------------------------ Prewarm caption cache ------------------------
-  const [prewarmStatus, setPrewarmStatus] = useState(null);
-  const [prewarmStarting, setPrewarmStarting] = useState(false);
+  // ------------------------ Channel transcript index ------------------------
   const [ingestStatus, setIngestStatus] = useState(null);
   const [ingestStarting, setIngestStarting] = useState(false);
 
-  const loadPrewarmStatus = useCallback(async () => {
+  const loadIngestStatus = useCallback(async () => {
     if (!authorized) return;
-    try {
-      const { data } = await api.get("/admin/prewarm/status");
-      setPrewarmStatus(data);
-    } catch {
-      setPrewarmStatus(null);
-    }
     try {
       const { data } = await api.get("/admin/ingest/status");
       setIngestStatus(data);
@@ -258,25 +267,10 @@ export default function AdminPage() {
   }, [authorized]);
 
   useEffect(() => {
-    loadPrewarmStatus();
-    const iv = setInterval(loadPrewarmStatus, 15000);
+    loadIngestStatus();
+    const iv = setInterval(loadIngestStatus, 15000);
     return () => clearInterval(iv);
-  }, [loadPrewarmStatus]);
-
-  const startPrewarm = async () => {
-    setPrewarmStarting(true);
-    try {
-      const { data } = await api.post("/admin/prewarm/start");
-      toast.success(
-        `Prewarm queued for ${data.words_queued} words — running in background`
-      );
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Could not start prewarm");
-    } finally {
-      setPrewarmStarting(false);
-      setTimeout(loadPrewarmStatus, 2000);
-    }
-  };
+  }, [loadIngestStatus]);
 
   const startIngest = async () => {
     setIngestStarting(true);
@@ -291,52 +285,10 @@ export default function AdminPage() {
       toast.error(err?.response?.data?.detail || "Could not start ingest");
     } finally {
       setIngestStarting(false);
-      setTimeout(loadPrewarmStatus, 2000);
+      setTimeout(loadIngestStatus, 2000);
     }
   };
 
-  // ------------------------ Hidden Real Speaker clips ------------------------
-  const [hiddenVideos, setHiddenVideos] = useState([]);
-  const [hideInput, setHideInput] = useState("");
-  const [hideBusy, setHideBusy] = useState(false);
-
-  const loadHidden = useCallback(async () => {
-    if (!authorized) return;
-    try {
-      const { data } = await api.get("/admin/hidden-videos");
-      setHiddenVideos(data.videos || []);
-    } catch {
-      setHiddenVideos([]);
-    }
-  }, [authorized]);
-
-  useEffect(() => { loadHidden(); }, [loadHidden]);
-
-  const hideByUrl = async (e) => {
-    e.preventDefault();
-    if (!hideInput.trim()) return;
-    setHideBusy(true);
-    try {
-      await api.post("/admin/hidden-videos", { url_or_id: hideInput.trim(), reason: "Not an American speaker" });
-      toast.success("Clip hidden for everyone.");
-      setHideInput("");
-      loadHidden();
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Could not hide clip");
-    } finally {
-      setHideBusy(false);
-    }
-  };
-
-  const unhide = async (video_id) => {
-    try {
-      await api.post("/admin/hidden-videos/delete", { video_id });
-      toast.success("Clip restored.");
-      loadHidden();
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Could not restore clip");
-    }
-  };
 
   // ------------------------ Pronunciation overrides ------------------------
   const [overrides, setOverrides] = useState([]);
@@ -656,62 +608,6 @@ export default function AdminPage() {
           </div>
         </section>
 
-        {/* Prewarm caption cache */}
-        <section className="bg-surface border thin-rule p-6" data-testid="admin-prewarm">
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
-            Real Speakers · cache
-          </div>
-          <h2 className="font-display text-2xl text-ink mb-4">
-            Prewarm popular words
-          </h2>
-          <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
-            Populate the Real Speakers cache with a curated list of ~1400
-            common words + US places + auditioning vocabulary. Once cached,
-            every student's first click on those words is instant. Runs in
-            the background over several hours; already-cached words are
-            skipped. Uses YouTube API quota (~100 units per fresh word).
-          </p>
-          {prewarmStatus ? (
-            <div className="flex items-baseline gap-6 mb-4">
-              <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
-                  Cached
-                </div>
-                <div className="font-display text-2xl text-ink">
-                  {prewarmStatus.cached}
-                  <span className="font-mono text-sm text-muted2 ml-1">
-                    / {prewarmStatus.total}
-                  </span>
-                </div>
-              </div>
-              <div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
-                  Coverage
-                </div>
-                <div className="font-display text-2xl text-rust">
-                  {prewarmStatus.percent}%
-                </div>
-              </div>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            onClick={startPrewarm}
-            disabled={prewarmStarting}
-            className="btn-primary"
-            data-testid="admin-prewarm-start"
-          >
-            {prewarmStarting ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <RefreshCw size={14} />
-            )}
-            {prewarmStatus?.pending
-              ? `Prewarm ${prewarmStatus.pending} pending words`
-              : "Prewarm all words"}
-          </button>
-        </section>
-
         {/* Bulk ingest full transcripts from all curated channels */}
         <section className="bg-surface border thin-rule p-6" data-testid="admin-ingest">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
@@ -824,58 +720,8 @@ export default function AdminPage() {
           ) : null}
         </section>
 
-        {/* Hidden Real Speaker clips */}
-        <section className="bg-surface border thin-rule p-6" data-testid="admin-hidden-videos">
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
-            Real Speakers · hidden clips
-          </div>
-          <h2 className="font-display text-2xl text-ink mb-2">
-            Hidden clips
-            <span className="font-mono text-sm text-muted2 ml-2">{hiddenVideos.length}</span>
-          </h2>
-          <p className="font-serif text-sm text-muted2 italic mb-4 leading-relaxed">
-            Clips you flagged as non-American speakers (or that stopped
-            playing). Paste a YouTube link to hide one, or restore any by mistake.
-          </p>
-          <form onSubmit={hideByUrl} className="flex flex-col sm:flex-row gap-2 mb-4">
-            <input
-              type="text"
-              value={hideInput}
-              onChange={(e) => setHideInput(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=…"
-              className="flex-1 px-3 py-2.5 bg-paper border thin-rule font-mono text-sm text-ink focus:outline-none focus:border-ink"
-              data-testid="admin-hide-input"
-            />
-            <button type="submit" className="btn-primary justify-center" disabled={hideBusy || !hideInput.trim()} data-testid="admin-hide-submit">
-              {hideBusy ? <Loader2 size={14} className="animate-spin" /> : <ShieldOff size={14} />} Hide clip
-            </button>
-          </form>
-          {hiddenVideos.length ? (
-            <ul className="divide-y thin-rule max-h-72 overflow-auto scrollbar-thin">
-              {hiddenVideos.map((v) => (
-                <li key={v.video_id} className="py-2.5 flex items-center justify-between gap-3" data-testid={`admin-hidden-${v.video_id}`}>
-                  <div className="min-w-0">
-                    <a
-                      href={`https://www.youtube.com/watch?v=${v.video_id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-xs text-rust hover:underline"
-                    >
-                      {v.video_id}
-                    </a>
-                    <span className="font-serif text-sm text-ink ml-2">{v.channel_title || ""}</span>
-                    <div className="font-serif text-xs text-muted2 italic truncate">{v.reason || ""}</div>
-                  </div>
-                  <button type="button" className="btn-secondary !px-3 !py-1.5 shrink-0" onClick={() => unhide(v.video_id)} data-testid={`admin-unhide-${v.video_id}`}>
-                    Restore
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="font-serif text-sm text-muted2 italic">No hidden clips.</div>
-          )}
-        </section>
+
+        <HiddenVideos />
 
         {/* User list */}
         <section>
@@ -884,24 +730,35 @@ export default function AdminPage() {
               <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
                 All users
               </div>
-              <h2 className="font-display text-2xl text-ink mt-0.5">
-                {users.length} account{users.length === 1 ? "" : "s"}
+              <h2 className="font-display text-2xl text-ink mt-0.5" data-testid="admin-users-total">
+                {total} account{total === 1 ? "" : "s"}
+                {query ? <span className="font-mono text-sm text-muted2 ml-2">matching “{query}”</span> : null}
               </h2>
             </div>
-            <div className="relative sm:w-72">
-              <Search
-                size={13}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2 pointer-events-none"
-              />
-              <input
-                type="search"
-                placeholder="Search email…"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 bg-surface border thin-rule font-serif text-sm text-ink focus:outline-none focus:border-ink"
-                data-testid="admin-search"
-              />
-            </div>
+            <form onSubmit={submitSearch} className="flex gap-2 sm:w-[28rem]" data-testid="admin-search-form">
+              <div className="relative flex-1">
+                <Search
+                  size={13}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2 pointer-events-none"
+                />
+                <input
+                  type="search"
+                  placeholder="Search by name or email…"
+                  value={searchDraft}
+                  onChange={(e) => setSearchDraft(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-surface border thin-rule font-serif text-sm text-ink focus:outline-none focus:border-ink"
+                  data-testid="admin-search"
+                />
+              </div>
+              <button type="submit" className="btn-primary !py-2 !px-4" data-testid="admin-search-submit">
+                Search
+              </button>
+              {query ? (
+                <button type="button" onClick={clearSearch} className="btn-secondary !py-2 !px-3" data-testid="admin-search-clear">
+                  Clear
+                </button>
+              ) : null}
+            </form>
           </div>
 
           <div className="bg-surface border thin-rule overflow-x-auto">
@@ -1040,6 +897,23 @@ export default function AdminPage() {
             </table>
           </div>
 
+          {total > PAGE_SIZE ? (
+            <div className="flex items-center justify-between gap-3 mt-3" data-testid="admin-users-pager">
+              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
+                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
+              </span>
+              <div className="flex items-center gap-2">
+                <button type="button" className="btn-secondary !py-1.5 !px-3" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} data-testid="admin-users-prev">
+                  ← Prev
+                </button>
+                <span className="font-mono text-xs text-muted2 tabular-nums">Page {page} / {totalPages}</span>
+                <button type="button" className="btn-secondary !py-1.5 !px-3" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} data-testid="admin-users-next">
+                  Next →
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-3">
             Click a date to extend or shorten access (clear it for no end) · Cancel = ends access at end of paid period · Trash = delete the user entirely.
           </p>
@@ -1089,7 +963,6 @@ export default function AdminPage() {
 
         <PronunciationPrefs />
 
-        <HiddenVideos />
 
         {/* Pronunciation overrides */}
         <section className="bg-surface border thin-rule p-6">
