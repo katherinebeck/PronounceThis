@@ -312,91 +312,88 @@ export default function SceneReader({ scene, highlightSet }) {
           </div>
         </div>
 
-        {/* Practice controls: character + voice + Play My Lines. */}
+        {/* Practice controls, grouped: (1) my lines (2) reader track. */}
         {speakers.length > 0 ? (
-          <div className="mt-5 flex items-center gap-3 flex-wrap">
-            <CharacterPicker
-              speakers={speakers}
-              value={prefs.character}
-              onChange={(c) => setPrefs({ character: c })}
-            />
-            <VoicePicker
-              voices={voices}
-              value={prefs.voice}
-              onChange={(v) => setPrefs({ voice: v })}
-            />
-            <button
-              type="button"
-              className={"btn-primary " + (running ? "!bg-rust" : "")}
-              onClick={handlePlayMyLines}
-              data-testid="play-my-lines-button"
-            >
-              {running ? (
-                <>
-                  <Square size={12} fill="currentColor" /> Stop
-                </>
-              ) : (
-                <>
-                  <Play size={12} fill="currentColor" /> Play My Lines
-                </>
-              )}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleDownloadMyLines}
-              data-testid="download-my-lines-button"
-              disabled={downloading || running}
-              title="Download every one of your character's lines as a single MP3 (with a 2-second pause between lines) for offline drilling"
-            >
-              {downloading ? (
-                <>
-                  <Loader2 size={12} className="animate-spin" /> Bundling
-                </>
-              ) : (
-                <>
-                  <Download size={12} /> Download My Lines
-                </>
-              )}
-            </button>
-            <div className="inline-flex items-stretch border thin-rule" data-testid="reader-download-group">
-              <div className="flex items-center gap-1 px-2 border-r thin-rule" data-testid="reader-voice-picker-wrap" title="Voice for the other characters in your reader track">
-                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-rust mr-1">Reader</span>
-                {voices.map((v) => (
-                  <button
-                    key={v.key}
-                    type="button"
-                    onClick={() => setPrefs({ readerVoice: v.key })}
-                    className={
-                      "font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1 transition-colors " +
-                      (readerVoice === v.key ? "bg-ink text-stage" : "text-muted2 hover:text-ink")
-                    }
-                    data-testid={`reader-voice-${v.key}`}
-                    aria-pressed={readerVoice === v.key}
-                  >
-                    {v.gender === "male" ? "Male" : "Female"}
-                  </button>
-                ))}
+          <div className="mt-5 grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-3" data-testid="scene-controls">
+            <section className="border thin-rule bg-surface/60 p-4 flex flex-col gap-3" data-testid="my-lines-panel">
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust whitespace-nowrap">Step 1 · My lines</div>
+                <div className="font-serif text-xs text-muted2 italic hidden sm:block">Hear only your character, in the voice you pick.</div>
               </div>
-            <button
-              type="button"
-              className="btn-secondary !border-0"
-              onClick={handleDownloadReaderLines}
-              data-testid="download-reader-lines-button"
-              disabled={downloadingReader || running}
-              title="Download the other characters' lines as one MP3, with silence where your lines go (10% longer than it takes to say them) so you can rehearse against it"
-            >
-              {downloadingReader ? (
-                <>
-                  <Loader2 size={12} className="animate-spin" /> Bundling
-                </>
-              ) : (
-                <>
-                  <Download size={12} /> Download My Reader's Lines
-                </>
-              )}
-            </button>
-            </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <CharacterPicker
+                  speakers={speakers}
+                  value={prefs.character}
+                  onChange={(c) => setPrefs({ character: c })}
+                />
+                <VoicePicker
+                  voices={voices}
+                  value={prefs.voice}
+                  onChange={(v) => setPrefs({ voice: v })}
+                  label="My voice"
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  className={"btn-primary " + (running ? "!bg-rust" : "")}
+                  onClick={handlePlayMyLines}
+                  data-testid="play-my-lines-button"
+                >
+                  {running ? (
+                    <><Square size={12} fill="currentColor" /> Stop</>
+                  ) : (
+                    <><Play size={12} fill="currentColor" /> Play My Lines</>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleDownloadMyLines}
+                  data-testid="download-my-lines-button"
+                  disabled={downloading || running}
+                  title="Download every one of your character's lines as a single MP3 (with a 2-second pause between lines) for offline drilling"
+                >
+                  {downloading ? (
+                    <><Loader2 size={12} className="animate-spin" /> Bundling</>
+                  ) : (
+                    <><Download size={12} /> Download My Lines</>
+                  )}
+                </button>
+              </div>
+            </section>
+
+            <section className="border thin-rule bg-surface/60 p-4 flex flex-col gap-3" data-testid="reader-panel">
+              <div className="flex items-baseline justify-between gap-3">
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust whitespace-nowrap">Step 2 · Reader track</div>
+                <div className="font-serif text-xs text-muted2 italic hidden sm:block">The other characters speak; your lines are left silent for you to say.</div>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <VoicePicker
+                  voices={voices}
+                  value={readerVoice}
+                  onChange={(v) => setPrefs({ readerVoice: v })}
+                  label="Reader's voice"
+                  testId="reader-voice-picker"
+                />
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleDownloadReaderLines}
+                  data-testid="download-reader-lines-button"
+                  disabled={downloadingReader || running}
+                  title="Download the other characters' lines as one MP3, with silence where your lines go (10% longer than it takes to say them) so you can rehearse against it"
+                >
+                  {downloadingReader ? (
+                    <><Loader2 size={12} className="animate-spin" /> Bundling</>
+                  ) : (
+                    <><Download size={12} /> Download My Reader's Lines</>
+                  )}
+                </button>
+              </div>
+            </section>
           </div>
         ) : null}
       </div>
