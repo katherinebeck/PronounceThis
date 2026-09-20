@@ -320,10 +320,15 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 {"token": token},
                 {"$set": {"consumed": True, "consumed_at": _now().isoformat()}},
             )
-        await db.users.update_one(
+        prev = await db.users.find_one_and_update(
             {"email": email},
             {"$set": {"last_login_at": _now().isoformat()}},
         )
+        if prev is not None and not prev.get("last_login_at"):
+            from notify import notify_owner
+            notify_owner("New free trial", "Someone just started a free trial",
+                         [f"<b>{email}</b> signed in for the first time.",
+                          "They get 5 free words and 1 free scene."])
 
         session = _issue_jwt(email)
         # SameSite=lax so we still get the cookie when the user clicks the

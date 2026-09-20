@@ -327,3 +327,7 @@
 - Word page: unauthenticated Pronounce / Upload a scene open Get Started (paywall "join") modal.
 - Scene header restored to original 4 controls + compact Reader Female|Male toggle attached to Download My Reader's Lines.
 - audio.js: withRetry (3 tries) on transient 5xx/network for word + line TTS; friendly message instead of Cloudflare HTML.
+
+## 2026-06 — Owner notifications
+- notify.py: notify_owner(subject,title,lines) via Resend → ADMIN_NOTIFY_EMAIL (default info@katherinebeck.com). Hooks: first sign-in (auth verify, last_login_at was None) → "New free trial"; checkout.session.completed first grant → "New member"; subscription cancel scheduled (first time cancel_at seen) → "Cancellation"; subscription.deleted → "Subscription ended". Fire-and-forget.
+- Scene controls redesigned into two panels: Step 1 · My lines (character, my voice, play, download) and Step 2 · Reader track (reader's voice, download).

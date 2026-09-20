@@ -34,6 +34,7 @@ from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
 from auth import client_ip, optional_login, rate_limit, require_login
+from notify import notify_owner
 
 logger = logging.getLogger(__name__)
 
@@ -345,6 +346,9 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
          "$set": {"stripe_customer_id": session.get("customer")}},
         upsert=True,
     )
+    already = await db.memberships.find_one(
+        {"stripe_subscription_id": sub_id, "last_event": "checkout_completed"}, {"_id": 1}
+    ) if sub_id else None
     await db.memberships.update_one(
         {"user_email": email, "offer_id": f"stripe:{lookup_key}"},
         {"$set": {
@@ -364,6 +368,10 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
     )
     await _supersede_stripe_rows(db, email, f"stripe:{lookup_key}")
     logger.info(f"stripe → active: {email} / {lookup_key}")
+    if not already:
+        notify_owner("New member 💳", "A new member just joined",
+                     [f"<b>{email}</b> subscribed to <b>{offer_title}</b>.",
+                      "Their access is active now."])
 
 
 async def _sync_subscription(
@@ -399,6 +407,12 @@ async def _sync_subscription(
         subscription_end_at = datetime.fromtimestamp(
             cancel_at, tz=timezone.utc
         ).isoformat()
+        prev = await db.memberships.find_one(
+            {"stripe_subscription_id": sub.get("id")}, {"_id": 0, "subscription_end_at": 1})
+        if prev is not None and not prev.get("subscription_end_at"):
+            notify_owner("Cancellation 🔴", "A member cancelled",
+                         [f"<b>{email}</b> cancelled <b>{_lookup_key_to_title(lookup_key)}</b>.",
+                          f"Access ends {subscription_end_at[:10]}."])
 
     # past_due = Stripe is still retrying the card (dunning). Keep access
     # until the subscription is actually deleted/unpaid/canceled.
@@ -435,6 +449,11 @@ async def _mark_cancelled(db: AsyncIOMotorDatabase, sub) -> None:
         }},
     )
     logger.info(f"stripe subscription.deleted {sub_id} → rows={result.modified_count}")
+    row = await db.memberships.find_one({"stripe_subscription_id": sub_id}, {"_id": 0, "user_email": 1, "offer_title": 1})
+    if row:
+        notify_owner("Subscription ended", "A subscription has ended",
+                     [f"<b>{row.get('user_email')}</b> — <b>{row.get('offer_title') or 'membership'}</b> is now closed.",
+                      "Their access has been removed."])
 
 
 async def sync_from_stripe_customer(
