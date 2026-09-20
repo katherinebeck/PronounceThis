@@ -1,0 +1,23 @@
+{
+  "summary": "Verified iteration-24 acceptance criteria (trial-only paywall gating for anonymous users, full paywall for header Get Started, login modal for header Sign in, default-to-Word tab, backend variants + Connection:close header). Added new pytest module test_iteration24_backend.py (3/3 pass) and ran a Playwright script against the preview URL covering all 8 anonymous-user acceptance items. All checks pass. The trial form submit shows a 'email_send_failed' toast because Resend is in test mode and rejects example.com (per review request, this is acceptable and reported).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration24_backend.py",
+    "/app/test_reports/pytest/iter24_backend.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/server.py startup ingest triggers a 30-90s YouTube playlist/videos crawl on every uvicorn reload; because watchfiles reloads on any /app/backend/** change (including tests/*.py), running pytest against files inside /app/backend/tests can knock the origin over until the ingest finishes and can leave the singleton MongoClient in the 'Cannot use MongoClient after close' state (seen once during this run; recovered with `supervisorctl restart backend`). Consider gating startup ingest behind an env flag when RUN_ENV=test, or moving tests to /app/tests/ so watchfiles ignores them. This is dev-quality only, not a production bug.",
+    "PaywallModal plan buttons use `data-testid=\"paywall-${lookup_key}\"` (paywall-accent_coach_monthly / paywall-accent_coach_yearly). The review-request selector convention `[data-testid^=paywall-plan]` would miss them — no functional issue, just call out the naming mismatch for future automation.",
+    "TrialSignupForm surfaces raw Resend error codes to the toast ('email_send_failed'). Consider translating to a friendly copy ('We couldn't send the sign-in link to that address — try a real inbox.') so future user-facing failures don't leak underscore_snake_case error codes."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration24_backend.py"],
+  "success_rate": {"backend": "100% (3/3 iter24 tests + regressions untouched)", "frontend": "100% (8/8 anonymous acceptance items)"},
+  "test_credentials": "Admin katherine@katherinebeck.com magic-link (unused in this iteration; anonymous flows only).",
+  "seed_data_creation": "None. Trial submit created 0 DB rows (Resend rejected before magic_links insert).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 24 fully verified. Anonymous flows verified via Playwright at preview URL: (1) default tab is Word even with localStorage.activeTab='scenes'; (2)(3)(4)(5) word-search / promo banner / upload-pdf / new-scene all open trial-only paywall (trial-signup + paywall-trial-footer present, no paywall-join-heading, no plan buttons, no 'Start monthly'/'Save with annual' text); (6) header-get-started opens FULL modal with paywall-join-heading + paywall-accent_coach_monthly + paywall-accent_coach_yearly ('Start monthly $9/mo' + 'Save with annual $90/yr'); (7) header-signin opens login modal with email input and NO 'New here?' section; (8) trial-submit does not crash — surfaces 'email_send_failed' toast for example.com (Resend test-mode). Backend verified via /api/pronounce?word=produce (2 variants Noun/Verb with distinct IPA), /api/pronounce?word=server (ipa='ˈsɝ·vɚ'), /api/sound-categories origin Connection:close header. Logged-in flow (real-speakers-inline for 'partner', scene reader panels) was NOT re-tested — earlier iterations (21-23) already covered auth+scene flows and no code was changed there in this iteration's scope.",
+  "rca of the issue": "N/A — no bugs found. One backend-dev-ergonomics gotcha observed (watchfiles reloads on tests/ edits + long startup ingest can leave origin unresponsive) documented in critical_code_review_comments."
+}

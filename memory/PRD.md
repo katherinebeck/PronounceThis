@@ -331,3 +331,12 @@
 ## 2026-06 — Owner notifications
 - notify.py: notify_owner(subject,title,lines) via Resend → ADMIN_NOTIFY_EMAIL (default info@katherinebeck.com). Hooks: first sign-in (auth verify, last_login_at was None) → "New free trial"; checkout.session.completed first grant → "New member"; subscription cancel scheduled (first time cancel_at seen) → "Cancellation"; subscription.deleted → "Subscription ended". Fire-and-forget.
 - Scene controls redesigned into two panels: Step 1 · My lines (character, my voice, play, download) and Step 2 · Reader track (reader's voice, download).
+
+## 2026-06 — Visitor gating v2, default tab, 520 mitigation
+- App always opens on Word tab (no localStorage memory of tab).
+- openPaywall("trial") → trial-only popup (email capture, no plans, footer pointing to Sign in / Get Started). Used by Pronounce, Upload a scene promo, Upload PDF, + New Scene for anonymous users. Header Get Started keeps full modal ("join").
+- Real Speakers panel: 3× retry on 5xx/network, friendly error text (no Cloudflare HTML).
+- server.py middleware sets `Connection: close` on every response to avoid LB↔uvicorn keep-alive races (suspected cause of intermittent Cloudflare 520s in production).
+- Session: JWT cookie 90 days (JWT_DAYS=90), no re-login needed on same browser.
+- Testing: /app/test_reports/iteration_24.json — all pass.
+- PENDING user input: ConvertKit integration (needs API key + form/tag IDs for trial + member).
