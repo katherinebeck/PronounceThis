@@ -12,11 +12,29 @@ function b64ToBlobUrl(audio_b64, mime) {
 }
 
 function friendlyError(e, fallback = "Audio playback failed.") {
+  const status = e?.response?.status;
+  if (!status || status >= 500)
+    return "The audio server hiccupped — please try again in a moment.";
   const msg = e?.response?.data?.detail;
   if (typeof msg === "string" && msg.includes("detected_unusual_activity"))
     return "ElevenLabs free tier is blocked from cloud servers — please upgrade your plan to enable audio.";
-  if (typeof msg === "string") return msg.slice(0, 220);
+  if (typeof msg === "string" && !msg.trim().startsWith("<")) return msg.slice(0, 220);
   return fallback;
+}
+
+// Proxy blips (Cloudflare 520/502, dropped connections) are transient:
+// retry twice before surfacing an error.
+async function withRetry(fn, tries = 3) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (e) {
+      const status = e?.response?.status;
+      const transient = !status || status >= 500;
+      if (!transient || attempt >= tries - 1) throw e;
+      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+    }
+  }
 }
 
 // `phonetic` = proper noun: pronunciation driven by the dictionary's phonemes.
@@ -30,7 +48,7 @@ export async function playWord(word, { phonetic = false, arpabet = null } = {}) 
   } else {
     let resp;
     try {
-      resp = await fetchTTS(word, phonetic, arpabet);
+      resp = await withRetry(() => fetchTTS(word, phonetic, arpabet));
     } catch (e) {
       const err = new Error(friendlyError(e, "Unable to generate audio."));
       err.friendly = err.message;
@@ -56,7 +74,7 @@ export async function loadTurnAudio(sceneId, turnIndex, { voice = null } = {}) {
   if (url) return url;
   let resp;
   try {
-    resp = await fetchTurnTTS(sceneId, turnIndex, { voice });
+    resp = await withRetry(() => fetchTurnTTS(sceneId, turnIndex, { voice }));
   } catch (e) {
     const err = new Error(friendlyError(e, "Unable to generate line audio."));
     err.friendly = err.message;
