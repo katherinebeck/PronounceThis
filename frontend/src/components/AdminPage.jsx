@@ -1,10 +1,9 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Check, AlertTriangle, Download, Pencil } from "lucide-react";
+import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Check, AlertTriangle, Download, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { PronunciationPrefs } from "./PronunciationPrefs";
-import { RecordingQueue } from "./RecordingQueue";
 import { DictionaryBuilder } from "./DictionaryBuilder";
 import { HiddenVideos } from "./HiddenVideos";
 import {
@@ -73,6 +72,17 @@ export default function AdminPage() {
     setQuery("");
   };
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // 1 … 4 5 [6] 7 8 … 20 — always show first/last, a window round the current page.
+  const pageItems = (cur, n) => {
+    if (n <= 7) return Array.from({ length: n }, (_, i) => i + 1);
+    const items = [1];
+    const lo = Math.max(2, cur - 1), hi = Math.min(n - 1, cur + 1);
+    if (lo > 2) items.push("…");
+    for (let i = lo; i <= hi; i++) items.push(i);
+    if (hi < n - 1) items.push("…");
+    items.push(n);
+    return items;
+  };
 
   useEffect(() => {
     load();
@@ -841,22 +851,41 @@ export default function AdminPage() {
             </table>
           </div>
 
-          {total > PAGE_SIZE ? (
-            <div className="flex items-center justify-between gap-3 mt-3" data-testid="admin-users-pager">
-              <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
-                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, total)} of {total}
-              </span>
-              <div className="flex items-center gap-2">
-                <button type="button" className="btn-secondary !py-1.5 !px-3" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} data-testid="admin-users-prev">
-                  ← Prev
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mt-4" data-testid="admin-users-pager">
+            <span className="font-serif text-sm text-muted2">
+              Displaying <span className="text-ink font-semibold">{total ? (page - 1) * PAGE_SIZE + 1 : 0} - {Math.min(page * PAGE_SIZE, total)}</span> of{" "}
+              <span className="text-ink font-semibold">{total}</span> accounts
+            </span>
+            {totalPages > 1 ? (
+              <nav className="flex items-center gap-1" aria-label="Pagination">
+                <button type="button" className="p-2 text-muted2 hover:text-ink disabled:opacity-30" disabled={page <= 1} onClick={() => setPage((p) => p - 1)} data-testid="admin-users-prev" aria-label="Previous page">
+                  <ChevronLeft size={16} />
                 </button>
-                <span className="font-mono text-xs text-muted2 tabular-nums">Page {page} / {totalPages}</span>
-                <button type="button" className="btn-secondary !py-1.5 !px-3" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} data-testid="admin-users-next">
-                  Next →
+                {pageItems(page, totalPages).map((it, i) =>
+                  it === "…" ? (
+                    <span key={`gap-${i}`} className="px-2 font-mono text-sm text-muted2">…</span>
+                  ) : (
+                    <button
+                      key={it}
+                      type="button"
+                      onClick={() => setPage(it)}
+                      aria-current={it === page ? "page" : undefined}
+                      className={
+                        "min-w-[2.25rem] h-9 px-2 font-mono text-sm rounded-full transition-colors " +
+                        (it === page ? "bg-ink text-stage" : "text-muted2 hover:text-ink hover:bg-surface")
+                      }
+                      data-testid={`admin-users-page-${it}`}
+                    >
+                      {it}
+                    </button>
+                  )
+                )}
+                <button type="button" className="p-2 text-muted2 hover:text-ink disabled:opacity-30" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)} data-testid="admin-users-next" aria-label="Next page">
+                  <ChevronRight size={16} />
                 </button>
-              </div>
-            </div>
-          ) : null}
+              </nav>
+            ) : null}
+          </div>
 
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-3">
             Click a date to extend or shorten access (clear it for no end) · Cancel = ends access at end of paid period · Trash = delete the user entirely.
@@ -901,7 +930,6 @@ export default function AdminPage() {
           </AlertDialogContent>
         </AlertDialog>
 
-        <RecordingQueue />
 
         <DictionaryBuilder />
 

@@ -104,13 +104,18 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
         await require_admin(request, db)
         words = cmu_words_by_frequency()
         pos = 0
-        if start:
-            try:
-                pos = words.index(_clean_word(start))
-            except ValueError:
-                pos = 0
-        limit = max(1, min(limit, 50))
         out: list = []
+        if start:
+            sw = _clean_word(start)
+            try:
+                pos = words.index(sw)
+            except ValueError:
+                # Not in CMU (a name, "oner"…): put it first so the coach can
+                # give it an IPA and/or a take; the A→Z queue follows.
+                if sw:
+                    e = await db.dictionary_entries.find_one({"word": sw}, {"_id": 0, "ipa": 1})
+                    out.append({"word": sw, "ipa": (e or {}).get("ipa") or "", "custom": True})
+        limit = max(1, min(limit, 50))
         while pos < len(words) and len(out) < limit:
             chunk = words[pos:pos + 400]
             pos += len(chunk)
@@ -132,7 +137,7 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return await _entry(w)
 
     @router.post("/entry")
-    async def save_entry(request: Request, word: str = Form(...), ipa: str = Form(...),
+    async def save_entry(request: Request, word: str = Form(...), ipa: str = Form(""),
                          file: Optional[UploadFile] = File(None)):
         await require_admin(request, db)
         w = _clean_word(word)

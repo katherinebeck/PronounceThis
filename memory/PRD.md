@@ -319,3 +319,11 @@
 - Dictionary save WITH a recording: take archived as `{word}#human`, then ElevenLabs speech-to-speech (`eleven_multilingual_sts_v2`, Jessica voice) → stored as audio_cache override `{word}` (source=speech_to_speech). Members hear her pronunciation in the app voice (Word page + scene word clicks). Scene *lines* still use IPA→ARPABET phoneme tags.
 - Save WITHOUT recording: IPA-driven only (prefs). Startup task `_revoice_archived_takes` re-voices legacy #human takes lacking an override (non-fatal).
 - GET /admin/dictionary/audio?word=&which=human|eleven. STS verified working on user's ElevenLabs plan (1.6s/word).
+
+## 2026-06 — Admin: queue removed, custom words, pager; visitor gating
+- Removed "Record the words students actually hear" (RecordingQueue) from Admin.
+- My Dictionary: Jump box accepts words/names not in CMU (queue endpoint puts them first, `custom: True`); save allows recording-only (ipa Form default ""). Verified 'oner' → STS override, member tts manual_override=True.
+- All users: numbered pager (1 … 4 [5] 6 … N with ‹ ›), "Displaying 1 - 25 of N accounts" always shown.
+- Word page: unauthenticated Pronounce / Upload a scene open Get Started (paywall "join") modal.
+- Scene header restored to original 4 controls + compact Reader Female|Male toggle attached to Download My Reader's Lines.
+- audio.js: withRetry (3 tries) on transient 5xx/network for word + line TTS; friendly message instead of Cloudflare HTML.

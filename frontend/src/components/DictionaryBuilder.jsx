@@ -49,12 +49,13 @@ export function DictionaryBuilder() {
 
   const save = async () => {
     if (!current || saving || rec.recording || rec.processing) return;
-    if (!ipa.trim()) { toast.error("Type the IPA first"); return; }
+    if (!ipa.trim() && !rec.blob) { toast.error("Type the IPA or record a take first"); return; }
     setSaving(true);
     try {
       const fd = new FormData();
       fd.append("word", current.word);
       fd.append("ipa", ipa.trim());
+      if (!ipa.trim() && !rec.blob) return;
       if (rec.blob) fd.append("file", rec.blob, `${current.word}.wav`);
       await api.post("/admin/dictionary/entry", fd, { headers: { "Content-Type": "multipart/form-data" } });
       toast.success(rec.blob
@@ -108,7 +109,7 @@ export function DictionaryBuilder() {
       <h2 className="font-display text-2xl text-ink mb-4">Check the dictionary, one word at a time</h2>
       <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
         Words come A→Z from the CMU dictionary with their IPA filled in — edit it if you disagree, or jump
-        straight to a tricky word below. <span className="text-ink not-italic">Members always hear the ElevenLabs voice</span>,
+        to any word below. Names and words that aren't in the dictionary (e.g. <span className="not-italic text-ink">oner</span>) work too: jump to them, type the IPA and/or record. <span className="text-ink not-italic">Members always hear the ElevenLabs voice</span>,
         pronounced exactly as your IPA says; your own recording is kept only as a reference for you.
         Press <kbd className="font-mono not-italic">Space</kbd> to start/stop recording and <kbd className="font-mono not-italic">Enter</kbd> to save.
       </p>
@@ -124,7 +125,7 @@ export function DictionaryBuilder() {
       ) : null}
 
       <form onSubmit={doJump} className="flex gap-2 mb-5">
-        <input type="text" value={jump} onChange={(e) => setJump(e.target.value)} placeholder="Fix a tricky word — jump to it (e.g. exterior)" className={inputCls} data-testid="dictionary-jump" />
+        <input type="text" value={jump} onChange={(e) => setJump(e.target.value)} placeholder="Jump to any word or name — in the dictionary or not (e.g. oner)" className={inputCls} data-testid="dictionary-jump" />
         <button type="submit" className="btn-primary justify-center" data-testid="dictionary-jump-go"><ArrowRight size={14} /> Go</button>
       </form>
 
