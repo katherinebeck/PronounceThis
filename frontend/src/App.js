@@ -105,13 +105,8 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const [tab, setTab] = useState(() => {
-    try {
-      return window.localStorage.getItem("activeTab") || "pronounce";
-    } catch {
-      return "pronounce";
-    }
-  });
+  // Always land on Word; the Scene tab is one tap away.
+  const [tab, setTab] = useState("pronounce");
   const [scenes, setScenes] = useState([]);
   const [activeScene, setActiveScene] = useState(null);
   const [categories, setCategories] = useState([]);

@@ -13,7 +13,7 @@ export default function UploadDropzone({ onUploaded }) {
 
   const handleFile = async (file) => {
     if (gated) {
-      openPaywall("join");
+      openPaywall("trial");
       return;
     }
     if (!file) return;
@@ -69,7 +69,7 @@ export default function UploadDropzone({ onUploaded }) {
             className="btn-primary"
             data-testid="upload-pdf-button"
             disabled={busy}
-            onClick={() => (gated ? openPaywall("join") : fileRef.current?.click())}
+            onClick={() => (gated ? openPaywall("trial") : fileRef.current?.click())}
           >
             {busy ? (
               <>

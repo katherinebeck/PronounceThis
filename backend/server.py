@@ -76,6 +76,16 @@ db = mongo_client[os.environ["DB_NAME"]]
 
 # --- App --------------------------------------------------------------------
 app = FastAPI(title="Pronounce This")
+
+
+@app.middleware("http")
+async def _close_connections(request: Request, call_next):
+    # Production sits behind a load balancer + Cloudflare. Idle keep-alive
+    # connections that uvicorn closes (5s) while the LB still reuses them
+    # surface to users as Cloudflare 520s. Closing per response removes the race.
+    response = await call_next(request)
+    response.headers["Connection"] = "close"
+    return response
 api_router = APIRouter(prefix="/api")
 
 caption_service = CaptionSearchService(db)

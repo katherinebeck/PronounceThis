@@ -26,10 +26,10 @@ export default function ScenesSidebar({
   const [mobileOpen, setMobileOpen] = useState(false);
   const { isAuthenticated, loading: authLoading, openPaywall } = useAuth();
   const gated = !authLoading && !isAuthenticated;
-  const pickFile = () => (gated ? openPaywall("join") : fileRef.current?.click());
+  const pickFile = () => (gated ? openPaywall("trial") : fileRef.current?.click());
 
   const handleFile = async (file) => {
-    if (gated) { openPaywall("join"); return; }
+    if (gated) { openPaywall("trial"); return; }
     if (!file) return;
     setBusy(true);
     try {

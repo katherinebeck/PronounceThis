@@ -39,7 +39,8 @@ export default function PaywallModal() {
     }
   };
 
-  const showTrial = paywallReason === "join" && !me?.email;
+  const trialOnly = paywallReason === "trial" && !me?.email;
+  const showTrial = (paywallReason === "join" || trialOnly) && !me?.email;
   const headline =
     showTrial
       ? "Try it free"
@@ -89,20 +90,28 @@ export default function PaywallModal() {
 
         <div className="px-6 py-6">
           {showTrial ? (
-            <div className="mb-6 pb-6 border-b thin-rule">
+            <div className={trialOnly ? "" : "mb-6 pb-6 border-b thin-rule"}>
               <TrialSignupForm />
             </div>
           ) : null}
-          {showTrial ? (
+          {trialOnly ? (
+            <p className="font-serif text-xs text-muted2 italic mt-4" data-testid="paywall-trial-footer">
+              Already a member? Use <span className="text-ink not-italic">Sign in</span> at the top.
+              Want unlimited access? Tap <span className="text-ink not-italic">Get Started</span>.
+            </p>
+          ) : null}
+          {showTrial && !trialOnly ? (
             <div className="font-display text-2xl text-ink mb-3" data-testid="paywall-join-heading">
               Join Pronounce This
             </div>
           ) : null}
+          {!trialOnly ? (
           <p className="font-serif text-base text-ink leading-relaxed mb-6">
             {subhead}
           </p>
+          ) : null}
 
-          <div className="space-y-3">
+          <div className={trialOnly ? "hidden" : "space-y-3"}>
             {prices.map((p) => {
               const isAnnual = p.interval === "year";
               return (
@@ -159,12 +168,14 @@ export default function PaywallModal() {
             })}
           </div>
 
+          {!trialOnly ? (
           <div className="mt-5 flex items-center justify-center gap-1.5 text-muted2">
             <Sparkles size={11} />
             <p className="font-mono text-[10px] uppercase tracking-[0.22em]">
               Cancel anytime. Secure checkout by Stripe.
             </p>
           </div>
+          ) : null}
         </div>
       </div>
     </div>

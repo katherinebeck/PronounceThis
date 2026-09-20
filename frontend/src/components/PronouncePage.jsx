@@ -34,7 +34,7 @@ export default function PronouncePage({ onGoToScenes }) {
     if (!word) return;
     // Visitors go to Get Started (free trial email or join) before searching.
     if (!authLoading && !isAuthenticated) {
-      openPaywall("join");
+      openPaywall("trial");
       return;
     }
     setLoading(true);
@@ -216,7 +216,7 @@ export default function PronouncePage({ onGoToScenes }) {
           </p>
           <button
             type="button"
-            onClick={() => (!authLoading && !isAuthenticated ? openPaywall("join") : onGoToScenes?.())}
+            onClick={() => (!authLoading && !isAuthenticated ? openPaywall("trial") : onGoToScenes?.())}
             className="mt-6 sm:mt-8 btn-primary text-[11px] sm:text-[12px] px-6 py-3 sm:px-7 sm:py-3.5"
             data-testid="scenes-promo-banner"
           >

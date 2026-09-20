@@ -54,7 +54,20 @@ export default function CaptionSearchModal({ open, query, onClose, inline = fals
     setLoading(true);
     setError("");
     try {
-      const data = await captionSearch(query, { refresh });
+      let data;
+      for (let attempt = 0; ; attempt++) {
+        try {
+          data = await captionSearch(query, { refresh });
+          break;
+        } catch (err) {
+          const status = err?.response?.status;
+          if (attempt < 2 && (!status || status >= 500)) {
+            await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+            continue;
+          }
+          throw err;
+        }
+      }
       // YouGlish behavior: only keep clips cued to the exact word. Full-video
       // fallbacks (no captions) aren't useful when you just want to hear the
       // word right now.
@@ -69,9 +82,15 @@ export default function CaptionSearchModal({ open, query, onClose, inline = fals
         );
       }
     } catch (err) {
-      const msg = err?.response?.data?.detail || err.message || "Search failed.";
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail;
+      const msg =
+        !status || status >= 500
+          ? "Real Speakers is taking a moment — tap Refresh to try again."
+          : typeof detail === "string" && !detail.trim().startsWith("<")
+          ? detail
+          : "Search failed. Tap Refresh to try again.";
       setError(msg);
-      toast.error(msg);
     } finally {
       setLoading(false);
     }
