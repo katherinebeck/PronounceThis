@@ -288,3 +288,8 @@
 - ROOT CAUSE of thin YouTube results: ingest job stuck with running=True since Sep 8 (426 videos/25 channels). Fixed: stale lock (no progress 30 min) is taken over; fresh process clears lock on boot; weekly refresh checked at startup. Index now growing across 146 channels.
 - Admin: channel index section shows videos indexed, channels with videos / curated, this run, last full pass, stale warning + resume, per-channel breakdown. New Hidden clips section (paste URL to hide, restore).
 - Known dev quirk: hot reload can hang while ingest threads (yt-dlp) are running → `sudo supervisorctl restart backend`.
+
+## 2026-06 — Domain + context-aware heteronyms
+- Production domain now https://pronouncethis.us (app.katherinebeck.com unlinked). Secrets APP_PUBLIC_URL / CORS_ORIGINS updated by user; Stripe webhook URL updated. Needs Republish for secrets to apply.
+- Scenes: heteronyms resolved per sentence at upload (`_resolve_heteronyms_in_context`, Claude batch label + neighbour-word fallback). Token gets `variant_label`; `_refresh_categories` preserves it; WordBlock/LaundryList play with token arpabet.
+- Link preview: index.html title/og/twitter = "Pronounce This - The American accent pronunciation tool".

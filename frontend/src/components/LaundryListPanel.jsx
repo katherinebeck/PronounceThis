@@ -184,7 +184,7 @@ export default function LaundryListPanel({
                     data-testid="practice-play"
                     onClick={async () => {
                       try {
-                        await playWord(cur?.text, { phonetic: !!cur?.is_proper_noun });
+                        await playWord(cur?.text, { phonetic: !!cur?.is_proper_noun, arpabet: cur?.variant_label && cur?.arpabet?.length ? cur.arpabet.join(" ") : null });
                       } catch {
                         toast.error("Playback failed.");
                       }
@@ -249,7 +249,7 @@ export default function LaundryListPanel({
                       onClick={async () => {
                         setPracticeIdx(i);
                         try {
-                          await playWord(w.text, { phonetic: !!w.is_proper_noun });
+                          await playWord(w.text, { phonetic: !!w.is_proper_noun, arpabet: w.variant_label && w.arpabet?.length ? w.arpabet.join(" ") : null });
                         } catch (e) {
                           console.warn("Word audio playback failed", w.text, e);
                         }

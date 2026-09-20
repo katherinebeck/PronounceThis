@@ -101,6 +101,9 @@ class WordToken(BaseModel):
     source: str = "cmu"  # "cmu" | "llm" | "none"
     turn_index: Optional[int] = None
     is_proper_noun: bool = False
+    # Heteronyms resolved in sentence context ("Noun" / "Verb" …). When set,
+    # `arpabet` is the context-correct variant and must not be recomputed.
+    variant_label: Optional[str] = None
 
 
 class Turn(BaseModel):
@@ -606,7 +609,94 @@ async def build_dialogue_only_scene(raw_text: str) -> tuple:
 
     tokens, turns_public, unknown = _tokens_for_dialogue(dialogue, proper_nouns)
     await _apply_llm_ipa_fallback(tokens, unknown)
+    await _resolve_heteronyms_in_context(tokens, dialogue)
     return tokens, turns_public, dialogue, proper_nouns
+
+
+_NOUN_CUES = {"a", "an", "the", "this", "that", "these", "those", "my", "your",
+              "his", "her", "our", "their", "its", "some", "any", "each",
+              "every", "no", "of", "for", "with", "on", "in", "at", "from"}
+_VERB_CUES = {"to", "will", "would", "can", "could", "should", "may", "might",
+              "must", "shall", "i", "we", "they", "you", "don't", "didn't",
+              "doesn't", "won't", "can't", "let's", "please", "just", "gonna"}
+
+
+def _heteronym_guess(prev_word: str, variants: List[Dict]) -> Dict:
+    """Dictionary-free fallback: pick by the word before it."""
+    labels = [v["label"].lower() for v in variants]
+    want = None
+    if prev_word in _NOUN_CUES:
+        want = "noun"
+    elif prev_word in _VERB_CUES:
+        want = "verb"
+    if want:
+        for v, lab in zip(variants, labels):
+            if want in lab:
+                return v
+    return variants[0]
+
+
+async def _resolve_heteronyms_in_context(tokens: List[WordToken],
+                                         dialogue: List[Dict]) -> None:
+    """Words like record / produce / present change pronunciation with part
+    of speech. Ask the LLM which reading each occurrence takes in its line;
+    fall back to a neighbouring-word heuristic when the LLM is unavailable."""
+    line_text = {d["index"]: d["text"] for d in dialogue}
+    hits: List[tuple] = []  # (token_pos, variants)
+    for pos, t in enumerate(tokens):
+        if not t.is_word:
+            continue
+        variants = heteronym_variants(normalize_word(t.text))
+        if len(variants) > 1:
+            hits.append((pos, variants))
+    if not hits:
+        return
+
+    def prev_word(pos: int) -> str:
+        for j in range(pos - 1, -1, -1):
+            if tokens[j].is_word:
+                return normalize_word(tokens[j].text)
+            if tokens[j].text.strip() in {".", "!", "?", "\n\n"}:
+                break
+        return ""
+
+    choices: Dict[int, str] = {}
+    if llm.is_configured():
+        items = [
+            {"id": i, "word": tokens[pos].text,
+             "sentence": line_text.get(tokens[pos].turn_index, ""),
+             "options": [v["label"] for v in variants]}
+            for i, (pos, variants) in enumerate(hits)
+        ]
+        system = (
+            "You label heteronyms in screenplay dialogue. For each item, decide "
+            "how the given word is used in its sentence and answer with exactly "
+            "one of the provided options (copy the option text verbatim). "
+            "Return ONLY a JSON object mapping each id (as a string) to the "
+            "chosen option. No commentary, no markdown."
+        )
+        raw = await llm.complete(system, json.dumps(items), max_tokens=2048)
+        if raw:
+            cleaned = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw.strip(), flags=re.IGNORECASE)
+            try:
+                data = json.loads(cleaned)
+                if isinstance(data, dict):
+                    choices = {int(k): str(v) for k, v in data.items() if str(k).isdigit()}
+            except Exception as e:
+                logger.warning("heteronym labels parse failed: %s", e)
+
+    for i, (pos, variants) in enumerate(hits):
+        picked = None
+        label = choices.get(i)
+        if label:
+            picked = next((v for v in variants if v["label"].lower() == label.lower()), None)
+        if picked is None:
+            picked = _heteronym_guess(prev_word(pos), variants)
+        t = tokens[pos]
+        t.arpabet = picked["arpabet"]
+        t.ipa = picked["ipa"]
+        t.categories = picked["categories"]
+        t.variant_label = picked["label"]
 
 
 async def llm_transcribe_words(words: List[str]) -> Dict[str, str]:
@@ -912,6 +1002,10 @@ def _refresh_categories(doc: Dict) -> Dict:
         if not t.get("is_word"):
             continue
         key = normalize_word(t["text"])
+        if t.get("variant_label") and t.get("arpabet"):
+            t["ipa"] = arpabet_to_ipa(t["arpabet"])
+            t["categories"] = classify_word(t["arpabet"])
+            continue
         if t.get("source", "cmu") == "cmu":
             phones = get_arpabet(key)
             if phones:

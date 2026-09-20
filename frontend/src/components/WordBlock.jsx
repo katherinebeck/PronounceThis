@@ -22,7 +22,10 @@ export default function WordBlock({
     }
     if (onSetActive) onSetActive(token);
     try {
-      await playWord(token.text, { phonetic: !!token.is_proper_noun });
+      await playWord(token.text, {
+        phonetic: !!token.is_proper_noun,
+        arpabet: token.variant_label && token.arpabet?.length ? token.arpabet.join(" ") : null,
+      });
     } catch (err) {
       toast.error(err.friendly || "Audio playback failed.");
     }
@@ -44,10 +47,14 @@ export default function WordBlock({
         data-testid="word-block"
         data-proper-noun={token.is_proper_noun ? "1" : "0"}
         aria-label={
-          token.is_proper_noun
+          token.variant_label
+            ? `Play ${token.text} (${token.variant_label} in this line)`
+            : token.is_proper_noun
             ? `Play ${token.text}. Right-click for real-speaker reference.`
             : `Play pronunciation of ${token.text}`
         }
+        title={token.variant_label ? `${token.variant_label} here — ${token.ipa}` : undefined}
+        data-variant={token.variant_label || undefined}
         onClick={handleClick}
         onContextMenu={handleContext}
       >
