@@ -1,14 +1,21 @@
 import React, { useRef, useState } from "react";
 import { Upload, Loader2 } from "lucide-react";
 import { uploadScene } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
 export default function UploadDropzone({ onUploaded }) {
+  const { isAuthenticated, loading: authLoading, openPaywall } = useAuth();
   const fileRef = useRef(null);
+  const gated = !authLoading && !isAuthenticated;
   const [drag, setDrag] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const handleFile = async (file) => {
+    if (gated) {
+      openPaywall("join");
+      return;
+    }
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".pdf")) {
       toast.error("Only text-based PDF files are supported.");
@@ -62,7 +69,7 @@ export default function UploadDropzone({ onUploaded }) {
             className="btn-primary"
             data-testid="upload-pdf-button"
             disabled={busy}
-            onClick={() => fileRef.current?.click()}
+            onClick={() => (gated ? openPaywall("join") : fileRef.current?.click())}
           >
             {busy ? (
               <>

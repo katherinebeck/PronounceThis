@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Upload, Loader2 } from "lucide-react";
 import { uploadScene, deleteScene } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
 function formatDate(iso) {
@@ -23,8 +24,12 @@ export default function ScenesSidebar({
   const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isAuthenticated, loading: authLoading, openPaywall } = useAuth();
+  const gated = !authLoading && !isAuthenticated;
+  const pickFile = () => (gated ? openPaywall("join") : fileRef.current?.click());
 
   const handleFile = async (file) => {
+    if (gated) { openPaywall("join"); return; }
     if (!file) return;
     setBusy(true);
     try {
@@ -74,7 +79,7 @@ export default function ScenesSidebar({
             className="btn-secondary !px-3 !py-2"
             data-testid="mobile-new-scene-button"
             disabled={busy}
-            onClick={() => fileRef.current?.click()}
+            onClick={pickFile}
           >
             {busy ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
           </button>
@@ -107,7 +112,7 @@ export default function ScenesSidebar({
           className="btn-secondary w-full justify-center"
           data-testid="new-scene-button"
           disabled={busy}
-          onClick={() => fileRef.current?.click()}
+          onClick={pickFile}
         >
           {busy ? (
             <>
