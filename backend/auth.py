@@ -296,8 +296,17 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         Returns JSON so the frontend /auth/verify page can redirect.
         """
         link = await db.magic_links.find_one({"token": token})
-        if not link or link.get("consumed"):
+        if not link:
             raise HTTPException(status_code=400, detail="invalid_or_used_link")
+        if link.get("consumed"):
+            # Grace window: if the first response was lost in transit (proxy
+            # hiccup, redeploy) the browser retries with the same token.
+            try:
+                consumed_at = datetime.fromisoformat(link.get("consumed_at", ""))
+            except Exception:
+                consumed_at = None
+            if not consumed_at or (_now() - consumed_at).total_seconds() > 120:
+                raise HTTPException(status_code=400, detail="invalid_or_used_link")
         try:
             expires_at = datetime.fromisoformat(link["expires_at"])
         except Exception:
@@ -306,10 +315,11 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=400, detail="expired_link")
 
         email = link["email"]
-        await db.magic_links.update_one(
-            {"token": token},
-            {"$set": {"consumed": True, "consumed_at": _now().isoformat()}},
-        )
+        if not link.get("consumed"):
+            await db.magic_links.update_one(
+                {"token": token},
+                {"$set": {"consumed": True, "consumed_at": _now().isoformat()}},
+            )
         await db.users.update_one(
             {"email": email},
             {"$set": {"last_login_at": _now().isoformat()}},

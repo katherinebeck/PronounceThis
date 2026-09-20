@@ -20,8 +20,24 @@ export default function VerifyPage() {
         setMessage("Missing sign-in token.");
         return;
       }
+      const isTransient = (err) => {
+        const status = err?.response?.status;
+        return !status || status >= 500 || status === 429;
+      };
       try {
-        await verifyMagicLink(token);
+        for (let attempt = 0; ; attempt++) {
+          try {
+            await verifyMagicLink(token);
+            break;
+          } catch (err) {
+            if (attempt < 3 && isTransient(err)) {
+              setMessage("The server took a moment — retrying…");
+              await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+              continue;
+            }
+            throw err;
+          }
+        }
         await refresh();
         setState("ok");
         // Small pause so the user sees the checkmark before we redirect.
@@ -31,9 +47,17 @@ export default function VerifyPage() {
           window.location.assign("/");
         }, 900);
       } catch (err) {
-        const msg = err?.response?.data?.detail || err?.message || "Sign-in failed.";
+        const detail = err?.response?.data?.detail;
+        const friendly = {
+          invalid_or_used_link: "This sign-in link has already been used. Request a fresh one from the Sign in button.",
+          expired_link: "This sign-in link has expired. Request a fresh one from the Sign in button.",
+          invalid_link: "This sign-in link isn't valid. Request a fresh one from the Sign in button.",
+        };
+        const msg = typeof detail === "string" && friendly[detail]
+          ? friendly[detail]
+          : "We couldn't reach the server just now. Please try the link again in a moment, or request a fresh one.";
         setState("error");
-        setMessage(String(msg));
+        setMessage(msg);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,6 +80,9 @@ export default function VerifyPage() {
             >
               Signing you in…
             </p>
+            {message ? (
+              <p className="font-serif text-sm text-muted2 italic mt-2" data-testid="verify-retry-note">{message}</p>
+            ) : null}
           </>
         )}
         {state === "ok" && (
@@ -83,8 +110,7 @@ export default function VerifyPage() {
               Link didn't work
             </p>
             <p className="font-serif text-sm text-muted2 italic leading-relaxed">
-              {message}. Sign-in links expire after 15 minutes and can only
-              be used once.
+              {message}
             </p>
             <a
               href="/"

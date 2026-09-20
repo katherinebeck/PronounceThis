@@ -302,3 +302,9 @@
 
 ## 2026-06 — Reader track download
 - Scenes: "Download My Reader's Lines" button → GET /scenes/{id}/download-lines?mode=reader: whole scene in order, partner lines audible, selected character's lines replaced by silence = 1.1× line duration (+0.4s beat between turns). Filename *_reader.mp3. Subscriber perk like the existing bundle.
+
+## 2026-06 — Scene controls + login hardening
+- Scene header controls: Choose your character · Choose my voice · Play My Lines · Download My Lines · Choose my reader's voice (defaults to the other voice) · Download My Reader's Lines. prefs.readerVoice persisted per scene.
+- Download filenames: `{PDF name}_{CHARACTER}.mp3` and `{PDF name}_readers-lines.mp3`.
+- Magic link verify: 120s grace window (re-issuing cookie if same token retried after a lost response); VerifyPage retries transient (network/5xx/429) errors 3× and shows friendly messages for used/expired links.
+- Deployment agent static scan flagged the 90-day scenes TTL as "destructive" — it is an explicit user requirement; keep.

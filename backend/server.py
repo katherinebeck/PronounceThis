@@ -1461,7 +1461,10 @@ async def download_my_lines(
 
     safe_char = re.sub(r"[^A-Za-z0-9]+", "-", normalized_char).strip("-") or "lines"
     scene_slug = re.sub(r"[^A-Za-z0-9]+", "-", doc.get("title", "scene")).strip("-") or "scene"
-    filename = f"{scene_slug}_{safe_char}{'_reader' if reader_mode else ''}.mp3"
+    filename = (
+        f"{scene_slug}_readers-lines.mp3" if reader_mode
+        else f"{scene_slug}_{safe_char}.mp3"
+    )
     return Response(
         content=audio_bytes,
         media_type="audio/mpeg",

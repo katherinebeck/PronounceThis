@@ -249,7 +249,7 @@ export default function SceneReader({ scene, highlightSet }) {
     try {
       const { blob, filename } = await downloadMyLines(scene.id, {
         character: prefs.character,
-        voice: prefs.voice,
+        voice: mode === "reader" ? readerVoice : prefs.voice,
         mode,
       });
       const url = URL.createObjectURL(blob);
@@ -277,6 +277,12 @@ export default function SceneReader({ scene, highlightSet }) {
       setBusy(false);
     }
   };
+  // Reader defaults to the voice I'm not using, so partner lines sound like
+  // a different person.
+  const readerVoice =
+    prefs.readerVoice ||
+    voices.find((v) => v.key !== (prefs.voice || voices[0]?.key))?.key ||
+    prefs.voice;
   const handleDownloadMyLines = () => downloadBundle("mine");
   const handleDownloadReaderLines = () => downloadBundle("reader");
 
@@ -353,6 +359,13 @@ export default function SceneReader({ scene, highlightSet }) {
                 </>
               )}
             </button>
+            <VoicePicker
+              voices={voices}
+              value={readerVoice}
+              onChange={(v) => setPrefs({ readerVoice: v })}
+              label="Choose my reader's voice"
+              testId="reader-voice-picker"
+            />
             <button
               type="button"
               className="btn-secondary"
@@ -445,18 +458,18 @@ function CharacterPicker({ speakers, value, onChange }) {
   );
 }
 
-function VoicePicker({ voices, value, onChange }) {
+function VoicePicker({ voices, value, onChange, label = "Choose my voice", testId = "voice-picker" }) {
   return (
-    <label className={pickerCls} data-testid="voice-picker-wrap">
+    <label className={pickerCls} data-testid={`${testId}-wrap`}>
       <Volume2 size={16} className="text-rust shrink-0" />
       <div className="flex flex-col leading-tight">
-        <span className={pickerLabel}>Choose your scene partner's voice</span>
+        <span className={pickerLabel}>{label}</span>
         <span className="inline-flex items-center gap-1">
           <select
             value={value || voices[0]?.key || ""}
             onChange={(e) => onChange(e.target.value || null)}
             className={pickerSelect}
-            data-testid="voice-picker"
+            data-testid={testId}
           >
             {voices.map((v) => (
               <option key={v.key} value={v.key}>{v.label}</option>
