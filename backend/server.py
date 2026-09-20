@@ -66,7 +66,7 @@ from auth import (
 )
 from kajabi import create_kajabi_router
 from admin import create_admin_router
-from dictionary import create_dictionary_router, load_custom_ipa
+from dictionary import create_dictionary_router, load_custom_ipa, revoice_recording
 from stripe_payments import create_stripe_router
 
 # --- DB ---------------------------------------------------------------------
@@ -1607,6 +1607,31 @@ async def _startup_indexes():
         await db.audio_cache.update_one({"word": f"{w}#human"}, {"$set": human}, upsert=True)
         await db.audio_cache.delete_many({"word": {"$in": [w, f"{w}#ph"]}})
         logger.info("dictionary: migrated human recording for %r to ElevenLabs phonemes", w)
+
+    async def _revoice_archived_takes() -> None:
+        """Coach takes that have no ElevenLabs re-voice yet get one (speech-to-
+        speech), so members hear her pronunciation in the app voice."""
+        await asyncio.sleep(30)
+        for human in await db.audio_cache.find({"word": {"$regex": "#human$"}}).to_list(100_000):
+            w = human["word"][:-6]
+            if await db.audio_cache.find_one({"word": w, "manual_override": True}, {"_id": 1}):
+                continue
+            try:
+                revoiced = await asyncio.to_thread(
+                    revoice_recording, base64.b64decode(human["audio_b64"]))
+            except Exception as e:
+                logger.warning("revoice failed for %r: %s", w, e)
+                continue
+            await db.audio_cache.update_one(
+                {"word": w},
+                {"$set": {"word": w, "audio_b64": base64.b64encode(revoiced).decode("ascii"),
+                          "manual_override": True, "source": "speech_to_speech",
+                          "content_type": "audio/mpeg", "byte_size": len(revoiced),
+                          "created_at": datetime.now(timezone.utc).isoformat()}},
+                upsert=True)
+            logger.info("dictionary: re-voiced %r with ElevenLabs speech-to-speech", w)
+
+    asyncio.create_task(_revoice_archived_takes())
     # Scene ownership: pre-existing scenes have no uploader record; mark them
     # legacy (admin-only) without touching their content. Idempotent.
     await db.scenes.update_many(

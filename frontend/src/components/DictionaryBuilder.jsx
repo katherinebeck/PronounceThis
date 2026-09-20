@@ -57,7 +57,9 @@ export function DictionaryBuilder() {
       fd.append("ipa", ipa.trim());
       if (rec.blob) fd.append("file", rec.blob, `${current.word}.wav`);
       await api.post("/admin/dictionary/entry", fd, { headers: { "Content-Type": "multipart/form-data" } });
-      toast.success(`Saved “${current.word}”${rec.blob ? " with your recording" : ""}`);
+      toast.success(rec.blob
+        ? `Saved “${current.word}” — your take is now re-voiced by ElevenLabs for members`
+        : `Saved “${current.word}”`);
       setRefreshKey((k) => k + 1);
       advance();
     } catch (e) {

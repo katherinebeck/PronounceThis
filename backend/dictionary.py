@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import base64
 import csv
+import asyncio
 import io
+import os
 import re
 import zipfile
 from datetime import datetime, timezone
@@ -19,6 +21,29 @@ from pydantic import BaseModel
 from auth import require_admin
 from phonetics import (CUSTOM_IPA, PREFERRED_ARPA, classify_ipa, cmu_ipa, cmu_word_list,
                        cmu_words_by_frequency, ipa_to_arpabet)
+
+# Jessica — the voice members hear for single words (mirrors server.DEFAULT_VOICE_ID).
+WORD_VOICE_ID = "lxYfHSkYm1EzQzGhdbfc"
+
+
+def revoice_recording(raw: bytes, voice_id: str = WORD_VOICE_ID) -> bytes:
+    """Blocking ElevenLabs speech-to-speech: the coach's take, in the app voice,
+    pronunciation and stress preserved."""
+    from elevenlabs.client import ElevenLabs
+    api_key = os.environ.get("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise RuntimeError("ELEVENLABS_API_KEY not configured")
+    client = ElevenLabs(api_key=api_key)
+    out = b"".join(client.speech_to_speech.convert(
+        voice_id=voice_id,
+        audio=io.BytesIO(raw),
+        model_id="eleven_multilingual_sts_v2",
+        output_format="mp3_44100_128",
+        remove_background_noise=True,
+    ))
+    if not out:
+        raise RuntimeError("empty speech-to-speech result")
+    return out
 
 ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
                        "audio/webm", "audio/ogg", "audio/mp4", "audio/m4a"}
@@ -138,9 +163,10 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 upsert=True)
             PREFERRED_ARPA[w] = arp
             doc["arpabet"] = arp
-            # Drop any human override + generated audio so the next play is
-            # ElevenLabs following the new phonemes.
-            await db.audio_cache.delete_many({"word": {"$in": [w, f"{w}#ph"]}})
+            # Drop generated (non-override) audio so the next play follows
+            # the new phonemes.
+            await db.audio_cache.delete_many(
+                {"word": {"$in": [w, f"{w}#ph"]}, "manual_override": {"$ne": True}})
         if file is not None:
             raw = await file.read()
             if not raw:
@@ -156,7 +182,21 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
                           "manual_override": False, "content_type": ct, "byte_size": len(raw),
                           "created_at": _now_iso()}},
                 upsert=True)
-            doc.update({"has_audio": True, "content_type": ct})
+            # Re-voice the coach's take with the ElevenLabs voice (speech-to-
+            # speech keeps her exact pronunciation). This becomes what members
+            # hear for the word everywhere.
+            try:
+                revoiced = await asyncio.to_thread(revoice_recording, raw)
+            except Exception as e:
+                raise HTTPException(status_code=502, detail=f"elevenlabs_revoice_failed: {e}")
+            await db.audio_cache.update_one(
+                {"word": w},
+                {"$set": {"word": w, "audio_b64": base64.b64encode(revoiced).decode("ascii"),
+                          "manual_override": True, "source": "speech_to_speech",
+                          "content_type": "audio/mpeg", "byte_size": len(revoiced),
+                          "created_at": _now_iso()}},
+                upsert=True)
+            doc.update({"has_audio": True, "content_type": ct, "revoiced": True})
         else:
             existing = await db.dictionary_entries.find_one({"word": w}, {"_id": 0, "has_audio": 1})
             doc["has_audio"] = bool(existing and existing.get("has_audio"))
@@ -198,9 +238,11 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return {"ok": True}
 
     @router.get("/audio")
-    async def audio(request: Request, word: str):
+    async def audio(request: Request, word: str, which: str = "human"):
         await require_admin(request, db)
-        a = await db.audio_cache.find_one({"word": f"{_clean_word(word)}#human"}, {"_id": 0})
+        w = _clean_word(word)
+        q = {"word": w, "manual_override": True} if which == "eleven" else {"word": f"{w}#human"}
+        a = await db.audio_cache.find_one(q, {"_id": 0})
         if not a:
             raise HTTPException(status_code=404, detail="no_recording")
         return Response(content=base64.b64decode(a["audio_b64"]),

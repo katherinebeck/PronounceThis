@@ -314,3 +314,8 @@
 - Startup migration converts any legacy manual_override recordings (dictionary or old "tricky words" uploader) the same way. Verified with seeded 'interior'.
 - Admin: removed "Record your own for tricky words" section; My Dictionary's Jump box is the single place to fix a word. Copy updated.
 - UploadDropzone scene-library copy updated per user.
+
+## 2026-06 — Speech-to-speech re-voicing (user choice a)
+- Dictionary save WITH a recording: take archived as `{word}#human`, then ElevenLabs speech-to-speech (`eleven_multilingual_sts_v2`, Jessica voice) → stored as audio_cache override `{word}` (source=speech_to_speech). Members hear her pronunciation in the app voice (Word page + scene word clicks). Scene *lines* still use IPA→ARPABET phoneme tags.
+- Save WITHOUT recording: IPA-driven only (prefs). Startup task `_revoice_archived_takes` re-voices legacy #human takes lacking an override (non-fatal).
+- GET /admin/dictionary/audio?word=&which=human|eleven. STS verified working on user's ElevenLabs plan (1.6s/word).
