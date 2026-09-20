@@ -359,16 +359,28 @@ export default function SceneReader({ scene, highlightSet }) {
                 </>
               )}
             </button>
-            <VoicePicker
-              voices={voices}
-              value={readerVoice}
-              onChange={(v) => setPrefs({ readerVoice: v })}
-              label="Choose my reader's voice"
-              testId="reader-voice-picker"
-            />
+            <div className="inline-flex items-stretch border thin-rule" data-testid="reader-download-group">
+              <div className="flex items-center gap-1 px-2 border-r thin-rule" data-testid="reader-voice-picker-wrap" title="Voice for the other characters in your reader track">
+                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-rust mr-1">Reader</span>
+                {voices.map((v) => (
+                  <button
+                    key={v.key}
+                    type="button"
+                    onClick={() => setPrefs({ readerVoice: v.key })}
+                    className={
+                      "font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1 transition-colors " +
+                      (readerVoice === v.key ? "bg-ink text-stage" : "text-muted2 hover:text-ink")
+                    }
+                    data-testid={`reader-voice-${v.key}`}
+                    aria-pressed={readerVoice === v.key}
+                  >
+                    {v.gender === "male" ? "Male" : "Female"}
+                  </button>
+                ))}
+              </div>
             <button
               type="button"
-              className="btn-secondary"
+              className="btn-secondary !border-0"
               onClick={handleDownloadReaderLines}
               data-testid="download-reader-lines-button"
               disabled={downloadingReader || running}
@@ -384,6 +396,7 @@ export default function SceneReader({ scene, highlightSet }) {
                 </>
               )}
             </button>
+            </div>
           </div>
         ) : null}
       </div>
@@ -458,7 +471,7 @@ function CharacterPicker({ speakers, value, onChange }) {
   );
 }
 
-function VoicePicker({ voices, value, onChange, label = "Choose my voice", testId = "voice-picker" }) {
+function VoicePicker({ voices, value, onChange, label = "Choose your scene partner's voice", testId = "voice-picker" }) {
   return (
     <label className={pickerCls} data-testid={`${testId}-wrap`}>
       <Volume2 size={16} className="text-rust shrink-0" />
