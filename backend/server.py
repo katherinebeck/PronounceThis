@@ -62,6 +62,7 @@ from auth import (
     rate_limit,
     client_ip,
     consume_trial,
+    backfill_email_keys,
     ensure_indexes as ensure_auth_indexes,
 )
 from kajabi import create_kajabi_router
@@ -1649,6 +1650,7 @@ async def _startup_indexes():
         {"$set": {"owner_email": None, "legacy": True}},
     )
     await db.scenes.create_index("owner_email")
+    await backfill_email_keys(db)
     # 90-day retention: TTL on a BSON datetime; backfill older scenes so the
     # rule applies uniformly (never expires legacy/admin scenes).
     await db.scenes.create_index("expires_at_dt", expireAfterSeconds=0)

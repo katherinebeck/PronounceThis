@@ -346,3 +346,9 @@
 - Tags: "PT Trial" (first sign-in, auth.py), "PT Member" (first Stripe grant), "PT Cancelled" (cancel scheduled + subscription.deleted) — same hooks as notify_owner.
 - `KIT_API_KEY=""` added to backend/.env + README env table. USER: paste the v4 key (Kit → Settings → Developer → V4 Keys) into the Secrets panel, then Republish.
 - Tests: backend/tests/test_kit.py (3 pass, mocked HTTP). Live Kit call not verified until the key is set.
+
+## 2026-06 — Free-trial anti-abuse (option a: alias collapse + disposable block + per-device)
+- `auth.canonical_email`: strips `+tag` on all domains; Gmail/googlemail also drop dots → one inbox = one account. Users get `email_key` (startup `backfill_email_keys`). `resolve_account_email` prefers legacy exact email, then alias match, else canonical — existing accounts keep their data. Magic link is *delivered* to the address as typed; account keyed on canonical. Stripe `_grant_from_session` resolves the same way.
+- `backend/data/disposable_email_blocklist.conf` (8.9k domains, repo-stored, from disposable-email-domains project). request-magic-link → 400 `disposable_email`; LoginModal + TrialSignupForm show friendly copy. Paid checkout not blocked.
+- Per-device: httpOnly cookie `pt_device` (400 days) set by `/auth/me` and request-magic-link. `trial_devices` {device_id, trial_word_used, trial_scene_used, emails[]}. `require_access` uses max(account, device) usage; `consume_trial` increments both; `/me` reports the effective counters. No cookie → per-email only.
+- Not built (user chose a): per-IP cap, Admin "trial abuse" view. Tests: tests/test_trial_abuse.py (7) + e2e (/tmp/e2e_trial.py: alias→same account, 5 words then 402, second email same device 402).

@@ -33,7 +33,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
-from auth import client_ip, optional_login, rate_limit, require_login
+from auth import (canonical_email, client_ip, optional_login, rate_limit,
+                  require_login, resolve_account_email)
 from notify import notify_owner
 import kit
 
@@ -329,6 +330,7 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
     if not email:
         logger.warning("checkout.session missing email")
         return
+    email = await resolve_account_email(db, email)
     sub_id = session.get("subscription")
     lookup_key = (session.get("metadata") or {}).get("lookup_key", "")
     offer_title = _lookup_key_to_title(lookup_key)
@@ -339,6 +341,7 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
         {"email": email},
         {"$setOnInsert": {
             "email": email,
+            "email_key": canonical_email(email),
             "trial_word_used": 0,
             "trial_scene_used": 0,
             "created_at": _now_iso(),

@@ -45,6 +45,8 @@ export default function LoginModal() {
           "Couldn't send the sign-in email right now. Please try again in a minute, or email info@katherinebeck.com if it persists.";
       } else if (detail === "invalid_email") {
         msg = "That doesn't look like a valid email address.";
+      } else if (detail === "disposable_email") {
+        msg = "Temporary or disposable email addresses can't be used. Please use your regular email.";
       } else {
         msg = detail || err?.message || "Could not send link.";
       }

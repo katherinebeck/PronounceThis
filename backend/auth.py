@@ -27,6 +27,7 @@ import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
 
 import jwt
@@ -89,6 +90,77 @@ def _now() -> datetime:
 
 def _normalize_email(email: str) -> str:
     return email.strip().lower()
+
+
+def canonical_email(email: str) -> str:
+    """Collapse aliases so one inbox = one account: strip +tags everywhere,
+    and for Gmail also drop dots and fold googlemail.com → gmail.com."""
+    e = _normalize_email(email)
+    local, _, domain = e.rpartition("@")
+    local = local.split("+", 1)[0]
+    if domain in ("gmail.com", "googlemail.com"):
+        local, domain = local.replace(".", ""), "gmail.com"
+    return f"{local}@{domain}"
+
+
+_BLOCKLIST_PATH = Path(__file__).parent / "data" / "disposable_email_blocklist.conf"
+DISPOSABLE_DOMAINS: frozenset = frozenset(
+    line.strip().lower()
+    for line in _BLOCKLIST_PATH.read_text().splitlines()
+    if line.strip() and not line.startswith("#")
+) if _BLOCKLIST_PATH.exists() else frozenset()
+
+
+def is_disposable_email(email: str) -> bool:
+    domain = _normalize_email(email).rpartition("@")[2]
+    parts = domain.split(".")
+    return any(".".join(parts[i:]) in DISPOSABLE_DOMAINS for i in range(len(parts) - 1))
+
+
+async def resolve_account_email(db: AsyncIOMotorDatabase, raw: str) -> str:
+    """Existing account for this inbox (legacy exact email or alias match),
+    else the canonical form for a new account."""
+    exact = _normalize_email(raw)
+    key = canonical_email(raw)
+    user = await db.users.find_one({"email": exact}, {"email": 1})
+    if not user:
+        user = await db.users.find_one({"email_key": key}, {"email": 1}, sort=[("created_at", 1)])
+    return user["email"] if user else key
+
+
+async def backfill_email_keys(db: AsyncIOMotorDatabase) -> None:
+    async for u in db.users.find({"email_key": {"$exists": False}}, {"email": 1}):
+        await db.users.update_one({"_id": u["_id"]}, {"$set": {"email_key": canonical_email(u["email"])}})
+    await db.users.create_index("email_key")
+    await db.trial_devices.create_index("device_id", unique=True)
+
+
+# --- Per-device trial tracking ----------------------------------------------
+DEVICE_COOKIE_NAME = "pt_device"
+DEVICE_COOKIE_DAYS = 400
+
+
+def ensure_device_cookie(request: Request, response: Response) -> str:
+    device_id = request.cookies.get(DEVICE_COOKIE_NAME)
+    if not device_id or not re.fullmatch(r"[A-Za-z0-9_-]{20,64}", device_id):
+        device_id = secrets.token_urlsafe(24)
+        response.set_cookie(
+            key=DEVICE_COOKIE_NAME, value=device_id,
+            max_age=DEVICE_COOKIE_DAYS * 24 * 3600,
+            httponly=True, samesite="lax", secure=True, path="/",
+        )
+    return device_id
+
+
+async def effective_trial_used(db: AsyncIOMotorDatabase, user: dict, device_id: Optional[str]) -> dict:
+    """Trial usage is the max of this account and this device, so a second
+    email on the same browser cannot restart the trial."""
+    used = {"word": user.get("trial_word_used", 0), "scene": user.get("trial_scene_used", 0)}
+    if device_id:
+        dev = await db.trial_devices.find_one({"device_id": device_id}) or {}
+        used["word"] = max(used["word"], dev.get("trial_word_used", 0))
+        used["scene"] = max(used["scene"], dev.get("trial_scene_used", 0))
+    return used
 
 
 def _issue_jwt(email: str) -> str:
@@ -231,6 +303,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             return user
         doc = {
             "email": email,
+            "email_key": canonical_email(email),
             "trial_word_used": 0,
             "trial_scene_used": 0,
             "created_at": _now().isoformat(),
@@ -240,10 +313,16 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return doc
 
     @router.post("/request-magic-link")
-    async def request_magic_link(body: RequestMagicLinkBody, request: Request):
-        email = _normalize_email(body.email)
-        if not EMAIL_RE.match(email):
+    async def request_magic_link(body: RequestMagicLinkBody, request: Request, response: Response):
+        typed = _normalize_email(body.email)
+        if not EMAIL_RE.match(typed):
             raise HTTPException(status_code=400, detail="invalid_email")
+        if is_disposable_email(typed):
+            raise HTTPException(status_code=400, detail="disposable_email")
+        ensure_device_cookie(request, response)
+        # The account is keyed on the canonical inbox; the link is delivered
+        # to the address exactly as typed so aliases still receive it.
+        email = await resolve_account_email(db, typed)
 
         # Abuse caps: 5 links/email/hour, 20 links/IP/hour (429), then the
         # gentler 1/min/email silent limiter below.
@@ -286,7 +365,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         else:
             base = APP_PUBLIC_URL
         login_url = f"{base}/auth/verify?token={token}"
-        await _send_magic_link_email(email, login_url)
+        await _send_magic_link_email(typed, login_url)
         return {"ok": True}
 
     @router.get("/verify")
@@ -352,9 +431,10 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return {"ok": True}
 
     @router.get("/me", response_model=AuthMeResponse)
-    async def me(request: Request):
+    async def me(request: Request, response: Response):
         token = request.cookies.get(JWT_COOKIE_NAME)
         email = _decode_jwt(token) if token else None
+        device_id = ensure_device_cookie(request, response)
         offer_urls = {
             "monthly_offer_url": os.environ.get("KAJABI_MONTHLY_OFFER_URL", ""),
             "annual_offer_url": os.environ.get("KAJABI_ANNUAL_OFFER_URL", ""),
@@ -425,6 +505,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         # Re-read user so we surface the has_stripe_customer flag correctly
         # after a possible self-heal that just linked the customer.
         user = await db.users.find_one({"email": email}) or user
+        used = await effective_trial_used(db, user, device_id)
 
         return AuthMeResponse(
             authenticated=True,
@@ -432,8 +513,8 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             subscription_status=status["status"],
             subscription_offer_title=status["offer_title"],
             subscription_end_at=status["subscription_end_at"],
-            trial_word_used=user.get("trial_word_used", 0),
-            trial_scene_used=user.get("trial_scene_used", 0),
+            trial_word_used=used["word"],
+            trial_scene_used=used["scene"],
             stripe_prices=stripe_prices,
             has_stripe_customer=bool(user.get("stripe_customer_id")),
             is_admin=is_admin_email(email),
@@ -453,6 +534,7 @@ class Actor(BaseModel):
     allowed: bool
     consumed_trial_kind: Optional[str] = None
     reason: Optional[str] = None
+    device_id: Optional[str] = None
 
 
 async def require_access(
@@ -480,14 +562,11 @@ async def require_access(
     if is_sub:
         return Actor(email=email, is_subscriber=True, allowed=True)
 
-    if kind == "word":
-        used = user.get("trial_word_used", 0)
-        limit = TRIAL_WORD_LIMIT
-    elif kind == "scene":
-        used = user.get("trial_scene_used", 0)
-        limit = TRIAL_SCENE_LIMIT
-    else:
+    if kind not in ("word", "scene"):
         raise HTTPException(status_code=500, detail="invalid_gate_kind")
+    device_id = request.cookies.get(DEVICE_COOKIE_NAME)
+    used = (await effective_trial_used(db, user, device_id))[kind]
+    limit = TRIAL_WORD_LIMIT if kind == "word" else TRIAL_SCENE_LIMIT
 
     if used >= limit:
         raise HTTPException(
@@ -495,7 +574,7 @@ async def require_access(
             detail={"code": "trial_exhausted", "kind": kind},
         )
     return Actor(email=email, is_subscriber=False, allowed=True,
-                 consumed_trial_kind=kind)
+                 consumed_trial_kind=kind, device_id=device_id)
 
 
 async def consume_trial(db: AsyncIOMotorDatabase, actor: Actor) -> None:
@@ -504,6 +583,13 @@ async def consume_trial(db: AsyncIOMotorDatabase, actor: Actor) -> None:
         return
     field = f"trial_{actor.consumed_trial_kind}_used"
     await db.users.update_one({"email": actor.email}, {"$inc": {field: 1}})
+    if actor.device_id:
+        await db.trial_devices.update_one(
+            {"device_id": actor.device_id},
+            {"$inc": {field: 1}, "$addToSet": {"emails": actor.email},
+             "$set": {"updated_at": _now().isoformat()}},
+            upsert=True,
+        )
 
 
 # --- Simple in-process sliding-window rate limiter --------------------------

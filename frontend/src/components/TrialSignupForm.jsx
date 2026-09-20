@@ -22,7 +22,14 @@ export default function TrialSignupForm() {
       setStatus("sent");
     } catch (err) {
       setStatus("idle");
-      toast.error(String(err?.response?.data?.detail || err?.message || "Could not send link."));
+      const detail = err?.response?.data?.detail;
+      const msg =
+        detail === "disposable_email"
+          ? "Temporary or disposable email addresses can't be used. Please use your regular email."
+          : detail === "invalid_email"
+            ? "That doesn't look like a valid email address."
+            : String(detail || err?.message || "Could not send link.");
+      toast.error(msg);
     }
   };
 
