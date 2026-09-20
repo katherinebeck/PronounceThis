@@ -4,12 +4,14 @@ import { pronounceWord, fetchSoundCategories } from "@/lib/api";
 import { playWord } from "@/lib/audio";
 import YouglishModal from "./CaptionSearchModal";
 import HeteronymVariants from "./HeteronymVariants";
+import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
 // A small, focused word-lookup workbench: type anything, get IPA + ARPABET +
 // sound categories, tap to hear Rachel say it, or open real-speaker clips
 // from curated American YouTube channels. Complements the full scene view.
 export default function PronouncePage({ onGoToScenes }) {
+  const { isAuthenticated, loading: authLoading, openPaywall } = useAuth();
   const [input, setInput] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -30,6 +32,11 @@ export default function PronouncePage({ onGoToScenes }) {
     e?.preventDefault?.();
     const word = (override ?? input).trim();
     if (!word) return;
+    // Visitors go to Get Started (free trial email or join) before searching.
+    if (!authLoading && !isAuthenticated) {
+      openPaywall("join");
+      return;
+    }
     setLoading(true);
     try {
       const r = await pronounceWord(word);
@@ -209,7 +216,7 @@ export default function PronouncePage({ onGoToScenes }) {
           </p>
           <button
             type="button"
-            onClick={() => onGoToScenes?.()}
+            onClick={() => (!authLoading && !isAuthenticated ? openPaywall("join") : onGoToScenes?.())}
             className="mt-6 sm:mt-8 btn-primary text-[11px] sm:text-[12px] px-6 py-3 sm:px-7 sm:py-3.5"
             data-testid="scenes-promo-banner"
           >
