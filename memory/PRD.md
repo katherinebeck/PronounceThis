@@ -352,3 +352,7 @@
 - `backend/data/disposable_email_blocklist.conf` (8.9k domains, repo-stored, from disposable-email-domains project). request-magic-link → 400 `disposable_email`; LoginModal + TrialSignupForm show friendly copy. Paid checkout not blocked.
 - Per-device: httpOnly cookie `pt_device` (400 days) set by `/auth/me` and request-magic-link. `trial_devices` {device_id, trial_word_used, trial_scene_used, emails[]}. `require_access` uses max(account, device) usage; `consume_trial` increments both; `/me` reports the effective counters. No cookie → per-email only.
 - Not built (user chose a): per-IP cap, Admin "trial abuse" view. Tests: tests/test_trial_abuse.py (7) + e2e (/tmp/e2e_trial.py: alias→same account, 5 words then 402, second email same device 402).
+
+## 2026-06 — Get Started modal copy + plan-card fallback
+- Headlines: Get Started (join) → "Ready to join Pronounce This?"; trial-only popup → "New here? Try it for free".
+- Plan cards ($9/mo, $90/yr) now render from a static FALLBACK_PRICES list when `/me` hasn't loaded or failed (user saw them missing in production — likely a 520 on /me). Verified via screenshot.

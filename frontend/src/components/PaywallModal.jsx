@@ -7,6 +7,11 @@ import { toast } from "sonner";
 
 // Shown when a trial-gated (or subscriber-only) request comes back 402.
 // The subscribe buttons open Stripe Checkout for the selected plan.
+const FALLBACK_PRICES = [
+  { lookup_key: "accent_coach_monthly", label: "Monthly", amount: 9, currency: "usd", interval: "month" },
+  { lookup_key: "accent_coach_yearly", label: "Annual", amount: 90, currency: "usd", interval: "year", savings_note: "Save $18 vs monthly" },
+];
+
 export default function PaywallModal() {
   const { paywallOpen, closePaywall, paywallReason, me } = useAuth();
 
@@ -19,7 +24,9 @@ export default function PaywallModal() {
   const [loading, setLoading] = useState(null); // lookup_key currently checking-out
   if (!paywallOpen) return null;
 
-  const prices = Array.isArray(me?.stripe_prices) ? me.stripe_prices : [];
+  const prices = Array.isArray(me?.stripe_prices) && me.stripe_prices.length
+    ? me.stripe_prices
+    : FALLBACK_PRICES;
 
   const startCheckout = async (lookup_key) => {
     setLoading(lookup_key);
@@ -42,10 +49,10 @@ export default function PaywallModal() {
   const trialOnly = paywallReason === "trial" && !me?.email;
   const showTrial = (paywallReason === "join" || trialOnly) && !me?.email;
   const headline =
-    showTrial
-      ? "Try it free"
-      : paywallReason === "join"
-      ? "Join Pronounce This"
+    trialOnly
+      ? "New here? Try it for free"
+      : showTrial || paywallReason === "join"
+      ? "Ready to join Pronounce This?"
       : paywallReason === "scene"
       ? "You've used your free scene"
       : paywallReason === "word"
