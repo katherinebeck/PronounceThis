@@ -308,3 +308,9 @@
 - Download filenames: `{PDF name}_{CHARACTER}.mp3` and `{PDF name}_readers-lines.mp3`.
 - Magic link verify: 120s grace window (re-issuing cookie if same token retried after a lost response); VerifyPage retries transient (network/5xx/429) errors 3× and shows friendly messages for used/expired links.
 - Deployment agent static scan flagged the 90-day scenes TTL as "destructive" — it is an explicit user requirement; keep.
+
+## 2026-06 — Dictionary → ElevenLabs voice
+- Coach recordings are no longer played to members. Saving a dictionary entry converts its IPA → ARPABET (`phonetics.ipa_to_arpabet`), stores it in `pronunciation_prefs` (source="dictionary") + PREFERRED_ARPA, deletes generated audio; ElevenLabs then renders the word via phoneme tags (word lookups, scene word clicks, scene lines). Human take archived as audio_cache `{word}#human`.
+- Startup migration converts any legacy manual_override recordings (dictionary or old "tricky words" uploader) the same way. Verified with seeded 'interior'.
+- Admin: removed "Record your own for tricky words" section; My Dictionary's Jump box is the single place to fix a word. Copy updated.
+- UploadDropzone scene-library copy updated per user.

@@ -52,9 +52,9 @@ export default function UploadDropzone({ onUploaded }) {
           Pronounce This Scene<span className="text-rust">.</span>
         </h2>
         <p className="text-lg text-muted2 leading-relaxed font-serif">
-          Hear each word, see it transcribed in American IPA, download an
-          audio sample of your character's dialogue and practice with sound
-          lists pulled from your scene.
+          Hear each word, see it transcribed in American IPA and practice
+          with sound lists pulled from your scene. Download an audio of your
+          character's dialogue or download your reader's lines.
         </p>
         <div className="flex gap-3 items-center">
           <button

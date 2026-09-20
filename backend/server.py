@@ -45,6 +45,7 @@ from phonetics import (
     classify_word,
     get_arpabet,
     heteronym_variants,
+    ipa_to_arpabet,
     transcribe_word,
     validate_arpabet,
 )
@@ -1583,6 +1584,29 @@ async def _startup_indexes():
     async for pref in db.pronunciation_prefs.find({}, {"_id": 0}):
         PREFERRED_ARPA[pref["word"]] = pref["arpabet"]
     await load_custom_ipa(db)
+    # Human recordings (dictionary builder or the retired "tricky words"
+    # uploader) used to be played to members. Convert each to an ElevenLabs
+    # phoneme preference and archive the human take. Idempotent.
+    for human in await db.audio_cache.find(
+        {"manual_override": True, "word": {"$not": {"$regex": "#"}}}
+    ).to_list(100_000):
+        w = human["word"]
+        entry = await db.dictionary_entries.find_one({"word": w}, {"_id": 0, "ipa": 1})
+        phones = (ipa_to_arpabet((entry or {}).get("ipa") or "") or get_arpabet(w))
+        if phones:
+            arp = " ".join(phones)
+            await db.pronunciation_prefs.update_one(
+                {"word": w},
+                {"$set": {"word": w, "arpabet": arp, "ipa": arpabet_to_ipa(phones),
+                          "categories": classify_word(phones), "source": "dictionary",
+                          "updated_at": datetime.now(timezone.utc).isoformat()}},
+                upsert=True)
+            PREFERRED_ARPA[w] = arp
+        human.pop("_id", None)
+        human.update({"word": f"{w}#human", "manual_override": False})
+        await db.audio_cache.update_one({"word": f"{w}#human"}, {"$set": human}, upsert=True)
+        await db.audio_cache.delete_many({"word": {"$in": [w, f"{w}#ph"]}})
+        logger.info("dictionary: migrated human recording for %r to ElevenLabs phonemes", w)
     # Scene ownership: pre-existing scenes have no uploader record; mark them
     # legacy (admin-only) without touching their content. Idempotent.
     await db.scenes.update_many(

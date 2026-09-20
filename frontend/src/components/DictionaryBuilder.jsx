@@ -103,11 +103,12 @@ export function DictionaryBuilder() {
   return (
     <section className="bg-surface border thin-rule p-6" data-testid="admin-dictionary">
       <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">My dictionary</div>
-      <h2 className="font-display text-2xl text-ink mb-4">Record the dictionary, one word at a time</h2>
+      <h2 className="font-display text-2xl text-ink mb-4">Check the dictionary, one word at a time</h2>
       <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
-        Words come A→Z from the CMU dictionary with their IPA filled in — edit it if you disagree.
+        Words come A→Z from the CMU dictionary with their IPA filled in — edit it if you disagree, or jump
+        straight to a tricky word below. <span className="text-ink not-italic">Members always hear the ElevenLabs voice</span>,
+        pronounced exactly as your IPA says; your own recording is kept only as a reference for you.
         Press <kbd className="font-mono not-italic">Space</kbd> to start/stop recording and <kbd className="font-mono not-italic">Enter</kbd> to save.
-        Clicks and silence at the edges are trimmed automatically.
       </p>
 
       {stats ? (
@@ -121,7 +122,7 @@ export function DictionaryBuilder() {
       ) : null}
 
       <form onSubmit={doJump} className="flex gap-2 mb-5">
-        <input type="text" value={jump} onChange={(e) => setJump(e.target.value)} placeholder="Jump to a word (e.g. because)" className={inputCls} data-testid="dictionary-jump" />
+        <input type="text" value={jump} onChange={(e) => setJump(e.target.value)} placeholder="Fix a tricky word — jump to it (e.g. exterior)" className={inputCls} data-testid="dictionary-jump" />
         <button type="submit" className="btn-primary justify-center" data-testid="dictionary-jump-go"><ArrowRight size={14} /> Go</button>
       </form>
 

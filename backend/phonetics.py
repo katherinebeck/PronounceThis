@@ -148,6 +148,71 @@ def cmu_variants(word: str) -> List[List[str]]:
     return [p.split() for p in pronouncing.phones_for_word(word.lower().strip())]
 
 
+_IPA_TOKENS = [
+    ("aɪ", "AY"), ("aʊ", "AW"), ("ɔɪ", "OY"), ("eɪ", "EY"), ("oʊ", "OW"),
+    ("tʃ", "CH"), ("dʒ", "JH"), ("l̩", "L̩"), ("n̩", "N̩"), ("m̩", "M̩"),
+    ("ɑ", "AA"), ("æ", "AE"), ("ʌ", "AH"), ("ə", "AH"), ("ɐ", "AH"), ("ɔ", "AO"),
+    ("ɛ", "EH"), ("ɝ", "ER"), ("ɚ", "ER"), ("ɜ", "ER"), ("ɪ", "IH"), ("i", "IY"),
+    ("ʊ", "UH"), ("u", "UW"), ("o", "OW"), ("e", "EY"), ("a", "AE"),
+    ("b", "B"), ("d", "D"), ("ð", "DH"), ("f", "F"), ("ɡ", "G"), ("g", "G"),
+    ("h", "HH"), ("ɦ", "HH"), ("k", "K"), ("l", "L"), ("ɫ", "L"), ("m", "M"),
+    ("n", "N"), ("ŋ", "NG"), ("p", "P"), ("ɹ", "R"), ("r", "R"), ("s", "S"),
+    ("ʃ", "SH"), ("t", "T"), ("ɾ", "T"), ("ʔ", "T"), ("θ", "TH"), ("v", "V"),
+    ("w", "W"), ("j", "Y"), ("z", "Z"), ("ʒ", "ZH"),
+]
+
+
+def ipa_to_arpabet(ipa: str) -> Optional[List[str]]:
+    """Best-effort inverse of arpabet_to_ipa for coach-edited IPA.
+
+    ˈ/ˌ stress the next vowel (1/2); ə/ɚ are 0; ɝ is 1; other vowels are 0
+    unless the word has no stress at all, then the first full vowel gets 1.
+    Returns None if any symbol is unknown."""
+    s = (ipa or "").strip().strip("/[]")
+    s = s.replace("ː", "").replace("ˑ", "").replace("·", " ").replace(".", " ")
+    if not s:
+        return None
+    out: List[str] = []
+    pending: Optional[str] = None
+    i = 0
+    while i < len(s):
+        ch = s[i]
+        if ch in " \t\u0303":
+            i += 1
+            continue
+        if ch in "ˈˌ":
+            pending = "1" if ch == "ˈ" else "2"
+            i += 1
+            continue
+        for sym, arp in _IPA_TOKENS:
+            if s.startswith(sym, i):
+                if arp.endswith("\u0329"):
+                    out.extend(["AH0", arp[0]])
+                elif arp in VOWEL_ARPA:
+                    if pending is not None:
+                        stress, pending = pending, None
+                    elif sym in ("ə", "ɚ"):
+                        stress = "0"
+                    elif sym == "ɝ":
+                        stress = "1"
+                    else:
+                        stress = "0"
+                    out.append(arp + stress)
+                else:
+                    out.append(arp)
+                i += len(sym)
+                break
+        else:
+            return None
+    if not out:
+        return None
+    vowels = [k for k, p in enumerate(out) if strip_stress(p) in VOWEL_ARPA]
+    if vowels and not any(out[k].endswith(("1", "2")) for k in vowels):
+        target = next((k for k in vowels if out[k] != "AH0"), vowels[0])
+        out[target] = strip_stress(out[target]) + "1"
+    return out
+
+
 def validate_arpabet(text: str) -> Optional[List[str]]:
     """Parse 'B IH0 K AH1 Z' -> phones list, or None if any phone is unknown."""
     phones = [p.strip().upper() for p in (text or "").replace(",", " ").split() if p.strip()]

@@ -17,7 +17,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 
 from auth import require_admin
-from phonetics import CUSTOM_IPA, classify_ipa, cmu_ipa, cmu_word_list, cmu_words_by_frequency
+from phonetics import (CUSTOM_IPA, PREFERRED_ARPA, classify_ipa, cmu_ipa, cmu_word_list,
+                       cmu_words_by_frequency, ipa_to_arpabet)
 
 ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
                        "audio/webm", "audio/ogg", "audio/mp4", "audio/m4a"}
@@ -122,6 +123,24 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
         is_custom = bool(ipa_clean) and ipa_clean != base
         doc = {"word": w, "ipa": ipa_final, "cmu_ipa": base, "ipa_custom": is_custom,
                "categories": classify_ipa(ipa_final), "status": "done", "updated_at": _now_iso()}
+        # The coach's IPA drives ElevenLabs via phoneme tags; her own recording
+        # is archived for reference but never played to members.
+        phones = ipa_to_arpabet(ipa_final) if ipa_final else None
+        if ipa_final and not phones:
+            raise HTTPException(status_code=400, detail="invalid_ipa")
+        if phones:
+            arp = " ".join(phones)
+            await db.pronunciation_prefs.update_one(
+                {"word": w},
+                {"$set": {"word": w, "arpabet": arp, "ipa": ipa_final,
+                          "categories": classify_ipa(ipa_final),
+                          "source": "dictionary", "updated_at": _now_iso()}},
+                upsert=True)
+            PREFERRED_ARPA[w] = arp
+            doc["arpabet"] = arp
+            # Drop any human override + generated audio so the next play is
+            # ElevenLabs following the new phonemes.
+            await db.audio_cache.delete_many({"word": {"$in": [w, f"{w}#ph"]}})
         if file is not None:
             raw = await file.read()
             if not raw:
@@ -132,9 +151,9 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
             if ct not in ALLOWED_AUDIO_TYPES:
                 raise HTTPException(status_code=400, detail=f"unsupported_audio_type:{ct}")
             await db.audio_cache.update_one(
-                {"word": w},
-                {"$set": {"word": w, "audio_b64": base64.b64encode(raw).decode("ascii"),
-                          "manual_override": True, "content_type": ct, "byte_size": len(raw),
+                {"word": f"{w}#human"},
+                {"$set": {"word": f"{w}#human", "audio_b64": base64.b64encode(raw).decode("ascii"),
+                          "manual_override": False, "content_type": ct, "byte_size": len(raw),
                           "created_at": _now_iso()}},
                 upsert=True)
             doc.update({"has_audio": True, "content_type": ct})
@@ -172,14 +191,16 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
         await require_admin(request, db)
         w = _clean_word(body.word)
         await db.dictionary_entries.delete_one({"word": w})
-        await db.audio_cache.delete_one({"word": w, "manual_override": True})
+        await db.audio_cache.delete_many({"word": {"$in": [w, f"{w}#ph", f"{w}#human"]}})
+        await db.pronunciation_prefs.delete_one({"word": w, "source": "dictionary"})
+        PREFERRED_ARPA.pop(w, None)
         CUSTOM_IPA.pop(w, None)
         return {"ok": True}
 
     @router.get("/audio")
     async def audio(request: Request, word: str):
         await require_admin(request, db)
-        a = await db.audio_cache.find_one({"word": _clean_word(word), "manual_override": True}, {"_id": 0})
+        a = await db.audio_cache.find_one({"word": f"{_clean_word(word)}#human"}, {"_id": 0})
         if not a:
             raise HTTPException(status_code=404, detail="no_recording")
         return Response(content=base64.b64decode(a["audio_b64"]),
@@ -211,11 +232,9 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
             zf.writestr("dictionary.csv", _csv_bytes(rows))
-            async for a in db.audio_cache.find({"manual_override": True}, {"_id": 0}):
-                if "#" in a["word"]:
-                    continue
+            async for a in db.audio_cache.find({"word": {"$regex": "#human$"}}, {"_id": 0}):
                 ext = _EXT.get(a.get("content_type") or "", "mp3")
-                zf.writestr(f"audio/{a['word']}.{ext}", base64.b64decode(a["audio_b64"]))
+                zf.writestr(f"audio/{a['word'][:-6]}.{ext}", base64.b64decode(a["audio_b64"]))
         stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         return Response(content=buf.getvalue(), media_type="application/zip",
                         headers={"Content-Disposition": f'attachment; filename="dictionary-{stamp}.zip"'})
