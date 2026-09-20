@@ -112,8 +112,8 @@ export async function fetchReaderVoices() {
   return data.voices; // [{ key, label, gender, description }]
 }
 
-export async function downloadMyLines(sceneId, { character, voice = null } = {}) {
-  const params = { character };
+export async function downloadMyLines(sceneId, { character, voice = null, mode = "mine" } = {}) {
+  const params = { character, mode };
   if (voice) params.voice = voice;
   const response = await api.get(`/scenes/${sceneId}/download-lines`, {
     params,

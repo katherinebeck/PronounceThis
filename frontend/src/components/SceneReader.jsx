@@ -76,6 +76,7 @@ export default function SceneReader({ scene, highlightSet }) {
   const [loadingTurn, setLoadingTurn] = useState(null);
   const [running, setRunning] = useState(false);
   const [downloading, setDownloading] = useState(false);
+  const [downloadingReader, setDownloadingReader] = useState(false);
   const [ygQuery, setYgQuery] = useState(null);
   const [voices, setVoices] = useState([]);
   const [prefs, setPrefs] = usePersistedScenePrefs(scene?.id);
@@ -238,16 +239,18 @@ export default function SceneReader({ scene, highlightSet }) {
     }
   };
 
-  const handleDownloadMyLines = async () => {
+  const downloadBundle = async (mode) => {
     if (!prefs.character) {
       toast.error("Pick your character first.");
       return;
     }
-    setDownloading(true);
+    const setBusy = mode === "reader" ? setDownloadingReader : setDownloading;
+    setBusy(true);
     try {
       const { blob, filename } = await downloadMyLines(scene.id, {
         character: prefs.character,
         voice: prefs.voice,
+        mode,
       });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -258,7 +261,11 @@ export default function SceneReader({ scene, highlightSet }) {
       a.remove();
       // Give the browser a beat to start the download, then release the URL.
       setTimeout(() => URL.revokeObjectURL(url), 2000);
-      toast.success(`Downloaded ${prefs.character}'s lines.`);
+      toast.success(
+        mode === "reader"
+          ? `Downloaded your reader track — the other characters speak, you fill the gaps.`
+          : `Downloaded ${prefs.character}'s lines.`
+      );
     } catch (e) {
       const msg =
         e?.response?.data?.detail ||
@@ -267,9 +274,11 @@ export default function SceneReader({ scene, highlightSet }) {
         "Download failed.";
       toast.error(msg);
     } finally {
-      setDownloading(false);
+      setBusy(false);
     }
   };
+  const handleDownloadMyLines = () => downloadBundle("mine");
+  const handleDownloadReaderLines = () => downloadBundle("reader");
 
   if (!scene) return null;
 
@@ -341,6 +350,24 @@ export default function SceneReader({ scene, highlightSet }) {
               ) : (
                 <>
                   <Download size={12} /> Download My Lines
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={handleDownloadReaderLines}
+              data-testid="download-reader-lines-button"
+              disabled={downloadingReader || running}
+              title="Download the other characters' lines as one MP3, with silence where your lines go (10% longer than it takes to say them) so you can rehearse against it"
+            >
+              {downloadingReader ? (
+                <>
+                  <Loader2 size={12} className="animate-spin" /> Bundling
+                </>
+              ) : (
+                <>
+                  <Download size={12} /> Download My Reader's Lines
                 </>
               )}
             </button>

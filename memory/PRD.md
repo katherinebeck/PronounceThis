@@ -299,3 +299,6 @@
 - Single "Hidden clips" section (HiddenVideos.jsx) placed under the channel index; duplicate removed.
 - All users: Search button (email or plan title), 25 per page with Prev/Next; GET /admin/users?q=&page=&limit= returns total/page/limit.
 - Dictionary builder IPA validator now accepts "·" and nasal tilde; palette has "·".
+
+## 2026-06 — Reader track download
+- Scenes: "Download My Reader's Lines" button → GET /scenes/{id}/download-lines?mode=reader: whole scene in order, partner lines audible, selected character's lines replaced by silence = 1.1× line duration (+0.4s beat between turns). Filename *_reader.mp3. Subscriber perk like the existing bundle.

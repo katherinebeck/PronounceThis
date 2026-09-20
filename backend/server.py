@@ -1343,13 +1343,15 @@ async def download_my_lines(
     character: str,
     voice: Optional[str] = None,
     gap_ms: int = 2000,
+    mode: str = "mine",
 ):
     # Bundled-MP3 download is a subscriber perk.
     await require_subscriber(request, db)
-    """Return a single MP3 containing every one of `character`'s lines
-    concatenated with a short silent gap between them (default 2s — the
-    beat where the other character would speak). Reuses turn_audio_cache
-    so a scene the actor has already played back downloads instantly.
+    """mode="mine": every one of `character`'s lines concatenated with a
+    short silent gap (default 2s). mode="reader": the *other* characters'
+    lines in scene order, with a silent gap where `character` speaks, sized
+    to 110% of how long that line takes to say — a rehearsal reader track.
+    Reuses turn_audio_cache so an already-played scene downloads instantly.
     """
     from pydub import AudioSegment
 
@@ -1372,13 +1374,17 @@ async def download_my_lines(
             status_code=404,
             detail=f"No lines found for character '{character}'.",
         )
+    reader_mode = mode == "reader"
+    if reader_mode and len(mine) == len(turns):
+        raise HTTPException(
+            status_code=400,
+            detail="This scene has no other character to read against.",
+        )
 
     gap_ms = max(0, min(int(gap_ms), 10000))
     gap = AudioSegment.silent(duration=gap_ms) if gap_ms > 0 else None
 
-    # Fetch (or generate + cache) each line's audio, then concatenate.
-    combined: Optional[AudioSegment] = None
-    for turn in mine:
+    async def turn_segment(turn: Dict) -> Optional[AudioSegment]:
         turn_idx = turn.get("index", 0)
         cache_key = (
             f"{scene_id}:{turn_idx}"
@@ -1414,16 +1420,34 @@ async def download_my_lines(
                         upsert=True,
                     )
         if not audio_bytes:
-            continue
+            return None
         try:
-            seg = AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
+            return AudioSegment.from_file(io.BytesIO(audio_bytes), format="mp3")
         except Exception:
             logger.exception("Failed to decode line MP3 for concat")
-            continue
-        if combined is None:
-            combined = seg
-        else:
-            combined = combined + gap + seg if gap is not None else combined + seg
+            return None
+
+    combined: Optional[AudioSegment] = None
+    if reader_mode:
+        # Whole scene in order: partner lines audible, my lines become
+        # silence long enough (×1.1) to say them out loud.
+        beat = AudioSegment.silent(duration=400)
+        for turn in turns:
+            seg = await turn_segment(turn)
+            if seg is None:
+                continue
+            is_mine = (turn.get("speaker") or "").strip() == normalized_char
+            piece = AudioSegment.silent(duration=int(len(seg) * 1.1)) if is_mine else seg
+            combined = piece if combined is None else combined + beat + piece
+    else:
+        for turn in mine:
+            seg = await turn_segment(turn)
+            if seg is None:
+                continue
+            if combined is None:
+                combined = seg
+            else:
+                combined = combined + gap + seg if gap is not None else combined + seg
 
     if combined is None:
         raise HTTPException(status_code=502, detail="No audio to bundle.")
@@ -1437,7 +1461,7 @@ async def download_my_lines(
 
     safe_char = re.sub(r"[^A-Za-z0-9]+", "-", normalized_char).strip("-") or "lines"
     scene_slug = re.sub(r"[^A-Za-z0-9]+", "-", doc.get("title", "scene")).strip("-") or "scene"
-    filename = f"{scene_slug}_{safe_char}.mp3"
+    filename = f"{scene_slug}_{safe_char}{'_reader' if reader_mode else ''}.mp3"
     return Response(
         content=audio_bytes,
         media_type="audio/mpeg",
