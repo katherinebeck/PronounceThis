@@ -35,6 +35,7 @@ from pymongo.errors import DuplicateKeyError
 
 from auth import client_ip, optional_login, rate_limit, require_login
 from notify import notify_owner
+import kit
 
 logger = logging.getLogger(__name__)
 
@@ -372,6 +373,7 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
         notify_owner("New member 💳", "A new member just joined",
                      [f"<b>{email}</b> subscribed to <b>{offer_title}</b>.",
                       "Their access is active now."])
+        kit.tag_subscriber(email, kit.TAG_MEMBER)
 
 
 async def _sync_subscription(
@@ -413,6 +415,7 @@ async def _sync_subscription(
             notify_owner("Cancellation 🔴", "A member cancelled",
                          [f"<b>{email}</b> cancelled <b>{_lookup_key_to_title(lookup_key)}</b>.",
                           f"Access ends {subscription_end_at[:10]}."])
+            kit.tag_subscriber(email, kit.TAG_CANCELLED)
 
     # past_due = Stripe is still retrying the card (dunning). Keep access
     # until the subscription is actually deleted/unpaid/canceled.
@@ -454,6 +457,7 @@ async def _mark_cancelled(db: AsyncIOMotorDatabase, sub) -> None:
         notify_owner("Subscription ended", "A subscription has ended",
                      [f"<b>{row.get('user_email')}</b> — <b>{row.get('offer_title') or 'membership'}</b> is now closed.",
                       "Their access has been removed."])
+        kit.tag_subscriber(row.get("user_email"), kit.TAG_CANCELLED)
 
 
 async def sync_from_stripe_customer(

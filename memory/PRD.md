@@ -340,3 +340,9 @@
 - Session: JWT cookie 90 days (JWT_DAYS=90), no re-login needed on same browser.
 - Testing: /app/test_reports/iteration_24.json — all pass.
 - PENDING user input: ConvertKit integration (needs API key + form/tag IDs for trial + member).
+
+## 2026-06 — Kit (ConvertKit) tagging
+- `backend/kit.py`: Kit v4 API (`X-Kit-Api-Key`, api.kit.com/v4). `tag_subscriber(email, tag)` fire-and-forget: create-or-get tag by name (cached) → upsert subscriber → tag by email; 3× backoff on 429/5xx. Blank `KIT_API_KEY` = disabled, never blocks a request.
+- Tags: "PT Trial" (first sign-in, auth.py), "PT Member" (first Stripe grant), "PT Cancelled" (cancel scheduled + subscription.deleted) — same hooks as notify_owner.
+- `KIT_API_KEY=""` added to backend/.env + README env table. USER: paste the v4 key (Kit → Settings → Developer → V4 Keys) into the Secrets panel, then Republish.
+- Tests: backend/tests/test_kit.py (3 pass, mocked HTTP). Live Kit call not verified until the key is set.

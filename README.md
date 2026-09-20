@@ -48,6 +48,7 @@ Route `/api/*` to the backend and everything else to the frontend build.
 | `YOUTUBE_API_KEY` | Real Speakers search + caption index ingest |
 | `ANTHROPIC_API_KEY` | LLM dialogue extraction & IPA fallback (preferred) |
 | `EMERGENT_LLM_KEY` | Optional fallback for the LLM if `ANTHROPIC_API_KEY` is unset |
+| `KIT_API_KEY` | Optional. Kit (ConvertKit) v4 key — tags subscribers "PT Trial" / "PT Member" / "PT Cancelled". Blank = disabled |
 | `LLM_MODEL` | Optional; defaults to `claude-sonnet-4-5-20250929` |
 | `KAJABI_*` | Legacy Kajabi webhook/offers (optional) |
 

@@ -326,9 +326,11 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         )
         if prev is not None and not prev.get("last_login_at"):
             from notify import notify_owner
+            import kit
             notify_owner("New free trial", "Someone just started a free trial",
                          [f"<b>{email}</b> signed in for the first time.",
                           "They get 5 free words and 1 free scene."])
+            kit.tag_subscriber(email, kit.TAG_TRIAL)
 
         session = _issue_jwt(email)
         # SameSite=lax so we still get the cookie when the user clicks the
