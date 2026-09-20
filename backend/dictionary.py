@@ -24,7 +24,7 @@ ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
 MAX_AUDIO_BYTES = 2 * 1024 * 1024
 _EXT = {"audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/wav": "wav", "audio/x-wav": "wav",
         "audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a", "audio/m4a": "m4a"}
-IPA_ALLOWED = re.compile(r"^[a-zɑæɐɛəɜɝɚɪiɔoʊuʌʔbdðfɡghjklɫmnŋpɹrsʃtθvwzʒɾ\u0329ˈˌː.\s]+$")
+IPA_ALLOWED = re.compile(r"^[a-zɑæɐɛəɜɝɚɪiɔoʊuʌʔbdðfɡghjklɫmnŋpɹrsʃtθvwzʒɾ\u0329\u0303ˈˌː·.\s]+$")
 
 
 def _now_iso() -> str:

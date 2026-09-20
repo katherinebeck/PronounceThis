@@ -4,7 +4,7 @@ const GROUPS = [
   { label: "Vowels", symbols: ["i", "ɪ", "ɛ", "æ", "ə", "ʌ", "u", "ʊ", "ɔ", "ɑ", "ɝ", "ɚ"] },
   { label: "Diphthongs", symbols: ["eɪ", "aɪ", "oʊ", "aʊ", "ɔɪ"] },
   { label: "Consonants", symbols: ["θ", "ð", "ʃ", "ʒ", "tʃ", "dʒ", "ŋ", "ɹ", "j", "ɾ", "ɫ", "ʔ"] },
-  { label: "Stress", symbols: ["ˈ", "ˌ"] },
+  { label: "Stress", symbols: ["ˈ", "ˌ", "·"] },
 ];
 
 // Click-to-insert IPA symbols at the caret of the bound input.
