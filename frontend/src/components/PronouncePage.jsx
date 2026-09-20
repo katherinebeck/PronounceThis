@@ -66,7 +66,7 @@ export default function PronouncePage({ onGoToScenes }) {
       <div className="max-w-3xl mx-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12 lg:py-16">
         <div className="mb-8 sm:mb-10">
           <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-rust mb-3">
-            The American Accent Pronunciation Tool Specifically Designed For Actors
+            An American Accent Pronunciation Tool
           </div>
           <h1 className="reveal reveal-2 font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
             Pronounce This Word<span className="text-rust">.</span>
@@ -201,6 +201,9 @@ export default function PronouncePage({ onGoToScenes }) {
           <h2 className="font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
             Pronounce This Scene<span className="text-rust">.</span>
           </h2>
+          <div className="mt-3 font-mono text-[10px] uppercase tracking-[0.28em] text-rust" data-testid="scene-promo-eyebrow">
+            Specifically Designed For Actors
+          </div>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
             Upload a scene. Hear it spoken in an American accent.
           </p>
