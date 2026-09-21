@@ -44,6 +44,7 @@ JWT_ALG = "HS256"
 JWT_COOKIE_NAME = "accent_session"
 JWT_DAYS = 90                       # session lifetime
 MAGIC_LINK_TTL_MIN = 15             # magic link expiry
+MAGIC_LINK_MAX_USES = 5             # scanners/prefetchers may open a link before the person does
 MAGIC_LINK_RATE_LIMIT_MIN = 1       # 1 magic link per minute per email
 TRIAL_WORD_LIMIT = 5
 TRIAL_SCENE_LIMIT = 1
@@ -377,28 +378,25 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         link = await db.magic_links.find_one({"token": token})
         if not link:
             raise HTTPException(status_code=400, detail="invalid_or_used_link")
-        if link.get("consumed"):
-            # Grace window: if the first response was lost in transit (proxy
-            # hiccup, redeploy) the browser retries with the same token.
-            try:
-                consumed_at = datetime.fromisoformat(link.get("consumed_at", ""))
-            except Exception:
-                consumed_at = None
-            if not consumed_at or (_now() - consumed_at).total_seconds() > 120:
-                raise HTTPException(status_code=400, detail="invalid_or_used_link")
         try:
             expires_at = datetime.fromisoformat(link["expires_at"])
         except Exception:
             raise HTTPException(status_code=400, detail="invalid_link")
-        if expires_at < _now():
-            raise HTTPException(status_code=400, detail="expired_link")
-
         email = link["email"]
-        if not link.get("consumed"):
-            await db.magic_links.update_one(
-                {"token": token},
-                {"$set": {"consumed": True, "consumed_at": _now().isoformat()}},
-            )
+        # Mail apps and corporate link scanners often open the link before
+        # the person does, so a link stays valid for its full 15-minute
+        # window (capped at a handful of uses) instead of dying on first hit.
+        if expires_at < _now():
+            raise HTTPException(status_code=400, detail={"code": "expired_link", "email": email})
+        if link.get("use_count", 0) >= MAGIC_LINK_MAX_USES:
+            raise HTTPException(status_code=400, detail={"code": "invalid_or_used_link", "email": email})
+
+        await db.magic_links.update_one(
+            {"token": token},
+            {"$set": {"consumed": True, "last_used_at": _now().isoformat()},
+             "$inc": {"use_count": 1},
+             "$min": {"consumed_at": _now().isoformat()}},
+        )
         prev = await db.users.find_one_and_update(
             {"email": email},
             {"$set": {"last_login_at": _now().isoformat()}},

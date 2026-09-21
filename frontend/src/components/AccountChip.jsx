@@ -38,7 +38,7 @@ export default function AccountChip() {
           className="font-mono text-[10px] sm:text-[11px] uppercase tracking-[0.22em] px-4 sm:px-5 py-2 sm:py-2.5 rounded-full bg-rust text-stage font-semibold hover:bg-rustDeep transition-colors"
           data-testid="header-get-started"
         >
-          Get started
+          Join Pronounce This
         </button>
       </div>
     );

@@ -1,7 +1,71 @@
 import React, { useEffect, useState } from "react";
-import { Loader2, Check, XCircle } from "lucide-react";
-import { verifyMagicLink } from "@/lib/api";
+import { Loader2, Check, XCircle, Mail } from "lucide-react";
+import { verifyMagicLink, requestMagicLink } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+
+function ResendLinkForm({ initialEmail }) {
+  const [email, setEmail] = useState(initialEmail || "");
+  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
+  const [error, setError] = useState("");
+  useEffect(() => { if (initialEmail) setEmail(initialEmail); }, [initialEmail]);
+
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    const clean = email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) {
+      setError("Please enter a valid email address.");
+      return;
+    }
+    setError("");
+    setStatus("sending");
+    try {
+      await requestMagicLink(clean);
+      setStatus("sent");
+    } catch (err) {
+      setStatus("error");
+      const detail = err?.response?.data?.detail;
+      setError(detail === "disposable_email"
+        ? "Temporary email addresses can't be used. Please use your regular email."
+        : "Couldn't send the email right now. Please try again in a minute.");
+    }
+  };
+
+  if (status === "sent") {
+    return (
+      <p className="font-serif text-sm text-ink mt-6 leading-relaxed" data-testid="verify-resend-sent">
+        A fresh sign-in link is on its way to <span className="font-mono text-rust break-all">{email}</span>.
+        Open it on this device to finish signing in.
+      </p>
+    );
+  }
+  return (
+    <form onSubmit={onSubmit} className="mt-6 text-left" data-testid="verify-resend-form">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2" />
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full bg-paper border thin-rule pl-9 pr-3 py-3 font-serif text-sm text-ink placeholder:text-muted2 focus:outline-none focus:border-rust"
+            data-testid="verify-resend-email"
+            autoComplete="email"
+          />
+        </div>
+        <button
+          type="submit"
+          className="btn-primary whitespace-nowrap disabled:opacity-60"
+          disabled={status === "sending"}
+          data-testid="verify-resend-submit"
+        >
+          {status === "sending" ? <Loader2 size={16} className="animate-spin" /> : "Send me a fresh link"}
+        </button>
+      </div>
+      {error ? <p className="font-serif text-xs text-crimson mt-2" data-testid="verify-resend-error">{error}</p> : null}
+    </form>
+  );
+}
 
 // Handles /auth/verify?token=xxx. Consumes the magic link, refreshes
 // /auth/me so the app-wide auth state flips to authenticated, then
@@ -10,6 +74,7 @@ export default function VerifyPage() {
   const { refresh } = useAuth();
   const [state, setState] = useState("verifying"); // verifying | ok | error
   const [message, setMessage] = useState("");
+  const [knownEmail, setKnownEmail] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -42,20 +107,22 @@ export default function VerifyPage() {
         setState("ok");
         // Small pause so the user sees the checkmark before we redirect.
         setTimeout(() => {
-          window.history.replaceState({}, "", "/");
+          window.history.replaceState({}, "", "/app");
           // Full reload so all components pick up the new auth cookie state.
-          window.location.assign("/");
+          window.location.assign("/app");
         }, 900);
       } catch (err) {
-        const detail = err?.response?.data?.detail;
+        const raw = err?.response?.data?.detail;
+        const code = typeof raw === "string" ? raw : raw?.code;
+        if (raw?.email) setKnownEmail(raw.email);
         const friendly = {
-          invalid_or_used_link: "This sign-in link has already been used. Request a fresh one from the Sign in button.",
-          expired_link: "This sign-in link has expired. Request a fresh one from the Sign in button.",
-          invalid_link: "This sign-in link isn't valid. Request a fresh one from the Sign in button.",
+          invalid_or_used_link: "This sign-in link has already been used too many times.",
+          expired_link: "This sign-in link has expired (links last 15 minutes).",
+          invalid_link: "This sign-in link isn't valid.",
         };
-        const msg = typeof detail === "string" && friendly[detail]
-          ? friendly[detail]
-          : "We couldn't reach the server just now. Please try the link again in a moment, or request a fresh one.";
+        const msg = code && friendly[code]
+          ? `${friendly[code]} Tap below and we'll email you a fresh one.`
+          : "We couldn't reach the server just now. Please try the link again in a moment, or request a fresh one below.";
         setState("error");
         setMessage(msg);
       }
@@ -112,9 +179,10 @@ export default function VerifyPage() {
             <p className="font-serif text-sm text-muted2 italic leading-relaxed">
               {message}
             </p>
+            <ResendLinkForm initialEmail={knownEmail} />
             <a
-              href="/"
-              className="btn-primary mt-6 inline-flex"
+              href="/app"
+              className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted2 hover:text-ink mt-6 inline-flex"
               data-testid="verify-back"
             >
               Back to Pronounce This

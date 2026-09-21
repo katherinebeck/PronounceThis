@@ -342,7 +342,7 @@ export default function AdminPage() {
           <p className="font-serif text-sm text-muted2 italic mb-5">
             You're signed in as <span className="font-mono not-italic">{me?.email}</span>, which is not an admin account.
           </p>
-          <a href="/" className="btn-secondary inline-flex">Back to app</a>
+          <a href="/app" className="btn-secondary inline-flex">Back to app</a>
         </div>
       </div>
     );
@@ -366,7 +366,7 @@ export default function AdminPage() {
           </div>
           <div className="font-display text-2xl text-ink mt-0.5">Memberships</div>
         </div>
-        <a href="/" className="btn-secondary !py-2 !px-4" data-testid="admin-back">
+        <a href="/app" className="btn-secondary !py-2 !px-4" data-testid="admin-back">
           Back to app
         </a>
       </header>

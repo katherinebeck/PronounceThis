@@ -151,7 +151,7 @@ export default function PaymentSuccessPage() {
               in a minute, refresh the app or check the account menu.
             </p>
             <a
-              href="/"
+              href="/app"
               className="btn-primary mt-6 inline-flex"
               data-testid="payment-success-home"
             >

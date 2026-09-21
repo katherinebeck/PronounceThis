@@ -356,3 +356,7 @@
 ## 2026-06 — Get Started modal copy + plan-card fallback
 - Headlines: Get Started (join) → "Ready to join Pronounce This?"; trial-only popup → "New here? Try it for free".
 - Plan cards ($9/mo, $90/yr) now render from a static FALLBACK_PRICES list when `/me` hasn't loaded or failed (user saw them missing in production — likely a 520 on /me). Verified via screenshot.
+
+## 2026-06 — Magic link "already used" fix
+- Root cause (production report, iPhone Mail): mail apps / link scanners open the verify URL before the person taps it; the old single-use rule (120s grace) then rejected the human click.
+- Fix: a link stays valid for its full 15-min TTL, capped at MAGIC_LINK_MAX_USES=5 opens (`use_count`, `consumed_at`=first, `last_used_at`). Error detail is now `{code, email}` so VerifyPage prefills a one-tap "Send me a fresh link" form (data-testid verify-resend-*). test_subscription_auth updated; verified live (5×200, 6th 400, expired 400) + screenshot.

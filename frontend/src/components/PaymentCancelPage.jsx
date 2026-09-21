@@ -23,7 +23,7 @@ export default function PaymentCancelPage() {
           No charge was made. Whenever you're ready, hit the Subscribe button
           in the app to try again.
         </p>
-        <a href="/" className="btn-primary mt-6 inline-flex" data-testid="payment-cancel-home">
+        <a href="/app" className="btn-primary mt-6 inline-flex" data-testid="payment-cancel-home">
           Back to Pronounce This
         </a>
       </div>

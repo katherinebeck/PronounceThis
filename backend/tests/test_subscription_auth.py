@@ -186,11 +186,14 @@ def test_verify_valid_then_reuse():
     assert "accent_session=" in set_cookie.lower()
     assert "httponly" in set_cookie.lower()
 
-    # Reuse
-    r2 = requests.get(f"{BASE_URL}/api/auth/verify", params={"token": token},
-                      timeout=30)
-    assert r2.status_code == 400
-    assert "invalid_or_used_link" in r2.text
+    # Reuse: links stay valid for their 15-min window (mail scanners often
+    # open them first), capped at MAGIC_LINK_MAX_USES total opens.
+    for _ in range(4):
+        r2 = requests.get(f"{BASE_URL}/api/auth/verify", params={"token": token}, timeout=30)
+        assert r2.status_code == 200
+    r3 = requests.get(f"{BASE_URL}/api/auth/verify", params={"token": token}, timeout=30)
+    assert r3.status_code == 400
+    assert "invalid_or_used_link" in r3.text
 
 
 # --- 5. verify expired ------------------------------------------------------

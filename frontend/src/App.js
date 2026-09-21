@@ -12,6 +12,7 @@ import VerifyPage from "@/components/VerifyPage";
 import AccountChip from "@/components/AccountChip";
 import AdminPage from "@/components/AdminPage";
 import PaymentSuccessPage from "@/components/PaymentSuccessPage";
+import LandingPage from "@/components/landing/LandingPage";
 import PaymentCancelPage from "@/components/PaymentCancelPage";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { api, listScenes, getScene, fetchSoundCategories } from "@/lib/api";
@@ -73,11 +74,23 @@ export default function AppRoot() {
         <PaymentCancelPage />
       ) : path.startsWith("/admin") ? (
         <AdminPage />
-      ) : (
+      ) : path.startsWith("/app") ? (
         <App />
+      ) : (
+        <HomeGate />
       )}
     </AuthProvider>
   );
+}
+
+// "/" → sales page for visitors; signed-in members go straight to the app.
+function HomeGate() {
+  const { loading, isAuthenticated } = useAuth();
+  useEffect(() => {
+    if (!loading && isAuthenticated) window.history.replaceState({}, "", "/app");
+  }, [loading, isAuthenticated]);
+  if (loading) return <div className="min-h-screen bg-stage" data-testid="home-loading" />;
+  return isAuthenticated ? <App /> : <LandingPage />;
 }
 
 function App() {

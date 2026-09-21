@@ -47,12 +47,12 @@ export default function PaywallModal() {
   };
 
   const trialOnly = paywallReason === "trial" && !me?.email;
-  const showTrial = (paywallReason === "join" || trialOnly) && !me?.email;
+  const showTrial = trialOnly;
   const headline =
     trialOnly
       ? "New here? Try it for free"
-      : showTrial || paywallReason === "join"
-      ? "Ready to join Pronounce This?"
+      : paywallReason === "join"
+      ? "Join Pronounce This"
       : paywallReason === "scene"
       ? "You've used your free scene"
       : paywallReason === "word"
@@ -97,20 +97,15 @@ export default function PaywallModal() {
 
         <div className="px-6 py-6">
           {showTrial ? (
-            <div className={trialOnly ? "" : "mb-6 pb-6 border-b thin-rule"}>
+            <div>
               <TrialSignupForm />
             </div>
           ) : null}
           {trialOnly ? (
             <p className="font-serif text-xs text-muted2 italic mt-4" data-testid="paywall-trial-footer">
               Already a member? Use <span className="text-ink not-italic">Sign in</span> at the top.
-              Want unlimited access? Tap <span className="text-ink not-italic">Get Started</span>.
+              Want unlimited access? Tap <span className="text-ink not-italic">Join Pronounce This</span>.
             </p>
-          ) : null}
-          {showTrial && !trialOnly ? (
-            <div className="font-display text-2xl text-ink mb-3" data-testid="paywall-join-heading">
-              Join Pronounce This
-            </div>
           ) : null}
           {!trialOnly ? (
           <p className="font-serif text-base text-ink leading-relaxed mb-6">
@@ -183,6 +178,9 @@ export default function PaywallModal() {
             </p>
           </div>
           ) : null}
+          <p className="font-serif text-xs text-muted2 mt-4 text-center leading-relaxed" data-testid="paywall-spam-note">
+            Don't see the sign-in link in your inbox? Check your spam or junk folder.
+          </p>
         </div>
       </div>
     </div>
