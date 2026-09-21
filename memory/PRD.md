@@ -360,3 +360,10 @@
 ## 2026-06 — Magic link "already used" fix
 - Root cause (production report, iPhone Mail): mail apps / link scanners open the verify URL before the person taps it; the old single-use rule (120s grace) then rejected the human click.
 - Fix: a link stays valid for its full 15-min TTL, capped at MAGIC_LINK_MAX_USES=5 opens (`use_count`, `consumed_at`=first, `last_used_at`). Error detail is now `{code, email}` so VerifyPage prefills a one-tap "Send me a fresh link" form (data-testid verify-resend-*). test_subscription_auth updated; verified live (5×200, 6th 400, expired 400) + screenshot.
+
+## 2026-06 — Landing / sales page at "/" + app moved to "/app"
+- `components/landing/LandingPage.jsx` + `landing.css` port the coach's HTML 1:1 (copy, colors, layout; 3 screenshots in `public/landing/`). Fonts switched to the app's set per user: Syne (display, amber period on hero), Courier Prime (body), JetBrains Mono (labels). Fraunces/Inter removed from index.html.
+- Routing (App.js): `/` → HomeGate: signed-out → LandingPage, signed-in → replaceState `/app` + App. `/app` → App. VerifyPage / PaymentSuccess / PaymentCancel / Admin "back" links now go to `/app`. Stripe success/cancel URLs unchanged (/payment/*).
+- Landing CTAs ("Try Pronounce This.") → openPaywall("trial"); "Already a member? Sign in" (.link-quiet) → LoginModal.
+- PaywallModal: reason "join" = title "Join Pronounce This" + subhead + plan cards + Stripe footer (no trial form). Trial-only popup title "New here? Try it for free". Both show spam/junk-folder note (paywall-spam-note). Header button renamed "Join Pronounce This" (testid header-get-started unchanged).
+- Tested: iteration_25 (backend 5/5, all frontend flows pass). Production: Republish required; if the host needs SPA fallback config for `/app`, it already works for `/admin` so no change expected.

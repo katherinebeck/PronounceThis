@@ -30,7 +30,7 @@ export default function LandingPage() {
     <div className="landing" data-testid="landing-page">
       <div className="hero">
         <div className="wrap">
-          <h1>Pronounce This.</h1>
+          <h1>Pronounce This<span className="dot">.</span></h1>
           <p className="lede">An American accent pronunciation tool built for actors.</p>
           <div className="cta-row">
             <button type="button" className="btn" onClick={tryFree} data-testid="landing-cta-hero">Try Pronounce This.</button>

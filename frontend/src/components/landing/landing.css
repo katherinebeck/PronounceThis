@@ -10,9 +10,9 @@
   --amber-deep:#b3761f;
   --pencil-red:#a83a2c;
   --line:#e4ddc9;
-  --font-display: 'Fraunces', serif;
-  --font-mono: 'Courier Prime', monospace;
-  --font-body: 'Inter', sans-serif;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-body: 'Courier Prime', monospace;
 
   background:var(--paper);
   color:var(--ink);
@@ -42,9 +42,10 @@
 .landing .slug--pre-shot{margin:24px 0 14px;}
 
 .landing .hero h1{
-  font-family:var(--font-display);font-weight:600;font-size:clamp(2.6rem, 6vw, 4.4rem);
-  line-height:1.04;letter-spacing:-0.01em;max-width:16ch;margin:0 0 26px;color:var(--ink);
+  font-family:var(--font-display);font-weight:700;font-size:clamp(2.6rem, 6vw, 4.4rem);
+  line-height:1.04;letter-spacing:-0.02em;max-width:16ch;margin:0 0 26px;color:var(--ink);
 }
+.landing .hero h1 .dot{color:var(--amber);}
 .landing .hero .lede{font-size:1.18rem;line-height:1.55;color:var(--ink-soft);max-width:46ch;margin:0 0 28px;}
 .landing .hero .lede strong{color:var(--ink);font-weight:600;}
 
@@ -133,7 +134,7 @@
 /* ---------- TESTIMONIAL ---------- */
 .landing .testimonial{background:var(--paper-2);padding:48px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
 .landing .testimonial blockquote{
-  margin:0 auto;max-width:56ch;text-align:center;font-family:var(--font-display);font-style:italic;font-weight:500;
+  margin:0 auto;max-width:56ch;text-align:center;font-family:var(--font-body);font-style:italic;font-weight:400;
   font-size:clamp(1.35rem, 2.6vw, 1.75rem);line-height:1.5;color:var(--ink);
 }
 

@@ -1,0 +1,23 @@
+{
+  "summary": "Iteration-25 acceptance verified end-to-end. Backend: 5/5 pytest cases pass (disposable_email rejection, magic-link reusable 5x + 6th returns {code:'invalid_or_used_link', email:...}, bogus-token string detail, /api/auth/me sets pt_device cookie, verify->cookie->/me round-trip). Frontend (Playwright against preview URL): landing page renders at '/' for anonymous visitors with hero 'Pronounce This.', three CTA buttons (landing-cta-hero/breakdown/closing), landing-signin link, all 3 /landing/*.jpg images load (naturalWidth 1080-1447), FAQ details expand. landing-cta-hero opens paywall-modal titled 'New here? Try it for free' with email input, plan buttons hidden, spam-note present. landing-signin opens LoginModal. '/app' anonymous shows header CTA text 'Join Pronounce This' (data-testid header-get-started); clicking it opens paywall with join title, both plan buttons (paywall-accent_coach_monthly + _yearly), no email input, spam-note. /auth/verify?token=bogus shows 'Link didn't work' + verify-resend-form; disposable email in that form surfaces friendly 'Temporary email addresses can't be used' error; gmail submit yields verify-resend-sent. /payment/cancel back-link href is exactly '/app'. Signed-in flow: seeding a magic_links row in Mongo, visiting /auth/verify?token=... auto-redirects to /app, then visiting '/' with the session cookie replaces history to /app and renders the app (not the landing page); /api/auth/me returns authenticated=true with the seeded email.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration25_backend.py",
+    "/app/test_reports/pytest/iter25_backend.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Long-standing dev-ergonomics issue (previously flagged in iteration_24): backend startup runs YouTube subtitle ingest and watchfiles reloads on any /app/backend/** change, including tests. Creating /app/backend/tests/test_iteration25_backend.py during this run triggered a reload that killed the MongoClient ('Cannot use MongoClient after close') and left the origin returning 502 for ~5 minutes until I `supervisorctl restart backend`. Consider gating startup ingest behind RUN_ENV/RUN_INGEST_ON_STARTUP or moving pytest files to /app/tests/ so watchfiles ignores them. Dev-only, no production impact.",
+  "PaywallModal renders trialOnly gating with `paywallReason === 'trial' && !me?.email`. If a signed-in user ever triggers reason='trial' (shouldn't happen with current wiring but is reachable via openPaywall('trial')), they'll see the join layout instead of the trial layout — worth a comment or explicit assertion.",
+  "VerifyPage friendly-error map catches invalid_or_used_link / expired_link / invalid_link, but the bogus-token path returns a string detail ('invalid_or_used_link') while the 6th-reuse path returns an object {code, email}. Both are handled correctly, but the shape divergence is subtle — consider always returning the object form for consistency."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration25_backend.py"],
+  "success_rate": {"backend": "100% (5/5 iter25 pytest)", "frontend": "100% (all iter25 acceptance items + signed-in redirect)"},
+  "test_credentials": "Magic-link only. Tokens seeded directly into Mongo (test_database.magic_links) with 15-min TTL for automation.",
+  "seed_data_creation": "Two TEST_-prefixed users + magic_links rows created during the run; cleaned up after (users deleted: 5, magic_links deleted: 5).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All iteration-25 acceptance items are green on preview URL https://accent-coach-pro.preview.emergentagent.com. New pytest module /app/backend/tests/test_iteration25_backend.py covers disposable_email, magic-link 5-uses-then-invalid_or_used_link, bogus-token, pt_device cookie set by /api/auth/me, and verify->/me signed-in round-trip. If touching backend/tests/*.py again, expect watchfiles to reload and possibly break the singleton MongoClient — restart backend and wait ~20s for startup ingest before retesting. Existing regression suite (test_magic_link_error, test_trial_abuse, test_subscription_auth, test_kit) was not re-run this iteration because the review request only asked for the delta.",
+  "rca of the issue": "N/A — no bugs found. Observed one preview-env flake: watchfiles-reload-on-test-file-add can 502 the origin for a few minutes; documented above and matches the same issue flagged in iteration_24."
+}
