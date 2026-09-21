@@ -75,6 +75,7 @@ export default function SceneReader({ scene, highlightSet }) {
   const [playingTurn, setPlayingTurn] = useState(null); // int | null
   const [loadingTurn, setLoadingTurn] = useState(null);
   const [running, setRunning] = useState(false);
+  const [readerRunning, setReaderRunning] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadingReader, setDownloadingReader] = useState(false);
   const [ygQuery, setYgQuery] = useState(null);
@@ -157,6 +158,7 @@ export default function SceneReader({ scene, highlightSet }) {
     setPlayingTurn(null);
     setLoadingTurn(null);
     setRunning(false);
+    setReaderRunning(false);
   };
 
   const playOneTurn = (turnIndex, { voice = null } = {}) =>
@@ -239,6 +241,38 @@ export default function SceneReader({ scene, highlightSet }) {
     }
   };
 
+  const handlePlayReaderLines = async () => {
+    if (readerRunning) {
+      stopEverything();
+      return;
+    }
+    if (!prefs.character) {
+      toast.error("Pick your character first.");
+      return;
+    }
+    stopEverything();
+    stopRef.current = false;
+    setReaderRunning(true);
+    try {
+      for (const turn of grouped) {
+        if (stopRef.current) break;
+        if (turn.speaker === prefs.character) {
+          // Leave room for me to say my line: ~0.42s per word, plus a beat.
+          const words = (turn.text || "").split(/\s+/).filter(Boolean).length;
+          await new Promise((r) => setTimeout(r, Math.round(words * 420 * 1.1) + 400));
+          continue;
+        }
+        await playOneTurn(turn.index, { voice: readerVoice });
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    } catch (e) {
+      toast.error(e.friendly || "Playback failed.");
+    } finally {
+      setReaderRunning(false);
+      setPlayingTurn(null);
+    }
+  };
+
   const downloadBundle = async (mode) => {
     if (!prefs.character) {
       toast.error("Pick your character first.");
@@ -314,10 +348,10 @@ export default function SceneReader({ scene, highlightSet }) {
 
         {/* Practice controls, grouped: (1) my lines (2) reader track. */}
         {speakers.length > 0 ? (
-          <div className="mt-5 grid grid-cols-1 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] gap-3" data-testid="scene-controls">
+          <div className="mt-5 flex flex-col gap-3 max-w-[78ch]" data-testid="scene-controls">
             <section className="border thin-rule bg-surface/60 p-4 flex flex-col gap-3" data-testid="my-lines-panel">
               <div className="flex items-baseline justify-between gap-3">
-                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust whitespace-nowrap">Step 1 · My lines</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust whitespace-nowrap">My Lines</div>
                 <div className="font-serif text-xs text-muted2 italic hidden sm:block">Hear only your character, in the voice you pick.</div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -351,7 +385,7 @@ export default function SceneReader({ scene, highlightSet }) {
                   className="btn-secondary"
                   onClick={handleDownloadMyLines}
                   data-testid="download-my-lines-button"
-                  disabled={downloading || running}
+                  disabled={downloading || running || readerRunning}
                   title="Download every one of your character's lines as a single MP3 (with a 2-second pause between lines) for offline drilling"
                 >
                   {downloading ? (
@@ -365,7 +399,7 @@ export default function SceneReader({ scene, highlightSet }) {
 
             <section className="border thin-rule bg-surface/60 p-4 flex flex-col gap-3" data-testid="reader-panel">
               <div className="flex items-baseline justify-between gap-3">
-                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust whitespace-nowrap">Step 2 · Reader track</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust whitespace-nowrap">Reader's Lines</div>
                 <div className="font-serif text-xs text-muted2 italic hidden sm:block">The other characters speak; your lines are left silent for you to say.</div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -380,10 +414,22 @@ export default function SceneReader({ scene, highlightSet }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
+                  className={"btn-primary " + (readerRunning ? "!bg-rust" : "")}
+                  onClick={handlePlayReaderLines}
+                  data-testid="play-reader-lines-button"
+                >
+                  {readerRunning ? (
+                    <><Square size={12} fill="currentColor" /> Stop</>
+                  ) : (
+                    <><Play size={12} fill="currentColor" /> Play My Reader's Lines</>
+                  )}
+                </button>
+                <button
+                  type="button"
                   className="btn-secondary"
                   onClick={handleDownloadReaderLines}
                   data-testid="download-reader-lines-button"
-                  disabled={downloadingReader || running}
+                  disabled={downloadingReader || running || readerRunning}
                   title="Download the other characters' lines as one MP3, with silence where your lines go (10% longer than it takes to say them) so you can rehearse against it"
                 >
                   {downloadingReader ? (

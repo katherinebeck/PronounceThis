@@ -372,3 +372,7 @@
 - "Already a member? Sign in" moved to top-right of hero (.top-bar). Struggle h2 → "You've got the audition. Your accent isn't there yet." (one line on desktop), section heads full width (Ways to use… one line), subhead max 72ch (2 lines).
 - Testimonial back to Fraunces italic (Fraunces ital 500 re-added to index.html). Closing CTA redesigned: dark ink panel (no border), one-line "Get ready for your next role." with amber period; footer sits on the same dark panel.
 - Trial popup footer links are live: "Sign in" → LoginModal, "Join Pronounce This" → join popup with plans (testids paywall-trial-signin / paywall-trial-join). Verified via screenshot.
+
+## 2026-06 — Scene controls cleanup
+- Panels stacked vertically, width = script column (max-w-[78ch]). Labels: "My Lines" / "Reader's Lines" (no Step numbers).
+- New "Play My Reader's Lines" (btn-primary, testid play-reader-lines-button): plays the other characters' turns in order in the reader voice, pausing ~0.42s/word ×1.1 + 0.4s where my lines fall; Stop toggles. Download buttons disabled while either playback runs.
