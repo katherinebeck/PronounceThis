@@ -13,7 +13,7 @@ const FALLBACK_PRICES = [
 ];
 
 export default function PaywallModal() {
-  const { paywallOpen, closePaywall, paywallReason, me } = useAuth();
+  const { paywallOpen, closePaywall, openPaywall, openLogin, paywallReason, me } = useAuth();
 
   useEffect(() => {
     if (!paywallOpen) return undefined;
@@ -103,8 +103,10 @@ export default function PaywallModal() {
           ) : null}
           {trialOnly ? (
             <p className="font-serif text-xs text-muted2 italic mt-4" data-testid="paywall-trial-footer">
-              Already a member? Use <span className="text-ink not-italic">Sign in</span> at the top.
-              Want unlimited access? Tap <span className="text-ink not-italic">Join Pronounce This</span>.
+              Already a member?{" "}
+              <button type="button" className="text-ink not-italic underline underline-offset-2 hover:text-rust" onClick={() => { closePaywall(); openLogin(); }} data-testid="paywall-trial-signin">Sign in</button>.
+              {" "}Want unlimited access?{" "}
+              <button type="button" className="text-ink not-italic underline underline-offset-2 hover:text-rust" onClick={() => openPaywall("join")} data-testid="paywall-trial-join">Join Pronounce This</button>.
             </p>
           ) : null}
           {!trialOnly ? (

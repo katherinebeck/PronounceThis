@@ -30,11 +30,13 @@ export default function LandingPage() {
     <div className="landing" data-testid="landing-page">
       <div className="hero">
         <div className="wrap">
+          <div className="top-bar">
+            <button type="button" className="link-quiet" onClick={openLogin} data-testid="landing-signin">Already a member? Sign in</button>
+          </div>
           <h1>Pronounce This<span className="dot">.</span></h1>
           <p className="lede">An American accent pronunciation tool built for actors.</p>
           <div className="cta-row">
             <button type="button" className="btn" onClick={tryFree} data-testid="landing-cta-hero">Try Pronounce This.</button>
-            <button type="button" className="link-quiet" onClick={openLogin} data-testid="landing-signin">Already a member? Sign in</button>
           </div>
           <div className="slug slug--pre-shot">Int. Your Next U.S. Audition</div>
           <div className="device-mockup device-mockup--shot" aria-hidden="true">
@@ -65,7 +67,7 @@ export default function LandingPage() {
       <div className="struggle" id="struggle">
         <div className="wrap">
           <div className="section-head">
-            <h2>You've got the audition. The accent isn't there yet.</h2>
+            <h2>You've got the audition. Your accent isn't there yet.</h2>
             <p>Imagine you get an audition and you don't have time to work with a dialect coach. You need to check your American pronunciation fast.</p>
           </div>
           <div className="script-page">
@@ -149,7 +151,7 @@ export default function LandingPage() {
 
       <div className="closing">
         <div className="wrap">
-          <h2>Get ready for your next role.</h2>
+          <h2>Get ready for your next role<span className="dot">.</span></h2>
           <p>Bring your scene. Leave knowing exactly how it sounds in an American accent.</p>
           <button type="button" className="btn" onClick={tryFree} data-testid="landing-cta-closing">Try Pronounce This.</button>
         </div>
