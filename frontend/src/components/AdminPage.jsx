@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { PronunciationPrefs } from "./PronunciationPrefs";
+import CreditMeter from "./CreditMeter";
 import { DictionaryBuilder } from "./DictionaryBuilder";
 import { HiddenVideos } from "./HiddenVideos";
 import {
@@ -524,6 +525,8 @@ export default function AdminPage() {
             </button>
           </form>
         </section>
+
+        <CreditMeter />
 
         {/* Data export */}
         <section className="bg-surface border thin-rule p-6" data-testid="admin-export">

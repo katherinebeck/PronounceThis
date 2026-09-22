@@ -285,7 +285,9 @@ export default function SceneReader({ scene, highlightSet }) {
       // Pre-warm each line as its own short request (3 at a time) so the
       // bundle call only has to stitch cached audio — no proxy timeouts.
       const voice = mode === "reader" ? readerVoice : prefs.voice;
-      const wanted = mode === "reader" ? grouped : grouped.filter((t) => t.speaker === prefs.character);
+      const wanted = mode === "reader"
+        ? grouped.filter((t) => t.speaker !== prefs.character)
+        : grouped.filter((t) => t.speaker === prefs.character);
       let done = 0;
       setBundleProgress({ mode, done, total: wanted.length });
       const queue = [...wanted];

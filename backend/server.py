@@ -97,6 +97,8 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 MAX_SCENE_PAGES = 10
+TRIAL_MAX_SCENE_PAGES = 2
+MS_PER_SPOKEN_WORD = 420  # ~140 wpm conversational pace, used to size reader-track gaps
 SCENE_RETENTION_DAYS = 90
 
 
@@ -864,12 +866,15 @@ async def upload_scene(
     raw = await file.read()
     try:
         reader = PdfReader(io.BytesIO(raw))
-        if len(reader.pages) > MAX_SCENE_PAGES:
+        page_cap = MAX_SCENE_PAGES if actor.is_subscriber else TRIAL_MAX_SCENE_PAGES
+        if len(reader.pages) > page_cap:
             raise HTTPException(
                 status_code=400,
                 detail=(
                     f"This PDF has {len(reader.pages)} pages. Please upload a "
-                    f"scene of {MAX_SCENE_PAGES} pages or less."
+                    f"scene of {page_cap} pages or less."
+                    + ("" if actor.is_subscriber else
+                       f" Free-trial scenes are limited to {TRIAL_MAX_SCENE_PAGES} pages; members can upload up to {MAX_SCENE_PAGES}.")
                 ),
             )
         pages = [(p.extract_text() or "") for p in reader.pages]
@@ -1456,7 +1461,9 @@ async def download_my_lines(
         async with sem:
             return await turn_segment(turn)
 
-    wanted = turns if reader_mode else mine
+    # Reader mode: my own lines are never heard, so estimate their silence
+    # from word count instead of paying ElevenLabs to synthesize them.
+    wanted = [t for t in turns if (t.get("speaker") or "").strip() != normalized_char] if reader_mode else mine
     segments = dict(zip(
         [t.get("index", 0) for t in wanted],
         await asyncio.gather(*(_bounded(t) for t in wanted)),
@@ -1468,11 +1475,14 @@ async def download_my_lines(
         # silence long enough (×1.1) to say them out loud.
         beat = AudioSegment.silent(duration=400)
         for turn in turns:
-            seg = segments.get(turn.get("index", 0))
-            if seg is None:
-                continue
             is_mine = (turn.get("speaker") or "").strip() == normalized_char
-            piece = AudioSegment.silent(duration=int(len(seg) * 1.1)) if is_mine else seg
+            if is_mine:
+                words = len((turn.get("text") or "").split())
+                piece = AudioSegment.silent(duration=int(words * MS_PER_SPOKEN_WORD * 1.1))
+            else:
+                piece = segments.get(turn.get("index", 0))
+                if piece is None:
+                    continue
             combined = piece if combined is None else combined + beat + piece
     else:
         for turn in mine:
@@ -1666,6 +1676,8 @@ async def _startup_indexes():
             logger.info("dictionary: re-voiced %r with ElevenLabs speech-to-speech", w)
 
     asyncio.create_task(_revoice_archived_takes())
+    from watchdog import watchdog_loop
+    asyncio.create_task(watchdog_loop(db))
     # Scene ownership: pre-existing scenes have no uploader record; mark them
     # legacy (admin-only) without touching their content. Idempotent.
     await db.scenes.update_many(

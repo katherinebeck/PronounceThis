@@ -384,3 +384,10 @@
 - Exhausted popups now use the Join layout: title "Join Pronounce This", subhead prefixed "You've used your 5 free words." / "You've used your free scene upload.", plan cards. Fixed React crash (402 detail object rendered in toast) in PronouncePage, ScenesSidebar, UploadDropzone — 401/402 are silent (modals handle them).
 - Magic link: MAGIC_LINK_MAX_USES 5 → 10; VerifyPage guards StrictMode double-invoke (useRef).
 - Verified: /tmp/e2e_trial_rules.py (searches counted, 6th blocked on both endpoints, re-hear allowed), screenshot of Join popup on 6th word, reader download with "Preparing 1/2" progress.
+
+## 2026-06 — ElevenLabs cost controls + credit watchdog
+- Reader track no longer synthesizes the user's own lines; silence = words × 420 ms × 1.1 (MS_PER_SPOKEN_WORD). Frontend pre-warm skips my lines too. ~40% cheaper reader downloads.
+- TRIAL_MAX_SCENE_PAGES = 2 for non-subscribers (members keep 10); 400 message explains the limit; a rejected upload does not consume the scene trial.
+- `backend/watchdog.py`: every 6h reads ElevenLabs subscription (user.subscription.get); emails owner at ≥80% once per billing cycle, weekly summary every Monday, one-time email if the key lacks permission. State in `system_state` {key: elevenlabs_watchdog}. GET /api/admin/credits → Admin "Audio budget" card (CreditMeter.jsx).
+- BLOCKER for the watchdog: current ELEVENLABS_API_KEY lacks the "User → Read" permission (401 missing_permissions user_read). User must edit the key in ElevenLabs → API Keys (or create a new key with TTS + Speech-to-Speech + User read) and update the secret.
+- Verified: 3-page PDF as trial → 400 with trial copy; reader download still works; Admin card renders (shows permission message until key is fixed).

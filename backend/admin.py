@@ -771,6 +771,12 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "stripe": stripe_info,
         }
 
+    @router.get("/credits")
+    async def credits(request: Request):
+        await require_admin(request, db)
+        from watchdog import get_credit_status
+        return await get_credit_status(db)
+
     @router.get("/payment-health")
     async def payment_health(request: Request):
         """Show any red flags in the payment pipeline.
