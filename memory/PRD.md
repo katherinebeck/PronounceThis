@@ -376,3 +376,11 @@
 ## 2026-06 — Scene controls cleanup
 - Panels stacked vertically, width = script column (max-w-[78ch]). Labels: "My Lines" / "Reader's Lines" (no Step numbers).
 - New "Play My Reader's Lines" (btn-primary, testid play-reader-lines-button): plays the other characters' turns in order in the reader voice, pausing ~0.42s/word ×1.1 + 0.4s where my lines fall; Stop toggles. Download buttons disabled while either playback runs.
+
+## 2026-06 — Audio reliability + trial rules (distinct words)
+- "Audio server hiccupped" root cause: transient 5xx/520 (platform edge or ElevenLabs) with only 3 quick retries. Fixes: ElevenLabs SDK `request_options={"max_retries":3,"timeout_in_seconds":60}` on word + line synthesis; frontend `withRetry` 4 tries, 1s/2s/3s backoff, also retries 429; copy "Our audio server is busy right now…".
+- "Request failed 520 — reader's lines" root cause: download-lines synthesized every line sequentially inside ONE request (>60–100s on long scenes → proxy timeout). Fixes: frontend pre-warms each turn via /turn TTS (3 parallel, button shows "Preparing n/N"), then the bundle call only stitches cached audio; backend synthesizes uncached turns 4-at-a-time (asyncio.Semaphore).
+- Trial rules (user spec): words and scenes are independent counters; a word counts ONCE whether searched (/pronounce) or heard (/tts) — `trial_words` set on user + device (`trial_word_key`), legacy counters honoured via max(). /pronounce now requires login and is trial-gated. 6th distinct word → 402 on search and hear; already-counted words remain free. After 5 words the scene upload still works (and vice-versa).
+- Exhausted popups now use the Join layout: title "Join Pronounce This", subhead prefixed "You've used your 5 free words." / "You've used your free scene upload.", plan cards. Fixed React crash (402 detail object rendered in toast) in PronouncePage, ScenesSidebar, UploadDropzone — 401/402 are silent (modals handle them).
+- Magic link: MAGIC_LINK_MAX_USES 5 → 10; VerifyPage guards StrictMode double-invoke (useRef).
+- Verified: /tmp/e2e_trial_rules.py (searches counted, 6th blocked on both endpoints, re-hear allowed), screenshot of Join popup on 6th word, reader download with "Preparing 1/2" progress.

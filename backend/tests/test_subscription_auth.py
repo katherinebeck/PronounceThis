@@ -188,7 +188,7 @@ def test_verify_valid_then_reuse():
 
     # Reuse: links stay valid for their 15-min window (mail scanners often
     # open them first), capped at MAGIC_LINK_MAX_USES total opens.
-    for _ in range(4):
+    for _ in range(9):
         r2 = requests.get(f"{BASE_URL}/api/auth/verify", params={"token": token}, timeout=30)
         assert r2.status_code == 200
     r3 = requests.get(f"{BASE_URL}/api/auth/verify", params={"token": token}, timeout=30)

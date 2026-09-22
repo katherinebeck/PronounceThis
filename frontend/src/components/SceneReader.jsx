@@ -11,8 +11,8 @@ import {
 } from "lucide-react";
 import WordBlock from "./WordBlock";
 import YouglishModal from "./CaptionSearchModal";
-import { loadTurnAudio } from "@/lib/audio";
-import { fetchReaderVoices, downloadMyLines } from "@/lib/api";
+import { loadTurnAudio, withRetry } from "@/lib/audio";
+import { fetchReaderVoices, downloadMyLines, fetchTurnTTS } from "@/lib/api";
 import { toast } from "sonner";
 
 // Pause between successive "Play My Lines" lines (same character).
@@ -76,6 +76,7 @@ export default function SceneReader({ scene, highlightSet }) {
   const [loadingTurn, setLoadingTurn] = useState(null);
   const [running, setRunning] = useState(false);
   const [readerRunning, setReaderRunning] = useState(false);
+  const [bundleProgress, setBundleProgress] = useState(null); // {mode, done, total}
   const [downloading, setDownloading] = useState(false);
   const [downloadingReader, setDownloadingReader] = useState(false);
   const [ygQuery, setYgQuery] = useState(null);
@@ -281,11 +282,28 @@ export default function SceneReader({ scene, highlightSet }) {
     const setBusy = mode === "reader" ? setDownloadingReader : setDownloading;
     setBusy(true);
     try {
-      const { blob, filename } = await downloadMyLines(scene.id, {
+      // Pre-warm each line as its own short request (3 at a time) so the
+      // bundle call only has to stitch cached audio — no proxy timeouts.
+      const voice = mode === "reader" ? readerVoice : prefs.voice;
+      const wanted = mode === "reader" ? grouped : grouped.filter((t) => t.speaker === prefs.character);
+      let done = 0;
+      setBundleProgress({ mode, done, total: wanted.length });
+      const queue = [...wanted];
+      const worker = async () => {
+        while (queue.length) {
+          const turn = queue.shift();
+          await withRetry(() => fetchTurnTTS(scene.id, turn.index, { voice }));
+          done += 1;
+          setBundleProgress({ mode, done, total: wanted.length });
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(3, queue.length) }, worker));
+      setBundleProgress(null);
+      const { blob, filename } = await withRetry(() => downloadMyLines(scene.id, {
         character: prefs.character,
-        voice: mode === "reader" ? readerVoice : prefs.voice,
+        voice,
         mode,
-      });
+      }));
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -309,6 +327,7 @@ export default function SceneReader({ scene, highlightSet }) {
       toast.error(msg);
     } finally {
       setBusy(false);
+      setBundleProgress(null);
     }
   };
   // Reader defaults to the voice I'm not using, so partner lines sound like
@@ -389,7 +408,7 @@ export default function SceneReader({ scene, highlightSet }) {
                   title="Download every one of your character's lines as a single MP3 (with a 2-second pause between lines) for offline drilling"
                 >
                   {downloading ? (
-                    <><Loader2 size={12} className="animate-spin" /> Bundling</>
+                    <><Loader2 size={12} className="animate-spin" /> {bundleProgress?.mode === "mine" ? `Preparing ${bundleProgress.done}/${bundleProgress.total}` : "Bundling"}</>
                   ) : (
                     <><Download size={12} /> Download My Lines</>
                   )}
@@ -433,7 +452,7 @@ export default function SceneReader({ scene, highlightSet }) {
                   title="Download the other characters' lines as one MP3, with silence where your lines go (10% longer than it takes to say them) so you can rehearse against it"
                 >
                   {downloadingReader ? (
-                    <><Loader2 size={12} className="animate-spin" /> Bundling</>
+                    <><Loader2 size={12} className="animate-spin" /> {bundleProgress?.mode === "reader" ? `Preparing ${bundleProgress.done}/${bundleProgress.total}` : "Bundling"}</>
                   ) : (
                     <><Download size={12} /> Download My Reader's Lines</>
                   )}

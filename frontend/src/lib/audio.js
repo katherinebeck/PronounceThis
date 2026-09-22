@@ -13,8 +13,8 @@ function b64ToBlobUrl(audio_b64, mime) {
 
 function friendlyError(e, fallback = "Audio playback failed.") {
   const status = e?.response?.status;
-  if (!status || status >= 500)
-    return "The audio server hiccupped — please try again in a moment.";
+  if (!status || status >= 500 || status === 429)
+    return "Our audio server is busy right now — please try again in a few seconds.";
   const msg = e?.response?.data?.detail;
   if (typeof msg === "string" && msg.includes("detected_unusual_activity"))
     return "ElevenLabs free tier is blocked from cloud servers — please upgrade your plan to enable audio.";
@@ -24,15 +24,15 @@ function friendlyError(e, fallback = "Audio playback failed.") {
 
 // Proxy blips (Cloudflare 520/502, dropped connections) are transient:
 // retry twice before surfacing an error.
-async function withRetry(fn, tries = 3) {
+export async function withRetry(fn, tries = 4) {
   for (let attempt = 0; ; attempt++) {
     try {
       return await fn();
     } catch (e) {
       const status = e?.response?.status;
-      const transient = !status || status >= 500;
+      const transient = !status || status >= 500 || status === 429;
       if (!transient || attempt >= tries - 1) throw e;
-      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+      await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
     }
   }
 }

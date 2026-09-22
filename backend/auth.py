@@ -44,7 +44,7 @@ JWT_ALG = "HS256"
 JWT_COOKIE_NAME = "accent_session"
 JWT_DAYS = 90                       # session lifetime
 MAGIC_LINK_TTL_MIN = 15             # magic link expiry
-MAGIC_LINK_MAX_USES = 5             # scanners/prefetchers may open a link before the person does
+MAGIC_LINK_MAX_USES = 10            # scanners/prefetchers may open a link before the person does
 MAGIC_LINK_RATE_LIMIT_MIN = 1       # 1 magic link per minute per email
 TRIAL_WORD_LIMIT = 5
 TRIAL_SCENE_LIMIT = 1
@@ -153,15 +153,30 @@ def ensure_device_cookie(request: Request, response: Response) -> str:
     return device_id
 
 
-async def effective_trial_used(db: AsyncIOMotorDatabase, user: dict, device_id: Optional[str]) -> dict:
-    """Trial usage is the max of this account and this device, so a second
-    email on the same browser cannot restart the trial."""
-    used = {"word": user.get("trial_word_used", 0), "scene": user.get("trial_scene_used", 0)}
+def trial_word_key(text: str) -> str:
+    """One trial 'word' = one distinct lookup, however it was typed."""
+    parts = [re.sub(r"[^a-z']", "", p.lower()) for p in (text or "").split()]
+    return " ".join(p for p in parts if p)
+
+
+async def trial_usage(db: AsyncIOMotorDatabase, user: dict, device_id: Optional[str]) -> dict:
+    """Trial usage is the union of this account and this device, so a second
+    email on the same browser cannot restart the trial. Words count once
+    each (search or hear), scenes count per upload."""
+    words = set(user.get("trial_words") or [])
+    legacy_words = user.get("trial_word_used", 0)
+    scenes = user.get("trial_scene_used", 0)
     if device_id:
         dev = await db.trial_devices.find_one({"device_id": device_id}) or {}
-        used["word"] = max(used["word"], dev.get("trial_word_used", 0))
-        used["scene"] = max(used["scene"], dev.get("trial_scene_used", 0))
-    return used
+        words |= set(dev.get("trial_words") or [])
+        legacy_words = max(legacy_words, dev.get("trial_word_used", 0))
+        scenes = max(scenes, dev.get("trial_scene_used", 0))
+    return {"words": words, "word": max(len(words), legacy_words), "scene": scenes}
+
+
+async def effective_trial_used(db: AsyncIOMotorDatabase, user: dict, device_id: Optional[str]) -> dict:
+    u = await trial_usage(db, user, device_id)
+    return {"word": u["word"], "scene": u["scene"]}
 
 
 def _issue_jwt(email: str) -> str:
@@ -533,12 +548,14 @@ class Actor(BaseModel):
     consumed_trial_kind: Optional[str] = None
     reason: Optional[str] = None
     device_id: Optional[str] = None
+    trial_word: Optional[str] = None
 
 
 async def require_access(
     request: Request,
     db: AsyncIOMotorDatabase,
     kind: str,           # "word" or "scene"
+    word: Optional[str] = None,   # for kind="word": the word being looked up / heard
 ) -> Actor:
     """Gate a route on: (a) logged in, (b) active member OR trial remaining.
 
@@ -563,8 +580,14 @@ async def require_access(
     if kind not in ("word", "scene"):
         raise HTTPException(status_code=500, detail="invalid_gate_kind")
     device_id = request.cookies.get(DEVICE_COOKIE_NAME)
-    used = (await effective_trial_used(db, user, device_id))[kind]
+    usage = await trial_usage(db, user, device_id)
+    used = usage[kind]
     limit = TRIAL_WORD_LIMIT if kind == "word" else TRIAL_SCENE_LIMIT
+    word_key = trial_word_key(word) if (kind == "word" and word) else None
+
+    # A word already in the trial set is free to search/hear again.
+    if word_key and word_key in usage["words"]:
+        return Actor(email=email, is_subscriber=False, allowed=True, device_id=device_id)
 
     if used >= limit:
         raise HTTPException(
@@ -572,7 +595,7 @@ async def require_access(
             detail={"code": "trial_exhausted", "kind": kind},
         )
     return Actor(email=email, is_subscriber=False, allowed=True,
-                 consumed_trial_kind=kind, device_id=device_id)
+                 consumed_trial_kind=kind, device_id=device_id, trial_word=word_key)
 
 
 async def consume_trial(db: AsyncIOMotorDatabase, actor: Actor) -> None:
@@ -580,14 +603,16 @@ async def consume_trial(db: AsyncIOMotorDatabase, actor: Actor) -> None:
     if actor.is_subscriber or not actor.consumed_trial_kind:
         return
     field = f"trial_{actor.consumed_trial_kind}_used"
-    await db.users.update_one({"email": actor.email}, {"$inc": {field: 1}})
+    update: dict = {"$inc": {field: 1}}
+    if actor.trial_word:
+        update["$addToSet"] = {"trial_words": actor.trial_word}
+    await db.users.update_one({"email": actor.email}, update)
     if actor.device_id:
-        await db.trial_devices.update_one(
-            {"device_id": actor.device_id},
-            {"$inc": {field: 1}, "$addToSet": {"emails": actor.email},
-             "$set": {"updated_at": _now().isoformat()}},
-            upsert=True,
-        )
+        dev_update = {"$inc": {field: 1}, "$addToSet": {"emails": actor.email},
+                      "$set": {"updated_at": _now().isoformat()}}
+        if actor.trial_word:
+            dev_update["$addToSet"]["trial_words"] = actor.trial_word
+        await db.trial_devices.update_one({"device_id": actor.device_id}, dev_update, upsert=True)
 
 
 # --- Simple in-process sliding-window rate limiter --------------------------

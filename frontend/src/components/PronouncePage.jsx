@@ -42,7 +42,10 @@ export default function PronouncePage({ onGoToScenes }) {
       const r = await pronounceWord(word);
       setResult(r);
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Lookup failed.");
+      const status = err?.response?.status;
+      if (status === 402 || status === 401) return; // paywall / login modal handles it
+      const detail = err?.response?.data?.detail;
+      toast.error(typeof detail === "string" ? detail : "Lookup failed.");
     } finally {
       setLoading(false);
     }

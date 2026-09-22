@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Loader2, Check, XCircle, Mail } from "lucide-react";
 import { verifyMagicLink, requestMagicLink } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -75,8 +75,11 @@ export default function VerifyPage() {
   const [state, setState] = useState("verifying"); // verifying | ok | error
   const [message, setMessage] = useState("");
   const [knownEmail, setKnownEmail] = useState("");
+  const startedRef = useRef(false);
 
   useEffect(() => {
+    if (startedRef.current) return; // StrictMode double-invoke guard
+    startedRef.current = true;
     (async () => {
       const params = new URLSearchParams(window.location.search);
       const token = params.get("token");

@@ -37,7 +37,11 @@ export default function ScenesSidebar({
       toast.success(`"${scene.title}" transcribed.`);
       onNewScene?.(scene);
     } catch (e) {
-      toast.error(e?.response?.data?.detail || "Upload failed.");
+      const status = e?.response?.status;
+      if (status !== 402 && status !== 401) {
+        const detail = e?.response?.data?.detail;
+        toast.error(typeof detail === "string" ? detail : "Upload failed.");
+      }
     } finally {
       setBusy(false);
       if (fileRef.current) fileRef.current.value = "";

@@ -788,6 +788,9 @@ async def pronounce(word: str, request: Request):
             detail="Please enter a real word (letters only).",
         )
     norm = "".join(norm_parts) if len(norm_parts) == 1 else " ".join(norm_parts)
+    # Trial gate: each distinct word looked up (or heard) counts once.
+    actor = await require_access(request, db, kind="word", word=norm)
+    await consume_trial(db, actor)
 
     # Multi-word: try per-word CMU lookup and stitch. Fast path — no LLM.
     if len(parts) > 1:
@@ -1096,7 +1099,11 @@ def _eleven_client():
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="ELEVENLABS_API_KEY not configured")
-    return ElevenLabs(api_key=api_key)
+    return ElevenLabs(api_key=api_key, timeout=60)
+
+
+# Retry transient ElevenLabs failures (429 / 5xx / timeouts) inside the SDK.
+ELEVEN_REQUEST_OPTIONS = {"max_retries": 3, "timeout_in_seconds": 60}
 
 
 TTS_VERSION = 2  # bump when synthesis settings change so cached audio regenerates
@@ -1122,7 +1129,7 @@ async def tts(req: TTSRequest, request: Request):
         raise HTTPException(status_code=400, detail="word is required")
 
     # Gate: subscribers unlimited; trial users get 1 word audio.
-    actor = await require_access(request, db, kind="word")
+    actor = await require_access(request, db, kind="word", word=word)
 
     base_key = word.lower()
     # Explicit phonemes (heteronym variants) always synthesize phonetically
@@ -1181,6 +1188,7 @@ async def tts(req: TTSRequest, request: Request):
             voice_id=voice_id,
             model_id="eleven_turbo_v2" if req.phonetic else "eleven_multilingual_v2",
             output_format="mp3_44100_128",
+            request_options=ELEVEN_REQUEST_OPTIONS,
         )
         buf = bytearray()
         for chunk in stream:
@@ -1256,6 +1264,7 @@ def _synthesize(text: str, voice_id: Optional[str] = None) -> bytes:
         voice_id=vid,
         model_id="eleven_turbo_v2" if tagged else "eleven_multilingual_v2",
         output_format="mp3_44100_128",
+        request_options=ELEVEN_REQUEST_OPTIONS,
     )
     buf = bytearray()
     for chunk in stream:
@@ -1439,13 +1448,27 @@ async def download_my_lines(
             logger.exception("Failed to decode line MP3 for concat")
             return None
 
+    # Synthesize uncached lines a few at a time so long scenes finish well
+    # inside the proxy's request timeout (the frontend also pre-warms).
+    sem = asyncio.Semaphore(4)
+
+    async def _bounded(turn: Dict) -> Optional[AudioSegment]:
+        async with sem:
+            return await turn_segment(turn)
+
+    wanted = turns if reader_mode else mine
+    segments = dict(zip(
+        [t.get("index", 0) for t in wanted],
+        await asyncio.gather(*(_bounded(t) for t in wanted)),
+    ))
+
     combined: Optional[AudioSegment] = None
     if reader_mode:
         # Whole scene in order: partner lines audible, my lines become
         # silence long enough (×1.1) to say them out loud.
         beat = AudioSegment.silent(duration=400)
         for turn in turns:
-            seg = await turn_segment(turn)
+            seg = segments.get(turn.get("index", 0))
             if seg is None:
                 continue
             is_mine = (turn.get("speaker") or "").strip() == normalized_char
@@ -1453,7 +1476,7 @@ async def download_my_lines(
             combined = piece if combined is None else combined + beat + piece
     else:
         for turn in mine:
-            seg = await turn_segment(turn)
+            seg = segments.get(turn.get("index", 0))
             if seg is None:
                 continue
             if combined is None:

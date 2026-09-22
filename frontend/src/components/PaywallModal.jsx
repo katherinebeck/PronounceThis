@@ -48,25 +48,19 @@ export default function PaywallModal() {
 
   const trialOnly = paywallReason === "trial" && !me?.email;
   const showTrial = trialOnly;
-  const headline =
-    trialOnly
-      ? "New here? Try it for free"
-      : paywallReason === "join"
-      ? "Join Pronounce This"
-      : paywallReason === "scene"
-      ? "You've used your free scene"
-      : paywallReason === "word"
-      ? "You've used your 5 free words"
-      : "Members only";
+  const headline = trialOnly ? "New here? Try it for free" : "Join Pronounce This";
 
-  const subhead =
-    paywallReason === "join"
-      ? "Choose monthly or join annual (get 2 months free). A one-tap sign-in link lands in your inbox right after — no password, ever."
-      : paywallReason === "scene"
-      ? "Upload another audition scene, generate line-by-line audio, and download an actor's lines as one MP3 — all with a membership."
+  const usedNote =
+    paywallReason === "scene"
+      ? "You've used your free scene upload. "
       : paywallReason === "word"
-      ? "Hear as many words as you like, drill sound categories, and unlock Real-Speaker video clips with a membership."
-      : "This is a members-only feature. Join to unlock everything.";
+      ? "You've used your 5 free words. "
+      : paywallReason === "subscription"
+      ? "This is a members-only feature. "
+      : "";
+  const subhead =
+    usedNote +
+    "Choose monthly or join annual (get 2 months free). A one-tap sign-in link lands in your inbox right after — no password, ever.";
 
   return (
     <div
