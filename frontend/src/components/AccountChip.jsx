@@ -3,6 +3,7 @@ import { User, LogOut, CreditCard, ExternalLink, ChevronDown, Loader2, Mail } fr
 import { useAuth } from "@/lib/auth";
 import { createStripePortal } from "@/lib/api";
 import { toast } from "sonner";
+import SupportModal from "./SupportModal";
 
 // Header account chip: shows "Sign in" for anonymous users, or a small
 // menu with email + status + logout for logged-in users.
@@ -10,6 +11,7 @@ export default function AccountChip() {
   const { me, isAuthenticated, isSubscriber, openLogin, openPaywall, logout,
           trialWordRemaining, trialSceneRemaining } = useAuth();
   const [open, setOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
   const ref = useRef(null);
 
@@ -141,14 +143,15 @@ export default function AccountChip() {
             </a>
           ) : null}
 
-          <a
-            href="mailto:info@katherinebeck.com?subject=American%20Accent%20Prep%20support"
+          <button
+            type="button"
+            onClick={() => { setOpen(false); setSupportOpen(true); }}
             className="flex items-center gap-2 w-full px-4 py-3 hover:bg-paper transition-colors font-mono text-[11px] uppercase tracking-[0.22em] text-ink text-left border-b thin-rule"
             data-testid="account-support"
           >
             <Mail size={12} />
             Contact support
-          </a>
+          </button>
 
           <a
             href="/auth/reset"
@@ -171,6 +174,7 @@ export default function AccountChip() {
           </button>
         </div>
       ) : null}
+      <SupportModal open={supportOpen} onClose={() => setSupportOpen(false)} />
     </div>
   );
 }

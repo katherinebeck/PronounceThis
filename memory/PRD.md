@@ -411,3 +411,8 @@
 - Trial popup: subline "Get 5 free words + 1 free scene…" directly under title; spam note removed there (kept on join/login). Sign-in modal: "New here? Create account" link removed. Sign-up auto-signs-in (confirm email OFF).
 - Dictionary builder: list tabs (Dictionary / First names 1000 / Surnames 250 / US places 50 states+300 cities / Countries+capitals / Brands & chains 78) from backend/data/wordlists/*.txt via `curated_list()`; each tab has its own search + cursor. Multi-word labels split into tokens (hyphens kept: chickfila) with "from “Los Angeles, California”" label. `GET /admin/dictionary/queue?list=&include_start=`; `POST /admin/dictionary/undo` restores snapshot (entry, pronunciation_prefs, audio_cache docs) taken before every save/skip (`dictionary_history`, last 30). UI: Hear it (current app TTS), Back to previous word (client history), Undo last change.
 - Verified via screenshots + curl (lists, include_start, save→undo restores). 
+
+## 2026-06 — Support modal, Kit checker, reset page light
+- "Contact support" now opens SupportModal.jsx (portal, light theme): email info@katherinebeck.com + Copy + mailto (subject "Pronounce This support"). Old mailto-only link "did nothing" without a mail client.
+- /auth/reset (Choose a new password) + VerifyPage use .theme-light.
+- Admin: KitStatus card — GET /api/admin/kit/status (enabled, key prefix, looks_v4) + POST /api/admin/kit/test {email} runs kit.tag_subscriber_now(PT Trial) and surfaces Kit's exact error. Deployment agent static "blockers" (TTL indexes, CORS) are intentional/false positives — production CORS_ORIGINS is set in Secrets.
