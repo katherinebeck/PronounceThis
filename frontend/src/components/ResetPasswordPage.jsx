@@ -39,7 +39,7 @@ export default function ResetPasswordPage() {
 
   const inputCls = "w-full bg-paper border thin-rule pl-9 pr-3 py-3 font-serif text-sm text-ink placeholder:text-muted2 focus:outline-none focus:border-rust";
   return (
-    <div className="min-h-screen flex items-center justify-center bg-paper px-4">
+    <div className="theme-light min-h-screen flex items-center justify-center bg-paper px-4" data-testid="reset-page">
       <div className="w-full max-w-md bg-surface border thin-rule px-8 py-10">
         <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 text-center">Pronounce This</div>
         <h1 className="font-display text-2xl text-ink text-center mt-2 mb-6" data-testid="reset-title">Choose a new password</h1>
