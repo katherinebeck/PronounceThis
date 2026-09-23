@@ -316,7 +316,7 @@ export default function AdminPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-paper flex items-center justify-center px-4">
+      <div className="theme-light min-h-screen bg-paper flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-surface border thin-rule p-8 text-center">
           <ShieldOff size={22} className="mx-auto text-muted2 mb-3" />
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
@@ -333,7 +333,7 @@ export default function AdminPage() {
 
   if (authorized === false) {
     return (
-      <div className="min-h-screen bg-paper flex items-center justify-center px-4">
+      <div className="theme-light min-h-screen bg-paper flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-surface border thin-rule p-8 text-center">
           <ShieldOff size={22} className="mx-auto text-rust mb-3" />
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
@@ -351,14 +351,14 @@ export default function AdminPage() {
 
   if (authorized === null) {
     return (
-      <div className="min-h-screen bg-paper flex items-center justify-center">
+      <div className="theme-light min-h-screen bg-paper flex items-center justify-center">
         <Loader2 className="animate-spin text-ink" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-paper">
+    <div className="theme-light min-h-screen bg-paper">
       {/* Header */}
       <header className="border-b thin-rule bg-surface px-4 sm:px-8 py-4 flex items-center justify-between">
         <div>

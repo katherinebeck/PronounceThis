@@ -309,3 +309,25 @@ body::before {
 @keyframes reveal {
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ---------- Light theme scope (popups + Admin) ---------- */
+.theme-light { --rule: #dddad2; --ink: #17140f; --muted2: #5d5648; color: #17140f; }
+.theme-light .bg-stage, .theme-light.bg-stage { background-color: #f4f1ea; }
+.theme-light .bg-paper, .theme-light.bg-paper { background-color: #faf8f3; }
+.theme-light .bg-surface, .theme-light.bg-surface { background-color: #ffffff; }
+.theme-light .bg-elevated, .theme-light.bg-elevated { background-color: #efece4; }
+.theme-light .text-ink { color: #17140f; }
+.theme-light .text-muted2 { color: #5d5648; }
+.theme-light .text-rust { color: #b3761f; }
+.theme-light .hover\:text-ink:hover { color: #17140f; }
+.theme-light .hover\:bg-elevated:hover { background-color: #efece4; }
+.theme-light .placeholder\:text-muted2::placeholder { color: #8a8375; }
+.theme-light .thin-rule { border-color: #dddad2; }
+.theme-light input, .theme-light select, .theme-light textarea { color: #17140f; background-color: #ffffff; }
+.theme-light .btn-secondary { color: #17140f; border-color: #cfcabe; }
+.theme-light .shadow-2xl, .theme-light .shadow-xl { box-shadow: 0 24px 60px -30px rgba(0,0,0,0.35); }
+.theme-light .bg-surface\/60, .theme-light .bg-paper\/60 { background-color: #f7f4ee; }
+.theme-light .border-rust\/40 { border-color: rgba(179,118,31,0.4); }
+.theme-light kbd { background-color: #efece4; color: #17140f; }
+.theme-light .bg-ink { background-color: #17140f; }
+.theme-light .text-surface { color: #ffffff; }

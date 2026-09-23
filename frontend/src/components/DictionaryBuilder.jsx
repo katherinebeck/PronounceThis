@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2, Mic, Square, Play, Check, SkipForward, RotateCcw, ArrowRight } from "lucide-react";
-import { api } from "@/lib/api";
+import { Loader2, Mic, Square, Play, Check, SkipForward, RotateCcw, ArrowRight, Undo2, ArrowLeft, Volume2 } from "lucide-react";
+import { api, fetchTTS } from "@/lib/api";
 import { toast } from "sonner";
 import { useRecorder } from "@/lib/useRecorder";
 import { IpaPalette } from "./IpaPalette";
@@ -9,8 +9,22 @@ import { DictionaryTable } from "./DictionaryTable";
 const inputCls =
   "w-full px-3 py-2.5 bg-paper border thin-rule font-serif text-base text-ink focus:outline-none focus:border-ink";
 
-// Admin: walk the CMU dictionary A→Z, record each word and confirm its IPA.
+const LISTS = [
+  { id: "dictionary", label: "Dictionary", hint: "Jump to any word (e.g. oner)" },
+  { id: "names", label: "First names", hint: "Search a first name (e.g. Siobhan)" },
+  { id: "surnames", label: "Surnames", hint: "Search a surname (e.g. Nguyen)" },
+  { id: "places", label: "US places", hint: "Search a state or city (e.g. Worcester)" },
+  { id: "countries", label: "Countries", hint: "Search a country or capital (e.g. Qatar)" },
+  { id: "chains", label: "Brands & chains", hint: "Search a brand (e.g. Wawa)" },
+];
+
+// Admin: walk the CMU dictionary (or a curated list) one word at a time,
+// record each word and confirm its IPA.
 export function DictionaryBuilder() {
+  const [list, setList] = useState(localStorage.getItem("dict_list") || "dictionary");
+  const [history, setHistory] = useState([]); // words visited, for Back
+  const [playing, setPlaying] = useState(false);
+  const [undoing, setUndoing] = useState(false);
   const [words, setWords] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,10 +36,10 @@ export function DictionaryBuilder() {
   const rec = useRecorder();
   const current = words[0];
 
-  const load = useCallback(async (start) => {
+  const load = useCallback(async (start, includeStart = false) => {
     setLoading(true);
     try {
-      const { data } = await api.get("/admin/dictionary/queue", { params: { start: start || undefined, limit: 12 } });
+      const { data } = await api.get("/admin/dictionary/queue", { params: { start: start || undefined, limit: 12, list, include_start: includeStart || undefined } });
       setWords(data.words || []);
       setStats(data.stats || null);
     } catch {
@@ -33,15 +47,19 @@ export function DictionaryBuilder() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [list]);
 
-  useEffect(() => { load(localStorage.getItem("dict_cursor") || undefined); }, [load]);
+  useEffect(() => {
+    localStorage.setItem("dict_list", list);
+    load(localStorage.getItem(`dict_cursor_${list}`) || undefined);
+  }, [load, list]);
   useEffect(() => { setIpa(current?.ipa || ""); rec.reset(); }, [current?.word]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const advance = () => {
+    if (current) setHistory((h) => [...h.slice(-49), current.word]);
     setWords((w) => {
       const rest = w.slice(1);
-      if (rest[0]) localStorage.setItem("dict_cursor", rest[0].word);
+      if (rest[0]) localStorage.setItem(`dict_cursor_${list}`, rest[0].word);
       if (rest.length < 4) load(rest[rest.length - 1]?.word || w[0]?.word);
       return rest;
     });
@@ -84,9 +102,47 @@ export function DictionaryBuilder() {
     e.preventDefault();
     const w = jump.trim().toLowerCase();
     if (!w) return;
-    localStorage.setItem("dict_cursor", w);
-    load(w);
+    if (current) setHistory((h) => [...h.slice(-49), current.word]);
+    localStorage.setItem(`dict_cursor_${list}`, w);
+    load(w, true);
     setJump("");
+  };
+
+  const goBack = () => {
+    const prev = history[history.length - 1];
+    if (!prev) return;
+    setHistory((h) => h.slice(0, -1));
+    load(prev, true);
+  };
+
+  const hear = async () => {
+    if (!current || playing) return;
+    setPlaying(true);
+    try {
+      const { audio_b64, mime } = await fetchTTS(current.word);
+      const a = new Audio(`data:${mime || "audio/mpeg"};base64,${audio_b64}`);
+      a.onended = () => setPlaying(false);
+      a.onerror = () => setPlaying(false);
+      await a.play();
+    } catch {
+      setPlaying(false);
+      toast.error("Couldn't play that word right now.");
+    }
+  };
+
+  const undo = async () => {
+    if (undoing) return;
+    setUndoing(true);
+    try {
+      const { data } = await api.post("/admin/dictionary/undo");
+      toast.success(`Undid your last change to “${data.word}”`);
+      setRefreshKey((k) => k + 1);
+      load(data.word, true);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail === "nothing_to_undo" ? "Nothing to undo" : "Undo failed");
+    } finally {
+      setUndoing(false);
+    }
   };
 
   useEffect(() => {
@@ -124,19 +180,39 @@ export function DictionaryBuilder() {
         </div>
       ) : null}
 
-      <form onSubmit={doJump} className="flex gap-2 mb-5">
-        <input type="text" value={jump} onChange={(e) => setJump(e.target.value)} placeholder="Jump to any word or name — in the dictionary or not (e.g. oner)" className={inputCls} data-testid="dictionary-jump" />
+      <div className="flex flex-wrap gap-1 mb-4" data-testid="dictionary-lists">
+        {LISTS.map((l) => (
+          <button key={l.id} type="button" onClick={() => { setList(l.id); setHistory([]); }}
+                  className={"font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-2 border thin-rule " + (list === l.id ? "bg-ink text-surface" : "text-muted2 hover:text-ink")}
+                  data-testid={`dictionary-list-${l.id}`}>{l.label}</button>
+        ))}
+      </div>
+
+      <form onSubmit={doJump} className="flex gap-2 mb-3">
+        <input type="text" value={jump} onChange={(e) => setJump(e.target.value)} placeholder={LISTS.find((l) => l.id === list)?.hint} className={inputCls} data-testid="dictionary-jump" />
         <button type="submit" className="btn-primary justify-center" data-testid="dictionary-jump-go"><ArrowRight size={14} /> Go</button>
       </form>
+      <div className="flex gap-2 mb-5">
+        <button type="button" onClick={goBack} disabled={!history.length} className="btn-secondary disabled:opacity-40" data-testid="dictionary-back"><ArrowLeft size={12} /> Back to previous word</button>
+        <button type="button" onClick={undo} disabled={undoing} className="btn-secondary disabled:opacity-40" data-testid="dictionary-undo">{undoing ? <Loader2 size={12} className="animate-spin" /> : <Undo2 size={12} />} Undo last change</button>
+      </div>
 
       {loading && !current ? (
         <div className="font-mono text-xs text-muted2 flex items-center gap-2"><Loader2 size={12} className="animate-spin" /> Loading…</div>
       ) : !current ? (
-        <div className="font-serif text-base text-muted2 italic" data-testid="dictionary-done">You've reached the end of the dictionary.</div>
+        <div className="font-serif text-base text-muted2 italic" data-testid="dictionary-done">You've reached the end of this list.</div>
       ) : (
         <div className="border thin-rule bg-paper p-5" data-testid="dictionary-current">
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
-            <div className="font-display text-5xl text-ink leading-none" data-testid="dictionary-word">{current.word}</div>
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="font-display text-5xl text-ink leading-none" data-testid="dictionary-word">{current.word}</div>
+              <button type="button" onClick={hear} disabled={playing} className="btn-secondary disabled:opacity-50" title="Hear how the app says it right now" data-testid="dictionary-hear">
+                {playing ? <Loader2 size={12} className="animate-spin" /> : <Volume2 size={12} />} Hear it
+              </button>
+              {current.label && current.label.toLowerCase() !== current.word ? (
+                <span className="font-serif text-sm text-muted2 italic" data-testid="dictionary-label">from “{current.label}”</span>
+              ) : null}
+            </div>
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">
               {rec.recording ? <span className="text-crimson inline-flex items-center gap-2"><span className="tally" /> Recording</span> : rec.processing ? "Cleaning up…" : rec.blob ? "Take ready" : "Space to record"}
             </div>

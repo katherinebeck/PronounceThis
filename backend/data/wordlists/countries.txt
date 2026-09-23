@@ -1,0 +1,489 @@
+Abkhazia
+Sukhumi (Abkhazia)
+Afghanistan
+Kabul (Afghanistan)
+Akrotiri and Dhekelia
+Episkopi Cantonment (Akrotiri and Dhekelia)
+Albania
+Tirana (Albania)
+Algeria
+Algiers (Algeria)
+American Samoa
+Pago Pago (American Samoa)
+Andorra
+Andorra la Vella (Andorra)
+Angola
+Luanda (Angola)
+Anguilla
+The Valley (Anguilla)
+Antigua and Barbuda
+St. John's (Antigua and Barbuda)
+Argentina
+Buenos Aires (Argentina)
+Armenia
+Yerevan (Armenia)
+Aruba
+Oranjestad (Aruba)
+Ascension Island
+Georgetown (Ascension Island)
+Australia
+Canberra (Australia)
+Austria
+Vienna (Austria)
+Azerbaijan
+Baku (Azerbaijan)
+Bahamas
+Nassau (Bahamas)
+Bahrain
+Manama (Bahrain)
+Bangladesh
+Dhaka (Bangladesh)
+Barbados
+Bridgetown (Barbados)
+Belarus
+Minsk (Belarus)
+Belgium
+Brussels (Belgium)
+Belize
+Belmopan (Belize)
+Benin
+Porto-Novo (Benin)
+Bermuda
+Hamilton (Bermuda)
+Bhutan
+Thimphu (Bhutan)
+Bolivia
+Sucre (Bolivia)
+Bolivia
+La Paz (Bolivia)
+Bosnia and Herzegovina
+Sarajevo (Bosnia and Herzegovina)
+Botswana
+Gaborone (Botswana)
+Brazil
+Brasília (Brazil)
+British Virgin Islands
+Road Town (British Virgin Islands)
+Brunei
+Bandar Seri Begawan (Brunei)
+Bulgaria
+Sofia (Bulgaria)
+Burkina Faso
+Ouagadougou (Burkina Faso)
+Burundi
+Bujumbura (Burundi)
+Cambodia
+Phnom Penh (Cambodia)
+Cameroon
+Yaoundé (Cameroon)
+Canada
+Ottawa (Canada)
+Cape Verde
+Praia (Cape Verde)
+Cayman Islands
+George Town (Cayman Islands)
+Central African Republic
+Bangui (Central African Republic)
+Chad
+N'Djamena (Chad)
+Chile
+Santiago (Chile)
+China
+Beijing (China)
+Christmas Island
+Flying Fish Cove (Christmas Island)
+Cocos (Keeling) Islands
+West Island (Cocos (Keeling) Islands)
+Colombia
+Bogotá (Colombia)
+Comoros
+Moroni (Comoros)
+Cook Islands
+Avarua (Cook Islands)
+Costa Rica
+San José (Costa Rica)
+Croatia
+Zagreb (Croatia)
+Cuba
+Havana (Cuba)
+Curaçao
+Willemstad (Curaçao)
+Cyprus
+Nicosia (Cyprus)
+Czech Republic
+Prague (Czech Republic)
+Côte d'Ivoire
+Yamoussoukro (Côte d'Ivoire)
+Democratic Republic of the Congo
+Kinshasa (Democratic Republic of the Congo)
+Denmark
+Copenhagen (Denmark)
+Djibouti
+Dominica
+Roseau (Dominica)
+Dominican Republic
+Santo Domingo (Dominican Republic)
+East Timor (Timor-Leste)
+Dili (East Timor (Timor-Leste))
+Easter Island
+Hanga Roa (Easter Island)
+Ecuador
+Quito (Ecuador)
+Egypt
+Cairo (Egypt)
+El Salvador
+San Salvador (El Salvador)
+Equatorial Guinea
+Malabo (Equatorial Guinea)
+Eritrea
+Asmara (Eritrea)
+Estonia
+Tallinn (Estonia)
+Ethiopia
+Addis Ababa (Ethiopia)
+Falkland Islands
+Stanley (Falkland Islands)
+Faroe Islands
+Tórshavn (Faroe Islands)
+Federated States of Micronesia
+Palikir (Federated States of Micronesia)
+Fiji
+Suva (Fiji)
+Finland
+Helsinki (Finland)
+France
+Paris (France)
+French Guiana
+Cayenne (French Guiana)
+French Polynesia
+Papeete (French Polynesia)
+Gabon
+Libreville (Gabon)
+Gambia
+Banjul (Gambia)
+Georgia
+Tbilisi (Georgia)
+Germany
+Berlin (Germany)
+Ghana
+Accra (Ghana)
+Gibraltar
+Greece
+Athens (Greece)
+Greenland
+Nuuk (Greenland)
+Grenada
+St. George's (Grenada)
+Guam
+Hagåtña (Guam)
+Guatemala
+Guatemala City (Guatemala)
+Guernsey
+St. Peter Port (Guernsey)
+Guinea
+Conakry (Guinea)
+Guinea-Bissau
+Bissau (Guinea-Bissau)
+Guyana
+Georgetown (Guyana)
+Haiti
+Port-au-Prince (Haiti)
+Honduras
+Tegucigalpa (Honduras)
+Hungary
+Budapest (Hungary)
+Iceland
+Reykjavík (Iceland)
+India
+New Delhi (India)
+Indonesia
+Jakarta (Indonesia)
+Iran
+Tehran (Iran)
+Iraq
+Baghdad (Iraq)
+Ireland
+Dublin (Ireland)
+Isle of Man
+Douglas (Isle of Man)
+Israel
+Jerusalem (Israel)
+Italy
+Rome (Italy)
+Jamaica
+Kingston (Jamaica)
+Japan
+Tokyo (Japan)
+Jersey
+St. Helier (Jersey)
+Jordan
+Amman (Jordan)
+Kazakhstan
+Astana (Kazakhstan)
+Kenya
+Nairobi (Kenya)
+Kiribati
+Tarawa (Kiribati)
+Kosovo
+Pristina (Kosovo)
+Kuwait
+Kuwait City (Kuwait)
+Kyrgyzstan
+Bishkek (Kyrgyzstan)
+Laos
+Vientiane (Laos)
+Latvia
+Riga (Latvia)
+Lebanon
+Beirut (Lebanon)
+Lesotho
+Maseru (Lesotho)
+Liberia
+Monrovia (Liberia)
+Libya
+Tripoli (Libya)
+Liechtenstein
+Vaduz (Liechtenstein)
+Lithuania
+Vilnius (Lithuania)
+Luxembourg
+Macedonia
+Skopje (Macedonia)
+Madagascar
+Antananarivo (Madagascar)
+Malawi
+Lilongwe (Malawi)
+Malaysia
+Kuala Lumpur (Malaysia)
+Maldives
+Malé (Maldives)
+Mali
+Bamako (Mali)
+Malta
+Valletta (Malta)
+Marshall Islands
+Majuro (Marshall Islands)
+Mauritania
+Nouakchott (Mauritania)
+Mauritius
+Port Louis (Mauritius)
+Mexico
+Mexico City (Mexico)
+Moldova
+Chisinau (Moldova)
+Monaco
+Mongolia
+Ulaanbaatar (Mongolia)
+Montenegro
+Podgorica (Montenegro)
+Montserrat
+Plymouth (Montserrat)
+Morocco
+Rabat (Morocco)
+Mozambique
+Maputo (Mozambique)
+Myanmar
+Naypyidaw (Myanmar)
+Nagorno-Karabakh Republic
+Stepanakert (Nagorno-Karabakh Republic)
+Namibia
+Windhoek (Namibia)
+Nauru
+Yaren (Nauru)
+Nepal
+Kathmandu (Nepal)
+Netherlands
+Amsterdam (Netherlands)
+New Caledonia
+Nouméa (New Caledonia)
+New Zealand
+Wellington (New Zealand)
+Nicaragua
+Managua (Nicaragua)
+Niger
+Niamey (Niger)
+Nigeria
+Abuja (Nigeria)
+Niue
+Alofi (Niue)
+Norfolk Island
+Kingston (Norfolk Island)
+North Korea
+Pyongyang (North Korea)
+Northern Cyprus
+Nicosia (Northern Cyprus)
+United Kingdom Northern Ireland
+Belfast (United Kingdom Northern Ireland)
+Northern Mariana Islands
+Saipan (Northern Mariana Islands)
+Norway
+Oslo (Norway)
+Oman
+Muscat (Oman)
+Pakistan
+Islamabad (Pakistan)
+Palau
+Ngerulmud (Palau)
+Palestine
+Jerusalem (Palestine)
+Panama
+Panama City (Panama)
+Papua New Guinea
+Port Moresby (Papua New Guinea)
+Paraguay
+Asunción (Paraguay)
+Peru
+Lima (Peru)
+Philippines
+Manila (Philippines)
+Pitcairn Islands
+Adamstown (Pitcairn Islands)
+Poland
+Warsaw (Poland)
+Portugal
+Lisbon (Portugal)
+Puerto Rico
+San Juan (Puerto Rico)
+Qatar
+Doha (Qatar)
+Republic of China (Taiwan)
+Taipei (Republic of China (Taiwan))
+Republic of the Congo
+Brazzaville (Republic of the Congo)
+Romania
+Bucharest (Romania)
+Russia
+Moscow (Russia)
+Rwanda
+Kigali (Rwanda)
+Saint Barthélemy
+Gustavia (Saint Barthélemy)
+Saint Helena
+Jamestown (Saint Helena)
+Saint Kitts and Nevis
+Basseterre (Saint Kitts and Nevis)
+Saint Lucia
+Castries (Saint Lucia)
+Saint Martin
+Marigot (Saint Martin)
+Saint Pierre and Miquelon
+St. Pierre (Saint Pierre and Miquelon)
+Saint Vincent and the Grenadines
+Kingstown (Saint Vincent and the Grenadines)
+Samoa
+Apia (Samoa)
+San Marino
+Saudi Arabia
+Riyadh (Saudi Arabia)
+Scotland
+Edinburgh (Scotland)
+Senegal
+Dakar (Senegal)
+Serbia
+Belgrade (Serbia)
+Seychelles
+Victoria (Seychelles)
+Sierra Leone
+Freetown (Sierra Leone)
+Singapore
+Sint Maarten
+Philipsburg (Sint Maarten)
+Slovakia
+Bratislava (Slovakia)
+Slovenia
+Ljubljana (Slovenia)
+Solomon Islands
+Honiara (Solomon Islands)
+Somalia
+Mogadishu (Somalia)
+Somaliland
+Hargeisa (Somaliland)
+South Africa
+Pretoria (South Africa)
+South Georgia and the South Sandwich Islands
+Grytviken (South Georgia and the South Sandwich Islands)
+South Korea
+Seoul (South Korea)
+South Ossetia
+Tskhinvali (South Ossetia)
+South Sudan
+Juba (South Sudan)
+Spain
+Madrid (Spain)
+Sri Lanka
+Sri Jayawardenapura Kotte (Sri Lanka)
+Sudan
+Khartoum (Sudan)
+Suriname
+Paramaribo (Suriname)
+Swaziland
+Mbabane (Swaziland)
+Sweden
+Stockholm (Sweden)
+Switzerland
+Bern (Switzerland)
+Syria
+Damascus (Syria)
+São Tomé and Príncipe
+São Tomé (São Tomé and Príncipe)
+Tajikistan
+Dushanbe (Tajikistan)
+Tanzania
+Dodoma (Tanzania)
+Thailand
+Bangkok (Thailand)
+Togo
+Lomé (Togo)
+Tonga
+Nukuʻalofa (Tonga)
+Transnistria
+Tiraspol (Transnistria)
+Trinidad and Tobago
+Port of Spain (Trinidad and Tobago)
+Tristan da Cunha
+Edinburgh of the Seven Seas (Tristan da Cunha)
+Tunisia
+Tunis (Tunisia)
+Turkey
+Ankara (Turkey)
+Turkmenistan
+Ashgabat (Turkmenistan)
+Turks and Caicos Islands
+Cockburn Town (Turks and Caicos Islands)
+Tuvalu
+Funafuti (Tuvalu)
+Uganda
+Kampala (Uganda)
+Ukraine
+Kyiv (Ukraine)
+United Arab Emirates
+Abu Dhabi (United Arab Emirates)
+United Kingdom; England
+London (United Kingdom; England)
+United States
+Washington, D.C. (United States)
+United States Virgin Islands
+Charlotte Amalie (United States Virgin Islands)
+Uruguay
+Montevideo (Uruguay)
+Uzbekistan
+Tashkent (Uzbekistan)
+Vanuatu
+Port Vila (Vanuatu)
+Vatican City
+Venezuela
+Caracas (Venezuela)
+Vietnam
+Hanoi (Vietnam)
+Wales
+Cardiff (Wales)
+Wallis and Futuna
+Mata-Utu (Wallis and Futuna)
+Western Sahara
+El Aaiún (Western Sahara)
+Yemen
+Sanaá (Yemen)
+Zambia
+Lusaka (Zambia)
+Zimbabwe
+Harare (Zimbabwe)

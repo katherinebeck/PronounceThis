@@ -376,7 +376,7 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
         notify_owner("New member 💳", "A new member just joined",
                      [f"<b>{email}</b> subscribed to <b>{offer_title}</b>.",
                       "Their access is active now."])
-        kit.tag_subscriber(email, kit.TAG_MEMBER)
+        kit.tag_subscriber(email, kit.member_tag(lookup_key))
 
 
 async def _sync_subscription(

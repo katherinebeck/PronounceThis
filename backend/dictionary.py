@@ -9,6 +9,7 @@ import asyncio
 import io
 import os
 import re
+from pathlib import Path
 import zipfile
 from datetime import datetime, timezone
 from typing import Optional
@@ -83,10 +84,58 @@ async def load_custom_ipa(db: AsyncIOMotorDatabase) -> None:
     await db.dictionary_entries.create_index("status")
 
 
+# --- Curated word lists (names, places, brands) -----------------------------
+_LISTS_DIR = Path(__file__).parent / "data" / "wordlists"
+LIST_FILES = {"names": "first_names.txt", "surnames": "surnames.txt", "places": "us_places.txt",
+              "countries": "countries.txt", "chains": "chains.txt"}
+_LIST_CACHE: dict = {}
+
+
+def curated_list(name: str) -> list:
+    """[(token, label)] in list order; multi-word labels are split into the
+    single tokens the dictionary actually stores (e.g. 'Los Angeles' → los, angeles)."""
+    if name in _LIST_CACHE:
+        return _LIST_CACHE[name]
+    out, seen = [], set()
+    path = _LISTS_DIR / LIST_FILES[name]
+    for label in path.read_text().splitlines():
+        label = label.strip()
+        if not label:
+            continue
+        for tok in re.split(r"[\s,()./]+", label):
+            w = _clean_word(tok)
+            if len(w) > 1 and w not in seen and w not in ("dc",):
+                seen.add(w)
+                out.append((w, label))
+    _LIST_CACHE[name] = out
+    return out
+
+
 def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
     router = APIRouter(prefix="/admin/dictionary", tags=["dictionary"])
 
-    async def _stats() -> dict:
+    AUDIO_KEYS = lambda w: [w, f"{w}#ph", f"{w}#human"]  # noqa: E731
+
+    async def _snapshot(w: str) -> None:
+        """Save the word's current state so the coach can undo the next save."""
+        snap = {
+            "word": w, "created_at": _now_iso(),
+            "entry": await db.dictionary_entries.find_one({"word": w}, {"_id": 0}),
+            "pref": await db.pronunciation_prefs.find_one({"word": w}, {"_id": 0}),
+            "audio": await db.audio_cache.find({"word": {"$in": AUDIO_KEYS(w)}}, {"_id": 0}).to_list(10),
+        }
+        await db.dictionary_history.insert_one(snap)
+        old = await db.dictionary_history.find({}, {"_id": 1}).sort("created_at", -1).skip(30).to_list(1000)
+        if old:
+            await db.dictionary_history.delete_many({"_id": {"$in": [o["_id"] for o in old]}})
+
+    async def _stats(list_name: str = "dictionary") -> dict:
+        if list_name in LIST_FILES:
+            toks = [w for w, _ in curated_list(list_name)]
+            done = await db.dictionary_entries.count_documents({"word": {"$in": toks}, "status": "done"})
+            recorded = await db.dictionary_entries.count_documents({"word": {"$in": toks}, "status": "done", "has_audio": True})
+            skipped = await db.dictionary_entries.count_documents({"word": {"$in": toks}, "status": "skipped"})
+            return {"total": len(toks), "done": done, "recorded": recorded, "skipped": skipped}
         done = await db.dictionary_entries.count_documents({"status": "done"})
         recorded = await db.dictionary_entries.count_documents({"status": "done", "has_audio": True})
         skipped = await db.dictionary_entries.count_documents({"status": "skipped"})
@@ -100,9 +149,17 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 "status": e.get("status"), "in_cmu": bool(cmu_ipa(word))}
 
     @router.get("/queue")
-    async def queue(request: Request, start: Optional[str] = None, limit: int = 12):
+    async def queue(request: Request, start: Optional[str] = None, limit: int = 12,
+                    list: str = "dictionary", include_start: bool = False):
         await require_admin(request, db)
-        words = cmu_words_by_frequency()
+        labels: dict = {}
+        if list in LIST_FILES:
+            pairs = curated_list(list)
+            words = [w for w, _ in pairs]
+            labels = dict(pairs)
+        else:
+            list = "dictionary"
+            words = cmu_words_by_frequency()
         pos = 0
         out: list = []
         if start:
@@ -110,11 +167,17 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
             try:
                 pos = words.index(sw)
             except ValueError:
-                # Not in CMU (a name, "oner"…): put it first so the coach can
-                # give it an IPA and/or a take; the A→Z queue follows.
+                # Not in this list (a name, "oner"…): put it first so the coach
+                # can give it an IPA and/or a take; the queue follows.
                 if sw:
                     e = await db.dictionary_entries.find_one({"word": sw}, {"_id": 0, "ipa": 1})
-                    out.append({"word": sw, "ipa": (e or {}).get("ipa") or "", "custom": True})
+                    out.append({"word": sw, "ipa": (e or {}).get("ipa") or cmu_ipa(sw) or "", "custom": True})
+            else:
+                if include_start:  # "Back": revisit a word even if already done
+                    e = await db.dictionary_entries.find_one({"word": sw}, {"_id": 0, "ipa": 1, "ipa_custom": 1})
+                    ipa = e["ipa"] if e and e.get("ipa_custom") else cmu_ipa(sw)
+                    out.append({"word": sw, "ipa": ipa or "", "label": labels.get(sw)})
+                    pos += 1
         limit = max(1, min(limit, 50))
         while pos < len(words) and len(out) < limit:
             chunk = words[pos:pos + 400]
@@ -123,10 +186,38 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 {"word": {"$in": chunk}, "status": {"$in": ["done", "skipped"]}}, {"_id": 0, "word": 1})}
             for w in chunk:
                 if w not in handled:
-                    out.append({"word": w, "ipa": cmu_ipa(w)})
+                    out.append({"word": w, "ipa": cmu_ipa(w) or "", "label": labels.get(w)})
                     if len(out) >= limit:
                         break
-        return {"words": out, "stats": await _stats()}
+        return {"words": out, "stats": await _stats(list), "list": list}
+
+    @router.post("/undo")
+    async def undo(request: Request):
+        """Revert the most recent save (entry, phoneme pref and audio)."""
+        await require_admin(request, db)
+        snap = await db.dictionary_history.find_one({}, sort=[("created_at", -1)])
+        if not snap:
+            raise HTTPException(status_code=404, detail="nothing_to_undo")
+        w = snap["word"]
+        await db.dictionary_entries.delete_one({"word": w})
+        if snap.get("entry"):
+            await db.dictionary_entries.insert_one(snap["entry"])
+        await db.pronunciation_prefs.delete_one({"word": w})
+        if snap.get("pref"):
+            await db.pronunciation_prefs.insert_one(snap["pref"])
+            PREFERRED_ARPA[w] = snap["pref"].get("arpabet")
+        else:
+            PREFERRED_ARPA.pop(w, None)
+        await db.audio_cache.delete_many({"word": {"$in": AUDIO_KEYS(w)}})
+        if snap.get("audio"):
+            await db.audio_cache.insert_many(snap["audio"])
+        if snap.get("entry") and snap["entry"].get("ipa_custom"):
+            CUSTOM_IPA[w] = snap["entry"]["ipa"]
+        else:
+            CUSTOM_IPA.pop(w, None)
+        await db.dictionary_history.delete_one({"_id": snap["_id"]})
+        remaining = await db.dictionary_history.count_documents({})
+        return {"ok": True, "word": w, "remaining": remaining}
 
     @router.get("/word")
     async def word_info(request: Request, word: str):
@@ -148,6 +239,7 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=400, detail="invalid_ipa")
         if not ipa_clean and file is None:
             raise HTTPException(status_code=400, detail="ipa_or_audio_required")
+        await _snapshot(w)
         base = cmu_ipa(w)
         ipa_final = ipa_clean or base
         is_custom = bool(ipa_clean) and ipa_clean != base
@@ -216,6 +308,7 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
     async def skip(body: WordBody, request: Request):
         await require_admin(request, db)
         w = _clean_word(body.word)
+        await _snapshot(w)
         await db.dictionary_entries.update_one(
             {"word": w}, {"$set": {"word": w, "status": "skipped", "updated_at": _now_iso()}}, upsert=True)
         return {"ok": True}

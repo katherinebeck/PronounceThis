@@ -66,4 +66,4 @@ def test_error_surfaces(monkeypatch):
 
     monkeypatch.setattr(httpx, "AsyncClient", patched)
     with pytest.raises(RuntimeError, match="Kit 401"):
-        _run(kit.tag_subscriber_now("a@example.com", kit.TAG_MEMBER))
+        _run(kit.tag_subscriber_now("a@example.com", kit.TAG_MONTHLY))

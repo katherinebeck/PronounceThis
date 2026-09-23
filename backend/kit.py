@@ -9,7 +9,12 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.kit.com/v4"
 TAG_TRIAL = "PT Trial"
-TAG_MEMBER = "PT Member"
+TAG_MONTHLY = "PT Monthly"
+TAG_ANNUAL = "PT Annual"
+
+
+def member_tag(lookup_key: str) -> str:
+    return TAG_ANNUAL if "year" in (lookup_key or "").lower() or "annual" in (lookup_key or "").lower() else TAG_MONTHLY
 TAG_CANCELLED = "PT Cancelled"
 
 _tag_ids: dict[str, int] = {}

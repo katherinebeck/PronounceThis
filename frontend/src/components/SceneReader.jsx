@@ -421,7 +421,7 @@ export default function SceneReader({ scene, highlightSet }) {
             <section className="border thin-rule bg-surface/60 p-4 flex flex-col gap-3" data-testid="reader-panel">
               <div className="flex items-baseline justify-between gap-3">
                 <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust whitespace-nowrap">Reader's Lines</div>
-                <div className="font-serif text-xs text-muted2 italic hidden sm:block">The other characters speak; your lines are left silent for you to say.</div>
+                <div className="font-serif text-xs text-muted2 italic hidden sm:block">Download the other character's lines to use as practice as you rehearse speaking your lines.</div>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
                 <VoicePicker
@@ -433,18 +433,6 @@ export default function SceneReader({ scene, highlightSet }) {
                 />
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  type="button"
-                  className={"btn-primary " + (readerRunning ? "!bg-rust" : "")}
-                  onClick={handlePlayReaderLines}
-                  data-testid="play-reader-lines-button"
-                >
-                  {readerRunning ? (
-                    <><Square size={12} fill="currentColor" /> Stop</>
-                  ) : (
-                    <><Play size={12} fill="currentColor" /> Play My Reader's Lines</>
-                  )}
-                </button>
                 <button
                   type="button"
                   className="btn-secondary"

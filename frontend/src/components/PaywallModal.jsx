@@ -69,7 +69,7 @@ export default function PaywallModal() {
       onClick={closePaywall}
     >
       <div
-        className="relative w-full max-w-lg bg-surface border thin-rule shadow-2xl max-h-[92dvh] overflow-y-auto"
+        className="theme-light relative w-full max-w-lg bg-surface border thin-rule shadow-2xl max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b thin-rule">
@@ -174,9 +174,11 @@ export default function PaywallModal() {
             </p>
           </div>
           ) : null}
-          <p className="font-serif text-xs text-muted2 mt-4 text-center leading-relaxed" data-testid="paywall-spam-note">
-            {trialOnly ? "Forgot your password later? Reset emails can land in spam or junk — check there." : "Don't see our email? Check your spam or junk folder."}
-          </p>
+          {!trialOnly ? (
+            <p className="font-serif text-xs text-muted2 mt-4 text-center leading-relaxed" data-testid="paywall-spam-note">
+              Don't see our email? Check your spam or junk folder.
+            </p>
+          ) : null}
         </div>
       </div>
     </div>

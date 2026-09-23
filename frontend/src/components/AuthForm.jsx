@@ -99,7 +99,6 @@ export default function AuthForm({ mode, setMode, onDone, compact = false }) {
           {mode === "signin" ? (
             <>
               <button type="button" className="hover:text-ink" onClick={() => setMode("forgot")} data-testid="auth-forgot">Forgot password?</button>
-              <button type="button" className="hover:text-ink" onClick={() => setMode("signup")} data-testid="auth-to-signup">New here? Create account</button>
             </>
           ) : (
             <button type="button" className="hover:text-ink" onClick={() => setMode("signin")} data-testid="auth-to-signin">Back to sign in</button>
