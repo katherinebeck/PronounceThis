@@ -188,6 +188,20 @@ def _issue_jwt(email: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALG)
 
 
+async def caller_email(request: Request, db: AsyncIOMotorDatabase) -> Optional[str]:
+    """Who is calling? Supabase access token (Authorization: Bearer) first;
+    legacy magic-link session cookie is still honoured for admin-issued links."""
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        import supabase_auth
+        claims = supabase_auth.verify_access_token(auth[7:].strip())
+        if claims:
+            return await supabase_auth.resolve_user_email(db, claims)
+        return None
+    token = request.cookies.get(JWT_COOKIE_NAME)
+    return _decode_jwt(token) if token else None
+
+
 def _decode_jwt(token: str) -> Optional[str]:
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
@@ -445,8 +459,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
 
     @router.get("/me", response_model=AuthMeResponse)
     async def me(request: Request, response: Response):
-        token = request.cookies.get(JWT_COOKIE_NAME)
-        email = _decode_jwt(token) if token else None
+        email = await caller_email(request, db)
         device_id = ensure_device_cookie(request, response)
         offer_urls = {
             "monthly_offer_url": os.environ.get("KAJABI_MONTHLY_OFFER_URL", ""),
@@ -563,8 +576,7 @@ async def require_access(
     exhausted and no membership. On success, returns an Actor. The caller
     must call `consume_trial(db, actor)` AFTER the operation succeeds.
     """
-    token = request.cookies.get(JWT_COOKIE_NAME)
-    email = _decode_jwt(token) if token else None
+    email = await caller_email(request, db)
     if not email:
         raise HTTPException(status_code=401, detail="not_authenticated")
 
@@ -647,8 +659,7 @@ def is_admin_email(email: Optional[str]) -> bool:
 
 async def optional_login(request: Request, db: AsyncIOMotorDatabase) -> Optional[str]:
     """Email of the logged-in caller, or None (never raises)."""
-    token = request.cookies.get(JWT_COOKIE_NAME)
-    email = _decode_jwt(token) if token else None
+    email = await caller_email(request, db)
     if not email:
         return None
     user = await db.users.find_one({"email": email}, {"_id": 0, "email": 1})
@@ -657,8 +668,7 @@ async def optional_login(request: Request, db: AsyncIOMotorDatabase) -> Optional
 
 async def require_login(request: Request, db: AsyncIOMotorDatabase) -> str:
     """Just verify the caller is logged in. Returns their email."""
-    token = request.cookies.get(JWT_COOKIE_NAME)
-    email = _decode_jwt(token) if token else None
+    email = await caller_email(request, db)
     if not email:
         raise HTTPException(status_code=401, detail="not_authenticated")
     user = await db.users.find_one({"email": email})

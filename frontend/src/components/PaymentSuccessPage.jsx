@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Loader2, Check, XCircle, Mail } from "lucide-react";
-import { getPaymentStatus, requestMagicLink } from "@/lib/api";
+import { getPaymentStatus } from "@/lib/api";
+import AuthForm from "./AuthForm";
 import { useAuth } from "@/lib/auth";
 
 // Landing spot after a Stripe Checkout completes. Polls until we see
@@ -11,18 +12,6 @@ export default function PaymentSuccessPage() {
   const [state, setState] = useState("checking"); // checking | ok | link | failed | timeout
   const [tries, setTries] = useState(0);
   const [email, setEmail] = useState("");
-  const [resent, setResent] = useState(false);
-  const [canResend, setCanResend] = useState(false);
-
-  useEffect(() => {
-    if (state !== "link") return undefined;
-    const t = setTimeout(() => setCanResend(true), 60000);
-    return () => clearTimeout(t);
-  }, [state]);
-
-  const sendLink = async (to) => {
-    try { await requestMagicLink(to); } catch { /* silent: rate-limited or transient */ }
-  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -44,10 +33,9 @@ export default function PaymentSuccessPage() {
           const me = await refresh();
           if (me?.authenticated) {
             setState("ok");
-            setTimeout(() => window.location.assign("/"), 1500);
+            setTimeout(() => window.location.assign("/app"), 1500);
           } else {
             setEmail(s.email || "");
-            if (s.email) await sendLink(s.email);
             setState("link");
           }
           return;
@@ -117,22 +105,17 @@ export default function PaymentSuccessPage() {
               <Mail size={22} className="text-rust" />
             </div>
             <p className="font-display text-xl text-ink" data-testid="payment-success-status">
-              Payment received. Check your inbox.
+              Payment received. Create your password.
             </p>
-            <p className="font-serif text-sm text-muted2 italic mt-3 leading-relaxed">
-              We've emailed a one-tap sign-in link to{" "}
-              <span className="not-italic text-ink" data-testid="payment-success-email">{email || "your email"}</span>.
-              Open it on any device to start using Pronounce This — no password needed.
+            <p className="font-serif text-sm text-muted2 italic mt-3 mb-5 leading-relaxed">
+              Use the same email you paid with —{" "}
+              <span className="not-italic text-ink" data-testid="payment-success-email">{email || "your checkout email"}</span>{" "}
+              — so your membership is attached to your account.
             </p>
-            <button
-              type="button"
-              disabled={resent || !email || !canResend}
-              onClick={async () => { await sendLink(email); setResent(true); }}
-              className="btn-secondary mt-6 disabled:opacity-50"
-              data-testid="payment-success-resend"
-            >
-              {resent ? "Link sent again" : canResend ? "Resend the link" : "Not there yet? Resend available in a minute"}
-            </button>
+            <div className="text-left">
+              <AuthForm mode="signup" setMode={() => {}} compact onDone={() => window.location.assign("/app")} />
+            </div>
+            <p className="font-serif text-xs text-muted2 mt-4">Already have an account? <a href="/app" className="text-ink underline">Sign in</a>.</p>
           </>
         )}
         {(state === "failed" || state === "timeout") && (

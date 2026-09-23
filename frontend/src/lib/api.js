@@ -1,9 +1,18 @@
 import axios from "axios";
+import { supabase } from "./supabase";
 
 export const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 // withCredentials so the httpOnly JWT session cookie flows on every request.
 export const api = axios.create({ baseURL: API, withCredentials: true });
+
+// Every request carries the Supabase access token; the backend verifies it.
+api.interceptors.request.use(async (config) => {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
 // --- Auth --------------------------------------------------------------
 export async function fetchMe() {

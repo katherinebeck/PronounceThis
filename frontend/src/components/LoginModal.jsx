@@ -1,173 +1,55 @@
-import React, { useState, useEffect } from "react";
-import { X, Mail, Loader2, Check } from "lucide-react";
-import { requestMagicLink } from "@/lib/api";
+import React, { useEffect, useState } from "react";
+import { X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { toast } from "sonner";
+import AuthForm from "./AuthForm";
 
-// Passwordless email login. User types email → we email a one-tap link →
-// they click it → they're in. Zero passwords.
+const TITLES = { signin: "Sign in", signup: "Create your account", forgot: "Reset your password" };
+const BLURBS = {
+  signin: "Welcome back. Enter your email and password.",
+  signup: "Get 5 free words and 1 free scene. No credit card needed.",
+  forgot: "Enter your email and we'll send you a link to choose a new password.",
+};
+
 export default function LoginModal() {
-  const { loginOpen, closeLogin } = useAuth();
+  const { loginOpen, closeLogin, openPaywall } = useAuth();
+  const [mode, setMode] = useState("signin");
 
   useEffect(() => {
     if (!loginOpen) return undefined;
+    setMode("signin");
     const onKey = (e) => { if (e.key === "Escape") closeLogin(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [loginOpen, closeLogin]);
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState("idle"); // idle | sending | sent | error
-  const [error, setError] = useState("");
 
   if (!loginOpen) return null;
 
-  const onSubmit = async (e) => {
-    e.preventDefault();
-    const clean = email.trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean)) {
-      setError("Please enter a valid email address.");
-      return;
-    }
-    setError("");
-    setStatus("sending");
-    try {
-      await requestMagicLink(clean);
-      setStatus("sent");
-    } catch (err) {
-      setStatus("error");
-      const detail = err?.response?.data?.detail;
-      let msg;
-      if (detail === "email_delivery_pending_domain_verification") {
-        msg =
-          "We're still verifying our email domain — right now sign-in links only work for the app owner. Please email info@katherinebeck.com to get a comp account while we finish setup.";
-      } else if (detail === "email_send_failed") {
-        msg =
-          "Couldn't send the sign-in email right now. Please try again in a minute, or email info@katherinebeck.com if it persists.";
-      } else if (detail === "invalid_email") {
-        msg = "That doesn't look like a valid email address.";
-      } else if (detail === "disposable_email") {
-        msg = "Temporary or disposable email addresses can't be used. Please use your regular email.";
-      } else {
-        msg = detail || err?.message || "Could not send link.";
-      }
-      setError(String(msg));
-      toast.error(String(msg));
-    }
-  };
-
-  const reset = () => {
-    setStatus("idle");
-    setEmail("");
-    setError("");
-    closeLogin();
-  };
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto"
-      data-testid="login-modal"
-      onClick={reset}
-    >
-      <div
-        className="relative w-full max-w-md bg-surface border thin-rule shadow-2xl max-h-[92dvh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto"
+         onClick={closeLogin} data-testid="login-modal">
+      <div className="relative w-full max-w-md bg-surface border thin-rule shadow-2xl max-h-[92dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b thin-rule">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
-              Pronounce This
-            </div>
-            <div className="font-display text-2xl text-ink mt-0.5">
-              {status === "sent" ? "Check your email" : "Sign in"}
-            </div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">Pronounce This</div>
+            <div className="font-display text-2xl text-ink" data-testid="login-title">{TITLES[mode]}</div>
           </div>
-          <button
-            type="button"
-            className="text-muted2 hover:text-ink p-1"
-            onClick={reset}
-            data-testid="login-close"
-            aria-label="Close"
-          >
+          <button type="button" className="text-muted2 hover:text-ink p-1" onClick={closeLogin} aria-label="Close" data-testid="login-close">
             <X size={20} />
           </button>
         </div>
-
-        {status === "sent" ? (
-          <div className="px-6 py-8 text-center">
-            <div className="inline-flex items-center justify-center w-14 h-14 border thin-rule mb-4 bg-paper">
-              <Check size={22} className="text-rust" />
-            </div>
-            <p className="font-serif text-base text-ink leading-relaxed">
-              We just emailed a sign-in link to
-            </p>
-            <p className="font-mono text-sm text-rust mt-1 break-all">{email}</p>
-            <p className="font-serif text-sm text-muted2 italic mt-4 leading-relaxed">
-              Tap the button in that email to sign in. The link is good for
-              15 minutes.
-            </p>
-            <button
-              type="button"
-              className="btn-secondary mt-6 !px-4 !py-2"
-              onClick={reset}
-              data-testid="login-done"
-            >
-              Done
+        <div className="px-6 py-6">
+          <p className="font-serif text-sm text-muted2 mb-4 leading-relaxed">{BLURBS[mode]}</p>
+          <AuthForm mode={mode} setMode={setMode} onDone={closeLogin} />
+          {mode !== "forgot" ? (
+            <button type="button" onClick={() => { closeLogin(); openPaywall("join"); }}
+                    className="mt-5 font-mono text-[10px] uppercase tracking-[0.2em] text-rust hover:text-ink" data-testid="login-see-plans">
+              Ready to join? See plans →
             </button>
-          </div>
-        ) : (
-          <form onSubmit={onSubmit} className="px-6 py-6">
-            <p className="font-serif text-sm text-muted2 leading-relaxed mb-5">
-              Enter your email and we'll send a one-tap sign-in link. No
-              passwords to remember.
-            </p>
-
-            <label
-              htmlFor="login-email"
-              className="font-mono text-[10px] uppercase tracking-[0.24em] text-muted2 block mb-2"
-            >
-              Email address
-            </label>
-            <div className="relative">
-              <Mail
-                size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted2 pointer-events-none"
-              />
-              <input
-                id="login-email"
-                type="email"
-                inputMode="email"
-                autoComplete="email"
-                autoFocus
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@example.com"
-                className="w-full pl-9 pr-3 py-2.5 bg-paper border thin-rule font-serif text-base text-ink focus:outline-none focus:border-ink"
-                data-testid="login-email-input"
-              />
-            </div>
-
-            {error ? (
-              <p className="font-mono text-[11px] text-rust mt-2">{error}</p>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={status === "sending"}
-              className="btn-primary w-full mt-5 justify-center"
-              data-testid="login-submit"
-            >
-              {status === "sending" ? (
-                <>
-                  <Loader2 size={14} className="animate-spin" />
-                  Sending link…
-                </>
-              ) : (
-                <>Send me a sign-in link</>
-              )}
-            </button>
-          </form>
-        )}
+          ) : null}
+          <p className="font-serif text-xs text-muted2 mt-4 leading-relaxed" data-testid="login-spam-note">
+            Don't see our email? Check your spam or junk folder.
+          </p>
+        </div>
       </div>
     </div>
   );

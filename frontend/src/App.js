@@ -13,6 +13,7 @@ import AccountChip from "@/components/AccountChip";
 import AdminPage from "@/components/AdminPage";
 import PaymentSuccessPage from "@/components/PaymentSuccessPage";
 import LandingPage from "@/components/landing/LandingPage";
+import ResetPasswordPage from "@/components/ResetPasswordPage";
 import PaymentCancelPage from "@/components/PaymentCancelPage";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { api, listScenes, getScene, fetchSoundCategories } from "@/lib/api";
@@ -68,6 +69,8 @@ export default function AppRoot() {
       <WelcomeModal />
       {path.startsWith("/auth/verify") ? (
         <VerifyPage />
+      ) : path.startsWith("/auth/reset") ? (
+        <ResetPasswordPage />
       ) : path.startsWith("/payment/success") ? (
         <PaymentSuccessPage />
       ) : path.startsWith("/payment/cancel") ? (

@@ -150,6 +150,13 @@ export default function AccountChip() {
             Contact support
           </a>
 
+          <a
+            href="/auth/reset"
+            className="block w-full text-left px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-ink hover:bg-elevated"
+            data-testid="account-change-password"
+          >
+            Change password
+          </a>
           <button
             type="button"
             onClick={async () => {

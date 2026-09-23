@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { fetchMe, logout as apiLogout } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 
 const AuthCtx = createContext(null);
 
@@ -48,7 +49,19 @@ export function AuthProvider({ children }) {
   }, []);
   const closePaywall = useCallback(() => setPaywallOpen(false), []);
 
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") {
+        window.location.assign("/auth/reset");
+        return;
+      }
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "TOKEN_REFRESHED") refresh();
+    });
+    return () => data.subscription.unsubscribe();
+  }, [refresh]);
+
   const doLogout = useCallback(async () => {
+    await supabase.auth.signOut();
     await apiLogout();
     await refresh();
   }, [refresh]);

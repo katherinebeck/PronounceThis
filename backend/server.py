@@ -1678,6 +1678,9 @@ async def _startup_indexes():
     asyncio.create_task(_revoice_archived_takes())
     from watchdog import watchdog_loop
     asyncio.create_task(watchdog_loop(db))
+    from supabase_auth import link_existing_users
+    asyncio.create_task(link_existing_users(db))
+    await db.users.create_index("supabase_sub", unique=True, sparse=True)
     # Scene ownership: pre-existing scenes have no uploader record; mark them
     # legacy (admin-only) without touching their content. Idempotent.
     await db.scenes.update_many(
