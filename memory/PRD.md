@@ -435,3 +435,12 @@
 - Applied in both search paths (local Mongo index + live YouTube scan); `CACHE_VERSION` bumped to 3 so stale cached query results are re-filtered. Startup background `backfill_slur_flags()` stamped all 6,553 cached transcripts (4 flagged). Surnames "Coons"/"Dyke" deliberately excluded from the slur list (false positives on news channels).
 - Hard-coded list per user choice; Admin "hide video" remains the backstop. Tests: `backend/tests/test_profanity.py` (5 passing).
 - Dev note: uvicorn hot-reload sometimes hangs after edits (startup ingest task) — `sudo supervisorctl restart backend` fixes it.
+
+## Backlog — saved by user (Sep 23, 2026) "save these ideas for later"
+- **Report This Clip** (P1): student flags a Real Speakers clip as inappropriate from the player → appears in Admin with one-tap Hide.
+- **Blocked Words Editor** (P2): editable slur/profanity lists in Admin (currently hard-coded in `backend/profanity.py`).
+- **Merge Alias Accounts** (P2): Admin merges a `+tag`/dotted alias account into the main one, carrying over trial counts and scenes.
+- **Linked Login Column** (P2): Admin → Users shows whether each account has a Supabase password login yet.
+- **Trial Abuse View** (P2): Admin view of devices that created several trial accounts.
+- **Playback Speed** (P2): 0.5× / 0.75× / 1× controls for words and scene lines.
+- Still queued from earlier: MongoDB Atlas migration (on request), Upload queue with retry (after first 20 paying members), PWA, split `server.py` into routers.
