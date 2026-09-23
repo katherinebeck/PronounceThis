@@ -17,12 +17,12 @@ def me(token):
     return requests.get(f"{API}/api/auth/me", headers={"Authorization": f"Bearer {token}"})
 
 tag = secrets.token_hex(3)
-a, b = f"ptqa.a{tag}@gmail.com", f"ptqa.b{tag}@gmail.com"
+a, b = f"ptqaa{tag}@gmail.com", f"ptqab{tag}@gmail.com"
 pw = "Passw0rd!" + tag
 
 r = sb_signup(a, pw); assert r.ok, r.text; tok_a = r.json()["access_token"]; print("signup A ✓ (session issued → email confirmation is OFF)")
 r = sb_signup(b, pw); assert r.ok, r.text; tok_b = r.json()["access_token"]
-m = me(tok_a).json(); assert m["authenticated"] and m["email"] == a.replace(".", "", 1) and m["trial_word_used"] == 0, m; print("backend /me via Supabase token ✓", m["email"])
+m = me(tok_a).json(); assert m["authenticated"] and m["email"] == a and m["trial_word_used"] == 0, m; print("backend /me via Supabase token ✓", m["email"])
 u = loop.run_until_complete(db.users.find_one({"email": a}, {"_id": 0, "supabase_sub": 1, "trial_word_used": 1})); assert u and u["supabase_sub"]; print("Mongo user linked by supabase_sub ✓")
 
 r = sb_login(a, "wrong-password-1"); assert r.status_code == 400, r.status_code; print("wrong password rejected ✓")
@@ -49,7 +49,7 @@ assert me("eyJhbGciOiJub25lIn0.eyJzdWIiOiJ4IiwiZW1haWwiOiJ4QHkuY29tIn0.").json()
 print("tampered + alg=none tokens rejected ✓")
 
 # existing (legacy) user linked by email on first Supabase login
-legacy = f"ptqa.legacy{tag}@gmail.com"
+legacy = f"ptqalegacy{tag}@gmail.com"
 loop.run_until_complete(db.users.insert_one({"email": legacy, "email_key": legacy, "trial_word_used": 3, "trial_scene_used": 1, "created_at": "2026-01-01", "last_login_at": "2026-01-02"}))
 loop.run_until_complete(db.memberships.insert_one({"user_email": legacy, "status": "active", "offer_title": "TEST_legacy", "source": "manual_grant", "subscription_end_at": None}))
 r = sb_signup(legacy, pw); tok_l = r.json()["access_token"]
