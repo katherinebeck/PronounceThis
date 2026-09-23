@@ -255,7 +255,7 @@ class CaptionSearchService:
     CHANNEL_TTL = 30 * 24 * 3600        # 30 days for channel-id lookups
     RESULT_TTL = 30 * 24 * 3600         # 30 days for successful transcripts
     MISS_TTL = 60 * 60                  # 1 hour for misses/rate-limits (retry later)
-    CACHE_VERSION = 3                   # bump to invalidate cached query results (v3: profanity screen)
+    CACHE_VERSION = 2                   # bump to invalidate cached query results
 
     def __init__(self, db):
         self.db = db
@@ -267,10 +267,12 @@ class CaptionSearchService:
         self._hidden_at: float = 0.0
 
     async def hidden_video_ids(self) -> set:
-        """Admin-hidden videos (e.g. a non-GA speaker). Cached 60s."""
+        """Admin-hidden videos plus slur-flagged transcripts. Cached 60s."""
         if self._hidden is None or time.time() - self._hidden_at > 60:
             docs = await self.db.hidden_videos.find({}, {"_id": 0, "video_id": 1}).to_list(5000)
-            self._hidden = {d["video_id"] for d in docs}
+            slurs = await self.db.caption_transcript_cache.find(
+                {"has_slur": True}, {"_id": 0, "video_id": 1}).to_list(5000)
+            self._hidden = {d["video_id"] for d in docs} | {d["video_id"] for d in slurs}
             self._hidden_at = time.time()
         return self._hidden
 
@@ -477,8 +479,7 @@ class CaptionSearchService:
 
         Uses per-word timing when the caption file had it; otherwise
         interpolates the word's position across the segment. Returns the
-        best-scoring hit (see _score_hit) whose ±20s clip window is free
-        of profanity, or None."""
+        best-scoring hit (see _score_hit) or None."""
         target = query.lower().strip()
         if not target:
             return None
@@ -486,7 +487,6 @@ class CaptionSearchService:
         if not target_words:
             return None
         n_t = len(target_words)
-        spans = profanity.profane_spans(transcript)
         best: Optional[Dict[str, Any]] = None
         for entry in transcript:
             text = (entry.get("text") or "").strip()
@@ -519,8 +519,6 @@ class CaptionSearchService:
                 offset = seg_start
             if not precise and len(words) > 1 and seg_dur > 0:
                 offset = seg_start + seg_dur * (idx / len(words))
-            if not profanity.clip_is_clean(spans, offset):
-                continue
             hit = {
                 "offset": max(0.0, offset),
                 "snippet": text,

@@ -431,7 +431,8 @@
 - Landing page: hero (`/landing/hero-devices.png`, transparent, trimmed), `word-tool.jpg`, `scene-tool.jpg` replaced with the user's own light-theme images (cache-busted `?v=light`).
 
 ## Added (Sep 23, 2026 — Real Speakers profanity screen)
-- `backend/profanity.py`: two-tier caption screen. **Slurs** (n-word etc.) anywhere in a transcript → whole video excluded (`has_slur=True` on `caption_transcript_cache`). **Profanity** (f/s-words, etc.) and YouTube's `[ __ ]` bleep marker → only the ±20 s clip window is checked; `_find_word_in_transcript` picks the best *clean* occurrence or skips the video.
+- **Revised same day (user):** swearing must stay (actors need it) — filter is now **slurs only**; `CACHE_VERSION` restored to 2 and slur videos are excluded via `hidden_video_ids()` so cached results are reused (the v3 bump had made every word re-search YouTube = sluggish).
+- `backend/profanity.py` (original two-tier design, superseded): **Slurs** (n-word etc.) anywhere in a transcript → whole video excluded (`has_slur=True` on `caption_transcript_cache`). **Profanity** (f/s-words, etc.) and YouTube's `[ __ ]` bleep marker → only the ±20 s clip window is checked; `_find_word_in_transcript` picks the best *clean* occurrence or skips the video.
 - Applied in both search paths (local Mongo index + live YouTube scan); `CACHE_VERSION` bumped to 3 so stale cached query results are re-filtered. Startup background `backfill_slur_flags()` stamped all 6,553 cached transcripts (4 flagged). Surnames "Coons"/"Dyke" deliberately excluded from the slur list (false positives on news channels).
 - Hard-coded list per user choice; Admin "hide video" remains the backstop. Tests: `backend/tests/test_profanity.py` (5 passing).
 - Dev note: uvicorn hot-reload sometimes hangs after edits (startup ingest task) — `sudo supervisorctl restart backend` fixes it.
