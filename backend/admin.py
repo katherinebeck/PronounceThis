@@ -771,6 +771,28 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "stripe": stripe_info,
         }
 
+    @router.get("/kit/status")
+    async def kit_status(request: Request):
+        await require_admin(request, db)
+        import kit
+        key = (os.environ.get("KIT_API_KEY") or "").strip()
+        return {"enabled": kit.enabled(), "key_prefix": key[:4] if key else "", "looks_v4": key.startswith("kit_"),
+                "tags": [kit.TAG_TRIAL, kit.TAG_MONTHLY, kit.TAG_ANNUAL, kit.TAG_CANCELLED]}
+
+    @router.post("/kit/test")
+    async def kit_test(request: Request, body: dict):
+        """Tag an email with PT Trial right now and report Kit's exact answer."""
+        admin_email = await require_admin(request, db)
+        import kit
+        email = (body.get("email") or admin_email).strip().lower()
+        if not kit.enabled():
+            raise HTTPException(status_code=400, detail="KIT_API_KEY is empty in this environment")
+        try:
+            await kit.tag_subscriber_now(email, kit.TAG_TRIAL)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e)[:400])
+        return {"ok": True, "email": email, "tag": kit.TAG_TRIAL}
+
     @router.get("/credits")
     async def credits(request: Request):
         await require_admin(request, db)

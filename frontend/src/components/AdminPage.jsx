@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { PronunciationPrefs } from "./PronunciationPrefs";
 import CreditMeter from "./CreditMeter";
+import KitStatus from "./KitStatus";
 import { DictionaryBuilder } from "./DictionaryBuilder";
 import { HiddenVideos } from "./HiddenVideos";
 import {
@@ -527,6 +528,8 @@ export default function AdminPage() {
         </section>
 
         <CreditMeter />
+
+        <KitStatus />
 
         {/* Data export */}
         <section className="bg-surface border thin-rule p-6" data-testid="admin-export">
