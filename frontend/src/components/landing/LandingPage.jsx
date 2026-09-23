@@ -40,7 +40,7 @@ export default function LandingPage() {
           </div>
           <div className="slug slug--pre-shot">Int. Your Next U.S. Audition</div>
           <div className="device-mockup device-mockup--shot" aria-hidden="true">
-            <img src="/landing/hero-devices.jpg" alt="" />
+            <img src="/landing/hero-devices.png" alt="" />
           </div>
         </div>
       </div>
@@ -94,7 +94,7 @@ export default function LandingPage() {
           <div className="section-head"><h2>Ways to use Pronounce This.</h2></div>
           <div className="scene-card">
             <div className="shot-frame shot-frame--second">
-              <img src="/landing/word-tool.jpg" alt='Pronounce This Word tool showing the pronunciation of "server"' />
+              <img src="/landing/word-tool.jpg?v=light" alt='Pronounce This Word tool showing the pronunciation of "server"' />
             </div>
             <div>
               <div className="scene-slug">Pronounce a word</div>
@@ -120,7 +120,7 @@ export default function LandingPage() {
               </ul>
             </div>
             <div className="shot-frame">
-              <img src="/landing/scene-tool.jpg" alt="Pronounce your scene tool showing a scene with lines transcribed in IPA and sound lists" />
+              <img src="/landing/scene-tool.jpg?v=light" alt="Pronounce your scene tool showing a scene with lines transcribed in IPA and sound lists" />
             </div>
           </div>
         </div>

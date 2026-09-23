@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Loader2, Mail, Lock } from "lucide-react";
 import { supabase, passwordProblem } from "@/lib/supabase";
+import { useAuth, AUTH_ERROR_TEXT } from "@/lib/auth";
 import { toast } from "sonner";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
@@ -18,6 +19,7 @@ function Field({ icon: Icon, testId, ...props }) {
 
 // mode: "signin" | "signup" | "forgot". onDone(mode) fires after success.
 export default function AuthForm({ mode, setMode, onDone, compact = false }) {
+  const { refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -50,15 +52,19 @@ export default function AuthForm({ mode, setMode, onDone, compact = false }) {
         const { error: err } = await supabase.auth.resetPasswordForEmail(clean, { redirectTo: `${window.location.origin}/auth/reset` });
         if (err) throw err;
         setSent(true);
-      } else if (mode === "signup") {
-        const { error: err } = await supabase.auth.signUp({ email: clean, password });
-        if (err) throw err;
-        toast.success("Welcome to Pronounce This!");
-        onDone?.("signup");
       } else {
-        const { error: err } = await supabase.auth.signInWithPassword({ email: clean, password });
+        const { error: err } = mode === "signup"
+          ? await supabase.auth.signUp({ email: clean, password })
+          : await supabase.auth.signInWithPassword({ email: clean, password });
         if (err) throw err;
-        onDone?.("signin");
+        // Confirm the backend actually recognises this login before closing.
+        const me = await refresh();
+        if (me?.auth_error) {
+          setError(AUTH_ERROR_TEXT[me.auth_error] || "We couldn't link your account. Please contact support.");
+          return;
+        }
+        if (mode === "signup") toast.success("Welcome to Pronounce This!");
+        onDone?.(mode);
       }
     } catch (err) {
       setError(friendly(err?.message));

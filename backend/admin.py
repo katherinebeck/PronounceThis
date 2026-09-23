@@ -345,6 +345,17 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return {"ok": True, "email": email, "users": u.deleted_count,
                 "memberships": m.deleted_count, "magic_links": ml.deleted_count}
 
+    @router.post("/users/unlink-login")
+    async def unlink_login(body: DeleteUserBody, request: Request):
+        """Detach the Supabase identity from an account so the next password
+        login for that inbox (any alias) re-links to it."""
+        await require_admin(request, db)
+        email = body.email.strip().lower()
+        r = await db.users.update_one({"email": email}, {"$unset": {"supabase_sub": ""}})
+        if r.matched_count == 0:
+            raise HTTPException(status_code=404, detail="user_not_found")
+        return {"ok": True, "email": email, "unlinked": r.modified_count == 1}
+
     @router.get("/events")
     async def recent_events(request: Request, limit: int = 50):
         await require_admin(request, db)

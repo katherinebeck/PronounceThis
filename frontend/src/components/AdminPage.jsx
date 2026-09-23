@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Check, AlertTriangle, Download, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Unlink, Check, AlertTriangle, Download, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -116,6 +116,18 @@ export default function AdminPage() {
       load();
     } catch (e) {
       toast.error(e?.response?.data?.detail || "Cancel failed");
+    }
+  };
+
+  const unlinkLogin = async (email) => {
+    if (!window.confirm(`Unlink the password login from ${email}? The next sign-in from this inbox (any alias) will re-link to this account.`))
+      return;
+    try {
+      await api.post("/admin/users/unlink-login", { email });
+      toast.success(`Unlinked login for ${email}`);
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Unlink failed");
     }
   };
 
@@ -838,6 +850,17 @@ export default function AdminPage() {
                                 Cancel
                               </button>
                             ) : null}
+                            {u.supabase_sub ? (
+                              <button
+                                type="button"
+                                onClick={() => unlinkLogin(u.email)}
+                                className="font-mono text-[10px] uppercase tracking-[0.2em] px-2.5 py-1.5 border thin-rule text-muted2 hover:bg-ink hover:text-surface hover:border-ink transition-colors inline-flex items-center gap-1.5"
+                                data-testid={`admin-unlink-login-${u.email}`}
+                                title="Unlink the password login so this inbox can sign in again with a different alias"
+                              >
+                                <Unlink size={11} />
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               onClick={() => setPendingDelete(u.email)}
@@ -894,7 +917,7 @@ export default function AdminPage() {
           </div>
 
           <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-3">
-            Click a date to extend or shorten access (clear it for no end) · Cancel = ends access at end of paid period · Trash = delete the user entirely.
+            Click a date to extend or shorten access (clear it for no end) · Cancel = ends access at end of paid period · Chain icon = unlink password login · Trash = delete the user entirely.
           </p>
         </section>
 

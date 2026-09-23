@@ -423,3 +423,9 @@
 - Landing images regenerated for light mode: public/landing/word-tool.jpg + scene-tool.jpg are real screenshots; hero-devices.jpg is an AI composite (laptop = Scene page, phone = Word page) — small on-screen text is approximate; user may supply a real mockup. Old dark hero kept as hero-devices-dark.jpg.
 - Join popup copy updated (no more "no password, ever").
 - TODO if user reports any remaining dark/unreadable spots: grep for hardcoded hex or `text-stage`/`text-surface` usages.
+
+## Added (Sep 23, 2026 — Alias-conflict login fix + light landing images)
+- **Bug**: a valid Supabase login whose inbox (alias-collapsed, e.g. `name+tag@gmail.com` ↔ `name@gmail.com`) resolved to a Mongo account already linked to a *different* Supabase identity was silently treated as a visitor → trial popup after sign-in (reported by Katherine with gabkatbeck@gmail.com on pronouncethis.us).
+- **Fix**: `supabase_auth.IdentityConflict` → `caller_email` stamps `request.state.auth_error="inbox_already_linked"` → `/api/auth/me` returns `auth_error`. Frontend `AuthForm` awaits `refresh()` after sign-in/sign-up and shows an inline error; `AuthProvider.refresh` signs out of Supabase and toasts when a stale conflicting session is found. Account-takeover guard is intentionally kept (no auto-relink).
+- **Admin**: `POST /api/admin/users/unlink-login {email}` ($unset supabase_sub) + Unlink icon in Admin → Users (shown for rows with a linked login). Delete-user also clears a conflict.
+- Landing page: hero (`/landing/hero-devices.png`, transparent, trimmed), `word-tool.jpg`, `scene-tool.jpg` replaced with the user's own light-theme images (cache-busted `?v=light`).

@@ -1,8 +1,14 @@
 import React, { useRef, createContext, useCallback, useContext, useEffect, useState } from "react";
 import { fetchMe, logout as apiLogout } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 
 const AuthCtx = createContext(null);
+
+export const AUTH_ERROR_TEXT = {
+  inbox_already_linked:
+    "This inbox already has a Pronounce This account under a different email address (for example the same Gmail with a +tag or dots). Sign in with that address instead.",
+};
 
 /**
  * Auth + subscription state provider. Fetches /api/auth/me once on mount
@@ -24,11 +30,19 @@ export function AuthProvider({ children }) {
   const [paywallReason, setPaywallReason] = useState(""); // "word" | "scene" | "subscription"
 
   const refreshSeq = useRef(0);
+  const loginOpenRef = useRef(false);
+  loginOpenRef.current = loginOpen;
   const refresh = useCallback(async () => {
     const seq = ++refreshSeq.current;
     try {
       const data = await fetchMe();
       if (seq === refreshSeq.current) setMe(data); // ignore stale responses
+      if (data?.auth_error) {
+        // Valid Supabase login we refuse to link: drop the session so the
+        // user isn't silently stuck as a "visitor".
+        await supabase.auth.signOut();
+        if (!loginOpenRef.current) toast.error(AUTH_ERROR_TEXT[data.auth_error] || "We couldn't link your account. Please contact support.", { id: "auth-error" });
+      }
       return data;
     } catch {
       if (seq === refreshSeq.current) setMe(null);

@@ -21,6 +21,11 @@ def enabled() -> bool:
     return bool(SUPABASE_URL)
 
 
+class IdentityConflict(Exception):
+    """The inbox behind this login is already linked to a different Supabase
+    identity (e.g. a Gmail +tag / dotted alias of an existing account)."""
+
+
 def verify_access_token(token: str) -> Optional[dict]:
     """Return verified claims (sub, email) or None. Signature, issuer,
     audience and expiry are all checked; only ES256 (JWKS) or legacy HS256
@@ -56,8 +61,9 @@ async def resolve_user_email(db: AsyncIOMotorDatabase, claims: dict) -> Optional
         email = await resolve_account_email(db, claims["email"])
         user = await db.users.find_one({"email": email}, {"email": 1, "supabase_sub": 1, "last_login_at": 1})
         if user and user.get("supabase_sub") not in (None, sub):
-            logger.warning("email %s already linked to another supabase identity", email)
-            return None
+            logger.warning("login %s resolves to account %s which is linked to another supabase identity",
+                           claims["email"], email)
+            raise IdentityConflict(email)
         if not user:
             await db.users.insert_one({
                 "email": email, "email_key": canonical_email(email), "supabase_sub": sub,

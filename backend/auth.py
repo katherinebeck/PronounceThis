@@ -82,6 +82,10 @@ class AuthMeResponse(BaseModel):
     stripe_prices: list = []
     has_stripe_customer: bool = False
     is_admin: bool = False
+    # Set when a valid Supabase login could not be linked to an account
+    # (e.g. "inbox_already_linked"): the frontend must not treat this as
+    # a plain visitor.
+    auth_error: Optional[str] = None
 
 
 # --- Helpers ----------------------------------------------------------------
@@ -196,7 +200,10 @@ async def caller_email(request: Request, db: AsyncIOMotorDatabase) -> Optional[s
         import supabase_auth
         claims = supabase_auth.verify_access_token(auth[7:].strip())
         if claims:
-            return await supabase_auth.resolve_user_email(db, claims)
+            try:
+                return await supabase_auth.resolve_user_email(db, claims)
+            except supabase_auth.IdentityConflict:
+                request.state.auth_error = "inbox_already_linked"
         return None
     token = request.cookies.get(JWT_COOKIE_NAME)
     return _decode_jwt(token) if token else None
@@ -480,6 +487,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 authenticated=False,
                 stripe_prices=stripe_prices,
                 has_stripe_customer=False,
+                auth_error=getattr(request.state, "auth_error", None),
                 **offer_urls,
             )
 
