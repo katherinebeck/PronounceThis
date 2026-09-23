@@ -175,7 +175,7 @@ export default function PaywallModal() {
           </div>
           ) : null}
           <p className="font-serif text-xs text-muted2 mt-4 text-center leading-relaxed" data-testid="paywall-spam-note">
-            Don't see the sign-in link in your inbox? Check your spam or junk folder.
+            {trialOnly ? "Forgot your password later? Reset emails can land in spam or junk — check there." : "Don't see our email? Check your spam or junk folder."}
           </p>
         </div>
       </div>

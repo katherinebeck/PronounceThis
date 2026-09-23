@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
+import React, { useRef, createContext, useCallback, useContext, useEffect, useState } from "react";
 import { fetchMe, logout as apiLogout } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
@@ -23,13 +23,15 @@ export function AuthProvider({ children }) {
   const [paywallOpen, setPaywallOpen] = useState(false);
   const [paywallReason, setPaywallReason] = useState(""); // "word" | "scene" | "subscription"
 
+  const refreshSeq = useRef(0);
   const refresh = useCallback(async () => {
+    const seq = ++refreshSeq.current;
     try {
       const data = await fetchMe();
-      setMe(data);
+      if (seq === refreshSeq.current) setMe(data); // ignore stale responses
       return data;
     } catch {
-      setMe(null);
+      if (seq === refreshSeq.current) setMe(null);
       return null;
     }
   }, []);
@@ -61,6 +63,8 @@ export function AuthProvider({ children }) {
   }, [refresh]);
 
   const doLogout = useCallback(async () => {
+    refreshSeq.current += 1;
+    setMe((prev) => (prev ? { ...prev, authenticated: false, email: null, subscription_status: "none" } : prev));
     await supabase.auth.signOut();
     await apiLogout();
     await refresh();

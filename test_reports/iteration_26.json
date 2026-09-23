@@ -1,0 +1,33 @@
+{
+  "summary": "Frontend-only acceptance run for Supabase Auth (Option A) migration on preview URL. Created new user ptqa.ui.kufckpf4@gmail.com (server-collapsed to ptqauikufckpf4@gmail.com) with password Passw0rd!ui1, later reset to Newpass1!ui2 via /auth/reset. All required flows PASS except one race-condition edge case in doLogout that leaves the PaywallModal 'trial-only' condition stale until a full page reload.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Logout → immediate trial popup (unauth Pronounce click) in same session",
+        "issue": "After clicking Log out from the account menu and then clicking PRONOUNCE on the Word tab, PaywallModal renders the JOIN layout (title 'Join Pronounce This' + monthly/annual plan buttons) instead of the trial-signup layout ('New here? Try it for free' + auth-form-signup). /api/auth/me at that moment returns authenticated=false email=null and header-signin is visible, yet the modal's trialOnly gate (`paywallReason === 'trial' && !me?.email`) evaluates false. Reload/fresh load fixes it — trial popup then renders correctly. Root cause looks like a race in AuthProvider.doLogout: supabase.auth.signOut() fires SIGNED_OUT which schedules refresh() while the httpOnly session cookie is still valid; that in-flight fetchMe resolves AFTER the awaited apiLogout()+refresh() and overwrites `me` with the pre-logout authenticated payload, so me.email stays set until the next mount.",
+        "affected_selectors": ["[data-testid=\"paywall-modal\"]", "[data-testid=\"trial-signup\"]", "[data-testid=\"auth-form-signup\"]"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix logout race in /app/frontend/src/lib/auth.jsx doLogout: either (a) ignore SIGNED_OUT-triggered refresh() while a logout is in progress, (b) run refresh() only after apiLogout() completes (not inside onAuthStateChange during signOut), or (c) explicitly setMe(null) at the top of doLogout so any late-arriving fetchMe response cannot re-populate me.email.",
+    "Optional: in PaywallModal, harden the trial gate by using isAuthenticated from useAuth() instead of !me?.email (this also fixes the iteration_25 note about signed-in users reaching openPaywall('trial'))."
+  ],
+  "critical_code_review_comments": [
+    "AuthProvider.doLogout has an unhandled race with onAuthStateChange('SIGNED_OUT') — both call refresh() but the SIGNED_OUT-triggered call fires with the cookie still valid, so the last-writer-wins fetchMe leaves stale `me`. Reproduced deterministically after login+logout in the same tab.",
+    "PaywallModal computes trialOnly from `!me?.email`. `isAuthenticated` (already exposed by useAuth) is the correct signal — using `me?.email` couples the gate to a specific response shape and is fragile against stale state (see race above).",
+    "Prior iteration_25 comment still applies: `App.js` still references `openPaywall('trial')` from PronouncePage/UploadDropzone/ScenesSidebar/LandingPage but PaywallModal only shows the trial layout when unauth — a signed-in user landing on that reason gets the wrong modal."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only run)", "frontend": "~93% (15/16 acceptance items PASS; 1 race-condition edge case fails deterministically after logout)"},
+  "test_credentials": "Created during run: ptqa.ui.kufckpf4@gmail.com / Newpass1!ui2 (Supabase collapses gmail dots server-side, so account chip shows ptqauikufckpf4@gmail.com). Original password Passw0rd!ui1 was rotated via /auth/reset.",
+  "seed_data_creation": "One Supabase user + backend member row created via signup. Not deleted (Supabase admin API not exposed to the test).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "All acceptance items in the review request pass on a fresh page load. The single failing flow is deterministically reproducible: (1) sign in, (2) click account-logout, (3) without reloading, click PRONOUNCE on the Word tab — paywall opens with Join layout instead of trial layout. Reload the page and the same click renders the trial layout correctly. When retesting after the fix, clear localStorage/sessionStorage and cookies between attempts to rule out cached Supabase sessions. The trial-gating 6-word limit works: hello/world/banana/coffee/river succeed, salmon returns 402 and paywall shows 'Join Pronounce This' + 'You've used your 5 free words.' /payment/success?session_id=fake renders (short failed-state body, ~115 chars, no crash). /api/scenes without a bearer token returns 401.",
+  "rca of the issue": "AuthProvider.doLogout: `await supabase.auth.signOut()` synchronously triggers the SIGNED_OUT branch of onAuthStateChange which calls refresh() (fetch /api/auth/me). At that instant the httpOnly session cookie is still valid, so fetchMe returns the fully-authenticated payload. Meanwhile doLogout awaits apiLogout() (which clears the cookie) and then awaits its own refresh(). Whichever fetchMe request resolves last wins the setMe. In practice the SIGNED_OUT refresh often resolves after the manual one, leaving `me` populated with the pre-logout email. isAuthenticated is derived from me?.authenticated so the header correctly flips to Sign in, but PaywallModal.trialOnly checks `!me?.email` which is now falsy — so unauth trial clicks render the paid-plan layout. Mitigation: setMe(null) at the top of doLogout, and/or debounce the SIGNED_OUT-triggered refresh while a manual logout is in flight, and/or switch PaywallModal to use isAuthenticated."
+}
