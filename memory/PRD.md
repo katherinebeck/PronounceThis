@@ -445,3 +445,11 @@
 - **Trial Abuse View** (P2): Admin view of devices that created several trial accounts.
 - **Playback Speed** (P2): 0.5× / 0.75× / 1× controls for words and scene lines.
 - Still queued from earlier: MongoDB Atlas migration (on request), Upload queue with retry (after first 20 paying members), PWA, split `server.py` into routers.
+
+## Added (Sep 23, 2026 — Report clip · Blocked words · Trial abuse · YouTube backoff) — iteration_28 all pass
+- **Report This Clip**: `POST /api/caption-search/report {video_id, reason, query}` (login + rate limit 20/h) → `clip_reports` (status open, reporters[], reasons[]), owner emailed via `notify_owner`. Player footer "Report clip" → 4 reason buttons (Offensive language / Not an American speaker / Wrong word or timing / Other), clip skipped locally. Admin: `GET /admin/clip-reports`, `POST /admin/clip-reports/resolve {video_id, action: hide|dismiss}`; `ClipReports.jsx` section.
+- **Blocked Words Editor**: slur list stored in `settings{key:"blocked_words"}` (seeded from `profanity.DEFAULT_WORDS`, loaded at startup). `GET/POST /admin/blocked-words` — POST replaces the list and runs `rescan_slur_flags()` over all transcripts (sync, ~seconds). `BlockedWords.jsx` chips + add + reset.
+- **Trial Abuse View**: `GET /admin/trial-devices` (devices with ≥2 emails or blocked), `POST /admin/trial-devices/block {device_id, blocked}` → sets `trial_devices.blocked` and `users.trial_blocked` on its emails (admin email excluded). `require_access` returns 402 trial_exhausted for blocked user/device; subscribers unaffected. `TrialDevices.jsx` table with Block/Unblock.
+- **YouTube rate-limit rectification**: `caption_search.RateLimited` + 30-min circuit breaker (`_yt_backoff_until`) tripped on 429/403/"sign in to confirm"; yt-dlp errors captured via quiet logger (no more ERROR spam); "no captions" cached 7 days (was 1 h); rate-limited misses expire with the backoff; ingest sleeps 3–5 s with jitter, stops the pass when throttled and does NOT stamp last_full_finished_at (retries next day). Optional `YTDLP_PROXY` env (yt-dlp `proxy`) for a residential proxy later.
+- Admin page section order: ClipReports, BlockedWords, HiddenVideos, TrialDevices, then Users.
+- Backlog notes from testing agent (non-blocking): blocked-words rescan is synchronous; startup ingest runs on every restart (dev annoyance).

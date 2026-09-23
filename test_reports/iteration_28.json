@@ -1,0 +1,31 @@
+{
+  "summary": "Verified all iteration-28 admin/member flows: Report This Clip (member UI + backend), Blocked Words editor (admin UI + backend), Trial Abuse view (admin UI + backend, block→402→unblock→200), plus regressions (auth/me, caption-search, landing images). 11/11 pytest backend tests pass. Frontend admin sections render (23 blocked-word chips, seeded trial device, hidden clips, clip reports). Member Report Clip flow verified end-to-end: reasons panel appears, cancel hides it, clicking a reason posts to /api/caption-search/report, toast \"Thanks — we'll review this clip.\" shown, and the clip is removed from the current list.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration28_backend.py",
+    "/app/test_reports/pytest/iteration28.xml"
+  ],
+  "action_items": [
+    "None from testing — feature is production ready.",
+    "Minor: the review request refers to a caption-search-modal wrapper, but the Real Speakers UI is actually rendered inline via data-testid=real-speakers-inline (no separate modal wrapper); the report button, reasons panel, cancel and reasons all work as spec'd inside the inline card. Documentation could be updated to reflect this — no code change needed."
+  ],
+  "critical_code_review_comments": [
+    "Backend POST /api/admin/blocked-words accepts a full replacement list `{words: [...]}` — not partial add/remove. UI already handles this correctly by re-sending the full list after mutating locally; consistent, but note that concurrent edits by two admins could clobber each other (last-write-wins). Acceptable for a small admin team.",
+    "The blocked-words rescan of ~4361 transcripts runs synchronously on the POST call and can occupy the event loop for several seconds; consider offloading to a background task and returning 202 with a job id if list is large.",
+    "The backend startup ingest supervisor triggers on every hot-reload and blocks the API for ~60–90s each restart while iterating channels. Consider gating startup ingest behind a flag or delaying it a few seconds after startup so hot-reloads don't take the API offline.",
+    "Report reason testids are derived from the label string (replace non-a-z), so localising labels would silently break selectors — consider decoupling id from label."
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration28_backend.py"],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% on tested flows (admin sections render + blocked-words + trial device toggle + member report clip)"},
+  "test_credentials": "member: ptqalogoutcheck9@gmail.com / Passw0rd!lc9 (Supabase). admin: katherine@katherinebeck.com via legacy JWT cookie accent_session=... minted with /app/backend/auth.py::_issue_jwt.",
+  "seed_data_creation": "None net-new. All temporary artifacts cleaned: 'zork' removed from blocked-words, TEST_ clip report for zzTEST0001a resolved+cleaned, real clip report from UI run (video nO_Hi1qF59I) dismissed via API. Seeded trial device qa_abuse_device_0000000000000001 confirmed unblocked at end (blocked:false).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend hot-reload takes 60–90s after any file edit under /app/backend (including /app/backend/tests/*.py) because startup ingest supervisor calls YouTube for all 146 channels; use `sudo supervisorctl restart backend` then wait ~90s before hitting API. When invoking auth._issue_jwt from subprocess, use /root/.venv/bin/python (system python3 lacks the `jwt` module). Blocked-words POST expects full list {words:[]} not partial add/remove. Real Speakers is rendered inline on the pronounce page (data-testid=real-speakers-inline) — no separate modal wrapper. Report reason testids: caption-report-reason-offensive-language, caption-report-reason-not-an-american-speaker, caption-report-reason-wrong-word-or-timing, caption-report-reason-other. Word input has no data-testid (queried by placeholder 'Type a word').",
+  "rca of the issue": "No functional issues found. Only note: the initial pytest run failed because the test file lived under /app/backend/tests (a watched dir) and every edit caused the reloader to restart the API mid-run, which combined with the ~60s startup ingest looked like a system-wide outage. Solved by restarting via supervisorctl and pausing 90s between edits and test runs."
+}

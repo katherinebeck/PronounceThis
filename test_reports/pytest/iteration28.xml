@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="2" skipped="0" tests="11" time="173.485" timestamp="2026-09-23T07:21:31.762732+00:00" hostname="agent-env-1974ef4e-0ea6-47fc-8722-7c39a621e136"><testcase classname="backend.tests.test_iteration28_backend.TestRegression" name="test_auth_me_member" time="15.726"><failure message="requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='accent-coach-pro.preview.emergentagent.com', port=443): Read timed out. (read timeout=15)">/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:534: in _make_request
+    response = conn.getresponse()
+               ^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:571: in getresponse
+    httplib_response = super().getresponse()
+                       ^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:1443: in getresponse
+    response.begin()
+/usr/local/lib/python3.11/http/client.py:337: in begin
+    version, status, reason = self._read_status()
+                              ^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/http/client.py:298: in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/socket.py:718: in readinto
+    return self._sock.recv_into(b)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/ssl.py:1314: in recv_into
+    return self.read(nbytes, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/lib/python3.11/ssl.py:1166: in read
+    return self._sslobj.read(len, buffer)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:645: in send
+    resp = conn.urlopen(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:841: in urlopen
+    retries = retries.increment(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/retry.py:490: in increment
+    raise reraise(type(error), error, _stacktrace)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/util/util.py:39: in reraise
+    raise value
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:787: in urlopen
+    response = self._make_request(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:536: in _make_request
+    self._raise_timeout(err=e, url=url, timeout_value=read_timeout)
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:367: in _raise_timeout
+    raise ReadTimeoutError(
+E   urllib3.exceptions.ReadTimeoutError: HTTPSConnectionPool(host='accent-coach-pro.preview.emergentagent.com', port=443): Read timed out. (read timeout=15)
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_iteration28_backend.py:51: in test_auth_me_member
+    r = requests.get(f"{BASE_URL}/api/auth/me", headers=member_headers, timeout=15)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:592: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:706: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:691: in send
+    raise ReadTimeout(e, request=request)
+E   requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='accent-coach-pro.preview.emergentagent.com', port=443): Read timed out. (read timeout=15)</failure></testcase><testcase classname="backend.tests.test_iteration28_backend.TestRegression" name="test_auth_me_admin" time="0.637" /><testcase classname="backend.tests.test_iteration28_backend.TestRegression" name="test_landing_images" time="0.455" /><testcase classname="backend.tests.test_iteration28_backend.TestRegression" name="test_caption_search_member" time="0.124" /><testcase classname="backend.tests.test_iteration28_backend.TestClipReports" name="test_report_requires_login" time="0.138" /><testcase classname="backend.tests.test_iteration28_backend.TestClipReports" name="test_report_create_and_admin_list" time="0.398" /><testcase classname="backend.tests.test_iteration28_backend.TestClipReports" name="test_resolve_hide" time="0.244" /><testcase classname="backend.tests.test_iteration28_backend.TestClipReports" name="test_resolve_dismiss_and_cleanup" time="11.656" /><testcase classname="backend.tests.test_iteration28_backend.TestBlockedWords" name="test_add_and_remove" time="142.436"><failure message="requests.exceptions.ConnectTimeout: HTTPSConnectionPool(host='accent-coach-pro.preview.emergentagent.com', port=443): Max retries exceeded with url: /api/admin/blocked-words (Caused by ConnectTimeoutError(&lt;HTTPSConnection(host='accent-coach-pro.preview.emergentagent.com', port=443) at 0xffa102a32650&gt;, 'Connection to accent-coach-pro.preview.emergentagent.com timed out. (connect timeout=60)'))">/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:204: in _new_conn
+    sock = connection.create_connection(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/connection.py:85: in create_connection
+    raise err
+/root/.venv/lib/python3.11/site-packages/urllib3/util/connection.py:73: in create_connection
+    sock.connect(sa)
+E   TimeoutError: timed out
+
+The above exception was the direct cause of the following exception:
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:787: in urlopen
+    response = self._make_request(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:488: in _make_request
+    raise new_e
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:464: in _make_request
+    self._validate_conn(conn)
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:1093: in _validate_conn
+    conn.connect()
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:759: in connect
+    self.sock = sock = self._new_conn()
+                       ^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/urllib3/connection.py:213: in _new_conn
+    raise ConnectTimeoutError(
+E   urllib3.exceptions.ConnectTimeoutError: (&lt;HTTPSConnection(host='accent-coach-pro.preview.emergentagent.com', port=443) at 0xffa102a32650&gt;, 'Connection to accent-coach-pro.preview.emergentagent.com timed out. (connect timeout=60)')
+
+The above exception was the direct cause of the following exception:
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:645: in send
+    resp = conn.urlopen(
+/root/.venv/lib/python3.11/site-packages/urllib3/connectionpool.py:841: in urlopen
+    retries = retries.increment(
+/root/.venv/lib/python3.11/site-packages/urllib3/util/retry.py:535: in increment
+    raise MaxRetryError(_pool, url, reason) from reason  # type: ignore[arg-type]
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E   urllib3.exceptions.MaxRetryError: HTTPSConnectionPool(host='accent-coach-pro.preview.emergentagent.com', port=443): Max retries exceeded with url: /api/admin/blocked-words (Caused by ConnectTimeoutError(&lt;HTTPSConnection(host='accent-coach-pro.preview.emergentagent.com', port=443) at 0xffa102a32650&gt;, 'Connection to accent-coach-pro.preview.emergentagent.com timed out. (connect timeout=60)'))
+
+During handling of the above exception, another exception occurred:
+backend/tests/test_iteration28_backend.py:163: in test_add_and_remove
+    r4 = requests.get(f"{BASE_URL}/api/admin/blocked-words", cookies=admin_cookies, timeout=DEFAULT_TIMEOUT)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:73: in get
+    return request("get", url, params=params, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/api.py:59: in request
+    return session.request(method=method, url=url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:592: in request
+    resp = self.send(prep, **send_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/sessions.py:706: in send
+    r = adapter.send(request, **kwargs)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/root/.venv/lib/python3.11/site-packages/requests/adapters.py:666: in send
+    raise ConnectTimeout(e, request=request)
+E   requests.exceptions.ConnectTimeout: HTTPSConnectionPool(host='accent-coach-pro.preview.emergentagent.com', port=443): Max retries exceeded with url: /api/admin/blocked-words (Caused by ConnectTimeoutError(&lt;HTTPSConnection(host='accent-coach-pro.preview.emergentagent.com', port=443) at 0xffa102a32650&gt;, 'Connection to accent-coach-pro.preview.emergentagent.com timed out. (connect timeout=60)'))</failure></testcase><testcase classname="backend.tests.test_iteration28_backend.TestTrialAbuse" name="test_list_devices" time="0.413" /><testcase classname="backend.tests.test_iteration28_backend.TestTrialAbuse" name="test_block_then_pronounce_402_then_unblock" time="1.014" /></testsuite></testsuites>
