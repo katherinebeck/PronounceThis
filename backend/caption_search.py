@@ -27,6 +27,8 @@ from typing import Any, Dict, List, Optional
 import httpx
 import yt_dlp
 
+import profanity
+
 logger = logging.getLogger(__name__)
 
 YOUTUBE_API_BASE = "https://www.googleapis.com/youtube/v3"
@@ -253,7 +255,7 @@ class CaptionSearchService:
     CHANNEL_TTL = 30 * 24 * 3600        # 30 days for channel-id lookups
     RESULT_TTL = 30 * 24 * 3600         # 30 days for successful transcripts
     MISS_TTL = 60 * 60                  # 1 hour for misses/rate-limits (retry later)
-    CACHE_VERSION = 2                   # bump to invalidate cached query results
+    CACHE_VERSION = 3                   # bump to invalidate cached query results (v3: profanity screen)
 
     def __init__(self, db):
         self.db = db
@@ -475,7 +477,8 @@ class CaptionSearchService:
 
         Uses per-word timing when the caption file had it; otherwise
         interpolates the word's position across the segment. Returns the
-        best-scoring hit (see _score_hit) or None."""
+        best-scoring hit (see _score_hit) whose ±20s clip window is free
+        of profanity, or None."""
         target = query.lower().strip()
         if not target:
             return None
@@ -483,6 +486,7 @@ class CaptionSearchService:
         if not target_words:
             return None
         n_t = len(target_words)
+        spans = profanity.profane_spans(transcript)
         best: Optional[Dict[str, Any]] = None
         for entry in transcript:
             text = (entry.get("text") or "").strip()
@@ -515,6 +519,8 @@ class CaptionSearchService:
                 offset = seg_start
             if not precise and len(words) > 1 and seg_dur > 0:
                 offset = seg_start + seg_dur * (idx / len(words))
+            if not profanity.clip_is_clean(spans, offset):
+                continue
             hit = {
                 "offset": max(0.0, offset),
                 "snippet": text,
@@ -731,19 +737,30 @@ class CaptionSearchService:
         # 1h TTL for misses so we eventually retry after rate-limits clear).
         cached = await self.db.caption_transcript_cache.find_one({"video_id": video_id})
         if cached and cached.get("expires_at", 0) > time.time():
+            if cached.get("has_slur"):
+                return None
             transcript = cached.get("transcript")
             if meta and not (cached.get("channel_id") or (cached.get("channel_meta") or {}).get("channel_id")):
                 await self.db.caption_transcript_cache.update_one(
                     {"video_id": video_id}, {"$set": {"channel_meta": meta}}
                 )
+            if "has_slur" not in cached:
+                slur = profanity.has_slur(transcript or [])
+                await self.db.caption_transcript_cache.update_one(
+                    {"video_id": video_id}, {"$set": {"has_slur": slur}}
+                )
+                if slur:
+                    return None
         else:
             transcript = await asyncio.to_thread(self._fetch_transcript_sync, video_id)
             ttl = self.RESULT_TTL if transcript else self.MISS_TTL
+            slur = profanity.has_slur(transcript or [])
             doc = {
                 "video_id": video_id,
                 "transcript": transcript or [],
                 "full_text": self._flatten_transcript(transcript or []),
                 "has_transcript": bool(transcript),
+                "has_slur": slur,
                 "expires_at": time.time() + ttl,
                 "cached_at": time.time(),
             }
@@ -754,9 +771,29 @@ class CaptionSearchService:
             )
             # Small delay between live fetches to avoid YouTube rate-limits.
             await asyncio.sleep(1.5)
+            if slur:
+                return None
         if not transcript:
             return None
         return self._find_word_in_transcript(transcript, query)
+
+    async def backfill_slur_flags(self) -> Dict[str, int]:
+        """One-off/idempotent: stamp `has_slur` on every cached transcript
+        that predates the profanity screen. Returns counts."""
+        scanned = flagged = 0
+        cursor = self.db.caption_transcript_cache.find(
+            {"has_slur": {"$exists": False}}, {"_id": 0, "video_id": 1, "transcript": 1}
+        )
+        async for doc in cursor:
+            slur = profanity.has_slur(doc.get("transcript") or [])
+            await self.db.caption_transcript_cache.update_one(
+                {"video_id": doc["video_id"]}, {"$set": {"has_slur": slur}}
+            )
+            scanned += 1
+            flagged += int(slur)
+        if scanned:
+            logger.info("profanity backfill: scanned %d transcripts, flagged %d", scanned, flagged)
+        return {"scanned": scanned, "flagged": flagged}
 
     @staticmethod
     def _flatten_transcript(transcript: List[Dict[str, Any]]) -> str:
@@ -789,6 +826,7 @@ class CaptionSearchService:
         cursor = self.db.caption_transcript_cache.find(
             {"$text": {"$search": f'"{query}"'},
              "has_transcript": True,
+             "has_slur": {"$ne": True},
              "embeddable": {"$ne": False}},
             {"_id": 0, "score": {"$meta": "textScore"}},
         ).sort([("score", {"$meta": "textScore"})]).limit(limit * 5)
@@ -799,6 +837,13 @@ class CaptionSearchService:
             channel_id = meta.get("channel_id") or doc.get("channel_id") or ""
             if channel_id not in curated or doc["video_id"] in hidden:
                 continue
+            if "has_slur" not in doc:
+                slur = profanity.has_slur(doc.get("transcript") or [])
+                await self.db.caption_transcript_cache.update_one(
+                    {"video_id": doc["video_id"]}, {"$set": {"has_slur": slur}}
+                )
+                if slur:
+                    continue
             hit = self._find_word_in_transcript(
                 doc.get("transcript") or [], query
             )

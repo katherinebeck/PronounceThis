@@ -1721,6 +1721,13 @@ async def _startup_indexes():
     except Exception as exc:
         logger.warning("caption local index bootstrap failed: %s", exc)
 
+    async def _slur_backfill():
+        try:
+            await caption_service.backfill_slur_flags()
+        except Exception as exc:
+            logger.warning("profanity backfill failed: %s", exc)
+    asyncio.create_task(_slur_backfill())
+
     # Auto-kick channel ingest on cold start IF the transcript cache is
     # nearly empty, AND run a weekly refresh forever after so new uploads
     # keep flowing in. Runs in the background — doesn't block startup.
