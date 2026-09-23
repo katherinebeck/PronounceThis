@@ -416,3 +416,10 @@
 - "Contact support" now opens SupportModal.jsx (portal, light theme): email info@katherinebeck.com + Copy + mailto (subject "Pronounce This support"). Old mailto-only link "did nothing" without a mail client.
 - /auth/reset (Choose a new password) + VerifyPage use .theme-light.
 - Admin: KitStatus card — GET /api/admin/kit/status (enabled, key prefix, looks_v4) + POST /api/admin/kit/test {email} runs kit.tag_subscriber_now(PT Trial) and surfaces Kit's exact error. Deployment agent static "blockers" (TTL indexes, CORS) are intentional/false positives — production CORS_ORIGINS is set in Secrets.
+
+## 2026-06 — LIGHT THEME (whole app)
+- User chose light mode app-wide. Implemented at the Tailwind level: tailwind.config.js palette flipped (stage #F4F1EA, paper #FAF8F3, surface #FFF, elevated #EFECE4, ink #17140F, muted2 #5D5648, rule #DDDAD2, rust #B3761F, rustDeep #E5A93C, crimson #B8382E, sage #1F8F68) so all variants (hover:, /opacity) follow. index.css "Light theme" block: CSS vars, glass-bar, btn-primary dark text, inverted .bg-ink pills keep white text, modal backdrops dim, placeholder #6b6659. `.theme-light` class no longer needed (harmless).
+- Testing agent iteration_27 found contrast defects (account chip open, btn-primary cream-on-amber, Join button white-on-amber, plan card subtext) — all fixed by the palette flip; verified via screenshots.
+- Landing images regenerated for light mode: public/landing/word-tool.jpg + scene-tool.jpg are real screenshots; hero-devices.jpg is an AI composite (laptop = Scene page, phone = Word page) — small on-screen text is approximate; user may supply a real mockup. Old dark hero kept as hero-devices-dark.jpg.
+- Join popup copy updated (no more "no password, ever").
+- TODO if user reports any remaining dark/unreadable spots: grep for hardcoded hex or `text-stage`/`text-surface` usages.

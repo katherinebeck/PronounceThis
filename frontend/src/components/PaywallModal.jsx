@@ -60,7 +60,7 @@ export default function PaywallModal() {
       : "";
   const subhead =
     usedNote +
-    "Choose monthly or join annual (get 2 months free). A one-tap sign-in link lands in your inbox right after — no password, ever.";
+    "Choose monthly or join annual (get 2 months free). Pay securely with Stripe, then sign in with your email and password.";
 
   return (
     <div

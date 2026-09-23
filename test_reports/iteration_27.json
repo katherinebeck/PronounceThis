@@ -1,0 +1,67 @@
+{
+  "summary": "Frontend visual/contrast regression pass after dark→light theme flip. Landing, /app main body, Sign-in modal layout, Reset page, Contact-support modal, WORD/SCENE tab pills all render correctly in the new light palette. However there are 3 real contrast defects introduced by the light-theme overrides in src/index.css that make text unreadable in several places — most notably the header account chip in its open state (dark-on-dark, ratio 1.01) and every amber CTA that uses .btn-primary (cream text on amber, ratio 1.85–2.08).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Header account chip (open state)",
+        "issue": "When the account menu is OPEN the chip gets bg-ink (#121316 computed) AND keeps text-ink (#17140f) — measured contrast ratio 1.01. The 'PTQALOGOUTCHECK9@GMAIL.COM' label and the user icon disappear entirely (see screenshot 11_account_menu.jpg — the top-right chip is a solid black rectangle with no visible glyphs).",
+        "selector": "[data-testid='header-account']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "All .btn-primary buttons (amber CTAs)",
+        "issue": ".btn-primary sets `color: var(--stage)` in the base sheet, but the light-theme block at the bottom of index.css redefined --stage to #f4f1ea (cream). So every amber button now shows cream text on amber — measured ratio 1.85. Affected (verified): PRONOUNCE button [data-testid='pronounce-btn'/'pronounce-submit'], Sign-in submit [data-testid='auth-submit'], Upload a scene banner [data-testid='scenes-promo-banner'], BACK TO PRONOUNCE THIS on /auth/reset, OPEN IN MY EMAIL APP in support popup, HEAR WORD button, Try Pronounce This landing CTAs. Fix: in the light-theme block, override .btn-primary color to #17140f (or add `--btn-primary-fg` var).",
+        "selector": ".btn-primary, [data-testid='auth-submit'], [data-testid='pronounce-btn'], [data-testid='pronounce-submit'], [data-testid='scenes-promo-banner']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Header 'Join Pronounce This' button",
+        "issue": "White text (rgb(255,255,255)) on amber bg (rgb(229,169,60)) — ratio 2.08. Uses `text-surface` class in the light theme override. Same class family as above; ensure amber pills carry dark-ink labels.",
+        "selector": "[data-testid='header-get-started']",
+        "priority": "HIGH"
+      },
+      {
+        "component": "PaywallModal — Join popup, Monthly card small label",
+        "issue": "The 'MONTHLY' eyebrow/subtitle on the monthly plan card renders `text-surface/70` (rgba(244,241,234,0.7)) on a WHITE card — nearly invisible. And the reverse-side text `rgba(26,27,32,0.7)` on the dark annual card (rgb(23,20,15)) measured at ratio 1.07 also disappears. Any small subtext coloured with text-surface/* class is being applied on both white and dark cards without switching. Visible in 05_join_modal.jpg: monthly card top-left 'MONTHLY' eyebrow is barely there while annual card 'ANNUAL' eyebrow line is missing entirely.",
+        "selector": "[data-testid='paywall-modal'] .text-surface\\/70",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "Word input placeholder",
+        "issue": "Placeholder 'Type a word' is very low-contrast light-grey on white; visually faint (see 03_app_signedout.jpg / 07_signedin_word.jpg). Not strictly < 3:1 but borderline; consider #6b6659 for better legibility.",
+        "selector": "[data-testid='word-input']",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Landing", "issues": ["Hero image /landing/hero-devices.jpg loads correctly (1264x848); all 3 landing CTAs open the trial popup with white bg + black text as expected."]},
+      {"screen": "/app signed-out header", "issues": ["Brand, WORD/SCENE tabs, Sign in, Join buttons all visible with adequate contrast except header Join button (see UI bug)."]},
+      {"screen": "Sign-in modal", "issues": ["White bg, black text, inputs readable; empty-submit produced no visible client-side error (form allowed submit and just no-op'd — no red error text detected). If validation is expected pre-network, this is a functional gap; not a contrast issue."]},
+      {"screen": "Contact support modal", "issues": ["Modal itself is white with readable black copy; copy-email button visible; only defect is the amber 'OPEN IN MY EMAIL APP' bottom button inheriting the cream-on-amber .btn-primary bug above."]},
+      {"screen": "/auth/reset (expired)", "issues": ["White card, readable copy after ~6s; only the amber 'Back to Pronounce This' CTA has the cream-on-amber issue."]},
+      {"screen": "WORD/SCENE tab pills", "issues": ["Active pill = dark bg-stage/ink with WHITE text (readable); inactive pill = light bg with dark text (readable). Matches spec."]}
+    ]
+  },
+  "test_report_links": ["/app/.screenshots/01_landing.jpg", "/app/.screenshots/02_trial_popup.jpg", "/app/.screenshots/03_app_signedout.jpg", "/app/.screenshots/04_signin_modal.jpg", "/app/.screenshots/05_join_modal.jpg", "/app/.screenshots/06_reset.jpg", "/app/.screenshots/11_account_menu.jpg", "/app/.screenshots/12_contact_support.jpg"],
+  "action_items": [
+    "Add `.btn-primary { color: #17140f; }` (or equivalent) inside the light-theme block at the bottom of /app/frontend/src/index.css so amber CTAs get dark ink instead of cream. This is the root cause of ~6 affected buttons (auth-submit, pronounce-btn/submit, scenes-promo-banner, header-get-started, Back to Pronounce This, Open in my email app, Hear word).",
+    "Fix header-account chip open-state: when the menu is open the button applies bg-ink (dark) without switching text color — either drop the bg-ink toggle in the light theme, or add `text-surface`/#fff to the open state so the email + chevron remain visible.",
+    "PaywallModal Join popup: audit `text-surface/70` usage — the same class is applied to eyebrows on both white and dark plan cards. On the white monthly card it needs to switch to a muted dark (e.g., text-muted2), and on the dark annual card keep text-surface/70. Currently subtitles are invisible on at least one of the two cards.",
+    "Optional (LOW): darken the word-input placeholder from ~#8a8375 to ~#6b6659 for better legibility on white."
+  ],
+  "critical_code_review_comments": [
+    "src/index.css light-theme block (lines 313–349) overrides --stage to a cream color but does NOT re-target .btn-primary which uses `color: var(--stage)`. This silently inverted the intended dark-on-amber label to cream-on-amber across the entire app. When re-theming, always audit all rules that consumed the redefined variables.",
+    "The header account button toggles a `bg-ink` class when open but the light theme keeps the same text color; the state style should be paired (`bg-ink text-surface` or equivalent) so it survives theme swaps.",
+    "PaywallModal reuses a single subtle-text utility (`text-surface/70`) on cards that flip between white and dark backgrounds. Either split into two classes or drive the subtext color from a card-scoped variable so it inverts with the card."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only run)", "frontend": "~78% (landing/reset/tabs/main body/support modal PASS; 3 contrast defects on account chip, all btn-primary CTAs, and paywall plan subtitles)"},
+  "test_credentials": "ptqalogoutcheck9@gmail.com / Passw0rd!lc9 (Supabase trial user)",
+  "seed_data_creation": "none",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Contrast checker is embedded in the playwright script (computes effective bg by walking ancestors + WCAG luminance ratio, flags ratio<3.0). Screenshots saved to /app/.screenshots. Prior iteration_26 logout-race issue was NOT re-verified this run — visual-only pass. If retesting the fix for btn-primary: verify by inspecting getComputedStyle color on [data-testid='auth-submit'] — should be #17140f, not rgb(244,241,234).",
+  "rca of the issue": "Root cause of the amber-CTA readability defect: /app/frontend/src/index.css line 208 defines `.btn-primary { color: var(--stage); }` (dark stage color in dark theme = near-black on amber, readable). The light-theme override block at line 313+ redefines `--stage: #f4f1ea` (cream) without also overriding .btn-primary's color, so every amber button now paints cream text on amber (measured 1.85). Root cause of the header-account chip defect: the button gains bg-ink when the menu opens, and light-theme sets .bg-ink to #17140f but leaves .text-ink at the same #17140f, so the toggled state is dark-on-dark (1.01). Root cause of the plan-card subtitles: PaywallModal uses `text-surface/70` (light) as a uniform subtitle color across two cards with opposite backgrounds; on the white monthly card that resolves to light-cream-on-white and on the dark card `rgba(26,27,32,0.7)` was measured — indicating either a stale class or the same utility being applied to two different card scopes."
+}
