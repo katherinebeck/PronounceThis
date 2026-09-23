@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { X, ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink, EyeOff } from "lucide-react";
-import { captionSearch, reportUnplayable, adminHideVideo } from "@/lib/api";
+import { X, ChevronLeft, ChevronRight, Loader2, RefreshCw, ExternalLink, EyeOff, Flag } from "lucide-react";
+import { captionSearch, reportUnplayable, adminHideVideo, reportClip } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { ClipPlayer } from "./ClipPlayer";
 import { toast } from "sonner";
@@ -149,6 +149,27 @@ export default function CaptionSearchModal({ open, query, onClose, inline = fals
       if (!rest.length) setError("Those clips are no longer available. Tap Refresh to search again.");
       return rest;
     });
+  };
+
+  // Any member: flag this clip for Katherine to review (offensive, wrong
+  // speaker, wrong word…). The clip is skipped locally right away.
+  const [reporting, setReporting] = useState(false);
+  const REPORT_REASONS = ["Offensive language", "Not an American speaker", "Wrong word or timing", "Other"];
+  const sendReport = async (reason) => {
+    if (!current) return;
+    const dead = current.video_id;
+    setReporting(false);
+    try {
+      await reportClip(dead, reason, query);
+      toast.success("Thanks — we'll review this clip.");
+      setResults((rs) => {
+        const rest = rs.filter((r) => r.video_id !== dead);
+        setIndex((i) => (rest.length ? Math.min(i, rest.length - 1) : 0));
+        return rest;
+      });
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Could not send report.");
+    }
   };
 
   // Admin: this speaker isn't General American — hide the clip for everyone.
@@ -300,21 +321,46 @@ export default function CaptionSearchModal({ open, query, onClose, inline = fals
             </p>
           ) : null}
 
-          {/* Footer: admin hide + Open on YouTube */}
+          {/* Footer: report / admin hide + Open on YouTube */}
           {current ? (
-            <div className="mt-3 flex justify-between items-center gap-3">
-              {me?.is_admin ? (
-                <button
-                  type="button"
-                  onClick={hideForEveryone}
-                  className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 hover:text-rust inline-flex items-center gap-1.5"
-                  data-testid="caption-search-admin-hide"
-                  title="Not an American speaker — hide this clip for everyone"
-                >
-                  <EyeOff size={11} />
-                  Not American · hide
-                </button>
-              ) : <span />}
+            <div className="mt-3 flex justify-between items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-4">
+                {reporting ? (
+                  <div className="flex flex-wrap gap-1.5" data-testid="caption-report-reasons">
+                    {REPORT_REASONS.map((r) => (
+                      <button key={r} type="button" onClick={() => sendReport(r)}
+                        className="font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1 border thin-rule text-ink hover:bg-ink hover:text-surface"
+                        data-testid={`caption-report-reason-${r.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
+                        {r}
+                      </button>
+                    ))}
+                    <button type="button" onClick={() => setReporting(false)} className="font-mono text-[10px] uppercase tracking-[0.18em] px-2 py-1 text-muted2 hover:text-ink" data-testid="caption-report-cancel">Cancel</button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setReporting(true)}
+                    className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 hover:text-rust inline-flex items-center gap-1.5"
+                    data-testid="caption-search-report"
+                    title="Flag this clip for review"
+                  >
+                    <Flag size={11} />
+                    Report clip
+                  </button>
+                )}
+                {me?.is_admin && !reporting ? (
+                  <button
+                    type="button"
+                    onClick={hideForEveryone}
+                    className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 hover:text-rust inline-flex items-center gap-1.5"
+                    data-testid="caption-search-admin-hide"
+                    title="Not an American speaker — hide this clip for everyone"
+                  >
+                    <EyeOff size={11} />
+                    Not American · hide
+                  </button>
+                ) : null}
+              </div>
               <a
                 className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 hover:text-ink inline-flex items-center gap-1.5"
                 href={current.youtube_url}

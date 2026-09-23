@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import random
 import re
 import time
 from dataclasses import dataclass
@@ -215,6 +216,11 @@ CURATED_HANDLES: List[Dict[str, str]] = [
 ]
 
 WORD_RE = re.compile(r"[A-Za-z]+(?:'[A-Za-z]+)?")
+THROTTLE_RE = re.compile(r"429|Too Many Requests|HTTP Error 403|Sign in to confirm|not a bot", re.IGNORECASE)
+
+
+class RateLimited(Exception):
+    """YouTube is throttling transcript downloads from this IP."""
 
 # Titles matching this pattern are almost always songs / music videos — bad
 # examples for pronunciation practice because they're sung, not spoken. We
@@ -254,7 +260,9 @@ class CaptionSearchService:
     # Cache TTLs (seconds)
     CHANNEL_TTL = 30 * 24 * 3600        # 30 days for channel-id lookups
     RESULT_TTL = 30 * 24 * 3600         # 30 days for successful transcripts
-    MISS_TTL = 60 * 60                  # 1 hour for misses/rate-limits (retry later)
+    NO_CAPTIONS_TTL = 7 * 24 * 3600     # 7 days when YouTube says the video has no captions
+    MISS_TTL = 60 * 60                  # 1 hour for other misses (retry later)
+    YT_BACKOFF_SECONDS = 30 * 60        # pause ALL transcript fetches after a 429/403
     CACHE_VERSION = 2                   # bump to invalidate cached query results
 
     def __init__(self, db):
@@ -265,6 +273,18 @@ class CaptionSearchService:
         self._channel_meta: Dict[str, Dict[str, str]] = {}
         self._hidden: Optional[set] = None
         self._hidden_at: float = 0.0
+        self._yt_backoff_until: float = 0.0
+        self._yt_backoff_hits: int = 0
+
+    def yt_backoff_remaining(self) -> float:
+        return max(0.0, self._yt_backoff_until - time.time())
+
+    def _trip_yt_backoff(self, video_id: str, why: str) -> None:
+        self._yt_backoff_hits += 1
+        if self.yt_backoff_remaining() <= 0:
+            logger.warning("YouTube throttled transcript fetch (%s: %s) — pausing fetches for %d min",
+                           video_id, why[:80], self.YT_BACKOFF_SECONDS // 60)
+        self._yt_backoff_until = time.time() + self.YT_BACKOFF_SECONDS
 
     async def hidden_video_ids(self) -> set:
         """Admin-hidden videos plus slur-flagged transcripts. Cached 60s."""
@@ -571,10 +591,25 @@ class CaptionSearchService:
     def _fetch_transcript_sync(self, video_id: str) -> Optional[List[Dict[str, Any]]]:
         """Blocking transcript fetch via yt-dlp. Downloads subtitles into a
         tempdir so yt-dlp handles the session/headers itself (fetching URLs
-        directly frequently 403s because the URLs are session-bound)."""
+        directly frequently 403s because the URLs are session-bound).
+
+        Returns a transcript, [] when YouTube has no captions for the video,
+        or raises RateLimited when YouTube is throttling us (or we're still
+        inside the backoff window)."""
         import glob
         import shutil
         import tempfile
+
+        if self.yt_backoff_remaining() > 0:
+            raise RateLimited("backoff active")
+
+        errors: List[str] = []
+
+        class _QuietLogger:
+            def debug(self, msg): pass
+            def info(self, msg): pass
+            def warning(self, msg): pass
+            def error(self, msg): errors.append(str(msg))
 
         url = f"https://www.youtube.com/watch?v={video_id}"
         tmp = tempfile.mkdtemp(prefix=f"yt_{video_id}_")
@@ -587,6 +622,7 @@ class CaptionSearchService:
             "outtmpl": f"{tmp}/%(id)s.%(ext)s",
             "quiet": True,
             "no_warnings": True,
+            "logger": _QuietLogger(),
             "socket_timeout": 15,
             "retries": 1,
             "http_headers": {
@@ -597,19 +633,27 @@ class CaptionSearchService:
                 ),
             },
         }
+        proxy = os.environ.get("YTDLP_PROXY", "").strip()
+        if proxy:
+            opts["proxy"] = proxy
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 ydl.extract_info(url, download=True)
         except Exception as exc:  # noqa: BLE001
-            logger.debug("yt-dlp caption fetch failed for %s: %s", video_id, exc)
+            errors.append(str(exc))
+        throttled = next((e for e in errors if THROTTLE_RE.search(e)), None)
+        if throttled:
             shutil.rmtree(tmp, ignore_errors=True)
-            return None
+            self._trip_yt_backoff(video_id, throttled)
+            raise RateLimited(throttled[:120])
+        if errors:
+            logger.debug("yt-dlp caption fetch failed for %s: %s", video_id, errors[-1][:160])
 
         # Pick the best subtitle file: prefer manual en/en-US, then auto.
         files = sorted(glob.glob(f"{tmp}/*.json3")) + sorted(glob.glob(f"{tmp}/*.vtt"))
         if not files:
             shutil.rmtree(tmp, ignore_errors=True)
-            return None
+            return []
 
         # Prefer manual (no "-orig" and no auto marker) but any works.
         def _score(path: str) -> int:
@@ -750,8 +794,20 @@ class CaptionSearchService:
                 if slur:
                     return None
         else:
-            transcript = await asyncio.to_thread(self._fetch_transcript_sync, video_id)
-            ttl = self.RESULT_TTL if transcript else self.MISS_TTL
+            try:
+                transcript = await asyncio.to_thread(self._fetch_transcript_sync, video_id)
+            except RateLimited:
+                # Don't poison the cache: retry once the backoff has lifted.
+                await self.db.caption_transcript_cache.update_one(
+                    {"video_id": video_id},
+                    {"$set": {"video_id": video_id, "transcript": [], "full_text": "",
+                              "has_transcript": False, "rate_limited": True,
+                              "expires_at": self._yt_backoff_until, "cached_at": time.time(),
+                              **({"channel_meta": meta} if meta else {})}},
+                    upsert=True,
+                )
+                return None
+            ttl = self.RESULT_TTL if transcript else self.NO_CAPTIONS_TTL
             slur = profanity.has_slur(transcript or [])
             doc = {
                 "video_id": video_id,
@@ -759,6 +815,7 @@ class CaptionSearchService:
                 "full_text": self._flatten_transcript(transcript or []),
                 "has_transcript": bool(transcript),
                 "has_slur": slur,
+                "rate_limited": False,
                 "expires_at": time.time() + ttl,
                 "cached_at": time.time(),
             }
@@ -791,6 +848,25 @@ class CaptionSearchService:
             flagged += int(slur)
         if scanned:
             logger.info("profanity backfill: scanned %d transcripts, flagged %d", scanned, flagged)
+        return {"scanned": scanned, "flagged": flagged}
+
+    async def rescan_slur_flags(self) -> Dict[str, int]:
+        """Re-evaluate `has_slur` on every cached transcript (after the admin
+        edits the blocked-words list). Returns counts."""
+        scanned = flagged = 0
+        cursor = self.db.caption_transcript_cache.find(
+            {"has_transcript": True}, {"_id": 0, "video_id": 1, "transcript": 1, "has_slur": 1}
+        )
+        async for doc in cursor:
+            slur = profanity.has_slur(doc.get("transcript") or [])
+            if doc.get("has_slur") != slur:
+                await self.db.caption_transcript_cache.update_one(
+                    {"video_id": doc["video_id"]}, {"$set": {"has_slur": slur}}
+                )
+            scanned += 1
+            flagged += int(slur)
+        self.invalidate_hidden()
+        logger.info("blocked-words rescan: scanned %d transcripts, flagged %d", scanned, flagged)
         return {"scanned": scanned, "flagged": flagged}
 
     @staticmethod
@@ -970,6 +1046,9 @@ class CaptionSearchService:
         skipped = 0
         failed = 0
         for meta in video_ids:
+            if self.yt_backoff_remaining() > 0:
+                return {"ingested": ingested, "skipped": skipped, "failed": failed,
+                        "rate_limited": True}
             existing = await self.db.caption_transcript_cache.find_one(
                 {"video_id": meta["video_id"]},
                 {"expires_at": 1, "has_transcript": 1, "has_word_timing": 1, "_id": 0},
@@ -981,11 +1060,15 @@ class CaptionSearchService:
             if fresh and not needs_upgrade:
                 skipped += 1
                 continue
-            transcript = await asyncio.to_thread(
-                self._fetch_transcript_sync, meta["video_id"]
-            )
+            try:
+                transcript = await asyncio.to_thread(
+                    self._fetch_transcript_sync, meta["video_id"]
+                )
+            except RateLimited:
+                return {"ingested": ingested, "skipped": skipped, "failed": failed,
+                        "rate_limited": True}
             has_t = bool(transcript)
-            ttl = self.RESULT_TTL if has_t else self.MISS_TTL
+            ttl = self.RESULT_TTL if has_t else self.NO_CAPTIONS_TTL
             await self.db.caption_transcript_cache.update_one(
                 {"video_id": meta["video_id"]},
                 {"$set": {
@@ -993,6 +1076,8 @@ class CaptionSearchService:
                     "transcript": transcript or [],
                     "full_text": self._flatten_transcript(transcript or []),
                     "has_transcript": has_t,
+                    "has_slur": profanity.has_slur(transcript or []),
+                    "rate_limited": False,
                     "has_word_timing": any(e.get("w") for e in (transcript or [])),
                     "embeddable": True,
                     "channel_meta": meta,  # persist title/channel for search hits
@@ -1005,8 +1090,8 @@ class CaptionSearchService:
                 ingested += 1
             else:
                 failed += 1
-            # Be gentle on the transcript endpoint.
-            await asyncio.sleep(1.2)
+            # Be gentle on the transcript endpoint: 3–5 s with jitter.
+            await asyncio.sleep(3.0 + random.random() * 2.0)
         return {"ingested": ingested, "skipped": skipped, "failed": failed}
 
     async def ensure_local_indexes(self) -> None:

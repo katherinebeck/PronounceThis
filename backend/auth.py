@@ -600,6 +600,12 @@ async def require_access(
     if kind not in ("word", "scene"):
         raise HTTPException(status_code=500, detail="invalid_gate_kind")
     device_id = request.cookies.get(DEVICE_COOKIE_NAME)
+    if user.get("trial_blocked"):
+        raise HTTPException(status_code=402, detail={"code": "trial_exhausted", "kind": kind})
+    if device_id:
+        dev_blocked = await db.trial_devices.find_one({"device_id": device_id, "blocked": True}, {"_id": 1})
+        if dev_blocked:
+            raise HTTPException(status_code=402, detail={"code": "trial_exhausted", "kind": kind})
     usage = await trial_usage(db, user, device_id)
     used = usage[kind]
     limit = TRIAL_WORD_LIMIT if kind == "word" else TRIAL_SCENE_LIMIT

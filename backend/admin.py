@@ -22,7 +22,7 @@ import os
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
@@ -93,6 +93,20 @@ class HideVideoBody(BaseModel):
 
 class UnhideVideoBody(BaseModel):
     video_id: str
+
+
+class ClipReportResolveBody(BaseModel):
+    video_id: str
+    action: str  # "hide" | "dismiss"
+
+
+class BlockedWordsBody(BaseModel):
+    words: List[str]
+
+
+class BlockDeviceBody(BaseModel):
+    device_id: str
+    blocked: bool = True
 
 
 class DismissWordBody(BaseModel):
@@ -560,6 +574,83 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         from server import caption_service
         caption_service.invalidate_hidden()
         return {"ok": True, "deleted": res.deleted_count}
+
+    # --- Reported clips (students flag from the player) --------------------
+    @router.get("/clip-reports")
+    async def list_clip_reports(request: Request, status: str = "open"):
+        await require_admin(request, db)
+        q = {"status": status} if status != "all" else {}
+        docs = await db.clip_reports.find(q, {"_id": 0}).sort("updated_at", -1).to_list(500)
+        return {"count": len(docs), "reports": docs}
+
+    @router.post("/clip-reports/resolve")
+    async def resolve_clip_report(body: ClipReportResolveBody, request: Request):
+        admin_email = await require_admin(request, db)
+        rep = await db.clip_reports.find_one({"video_id": body.video_id}, {"_id": 0})
+        if not rep:
+            raise HTTPException(status_code=404, detail="report_not_found")
+        if body.action == "hide":
+            await db.hidden_videos.update_one(
+                {"video_id": body.video_id},
+                {"$set": {"video_id": body.video_id, "reason": f"Reported: {rep.get('last_reason') or 'member report'}",
+                          "title": rep.get("title", ""), "channel_title": rep.get("channel_title", ""),
+                          "reported_by": (rep.get("reporters") or [None])[0], "created_at": _now_iso()}},
+                upsert=True,
+            )
+            from server import caption_service
+            caption_service.invalidate_hidden()
+        await db.clip_reports.update_one(
+            {"video_id": body.video_id},
+            {"$set": {"status": "hidden" if body.action == "hide" else "dismissed",
+                      "resolved_by": admin_email, "resolved_at": _now_iso()}},
+        )
+        return {"ok": True, "video_id": body.video_id, "action": body.action}
+
+    # --- Blocked words (slur list for Real Speakers) ------------------------
+    @router.get("/blocked-words")
+    async def get_blocked_words(request: Request):
+        await require_admin(request, db)
+        import profanity
+        return {"words": profanity.words(), "defaults": profanity.DEFAULT_WORDS}
+
+    @router.post("/blocked-words")
+    async def set_blocked_words(body: BlockedWordsBody, request: Request):
+        await require_admin(request, db)
+        import profanity
+        words = await profanity.save(db, body.words)
+        from server import caption_service
+        counts = await caption_service.rescan_slur_flags()
+        return {"ok": True, "words": words, **counts}
+
+    # --- Trial abuse: devices that opened several trial accounts -----------
+    @router.get("/trial-devices")
+    async def list_trial_devices(request: Request, min_emails: int = 2):
+        await require_admin(request, db)
+        docs = await db.trial_devices.find(
+            {"$or": [{f"emails.{max(0, min_emails - 1)}": {"$exists": True}}, {"blocked": True}]},
+            {"_id": 0, "trial_words": 0},
+        ).sort("updated_at", -1).to_list(500)
+        for d in docs:
+            d["email_count"] = len(d.get("emails") or [])
+        docs.sort(key=lambda d: (not d.get("blocked"), -d["email_count"]))
+        return {"count": len(docs), "devices": docs}
+
+    @router.post("/trial-devices/block")
+    async def block_trial_device(body: BlockDeviceBody, request: Request):
+        """Block (or unblock) a device and every trial email it used. Blocked
+        trials hit the paywall; paying members are never affected."""
+        admin_email = await require_admin(request, db)
+        dev = await db.trial_devices.find_one({"device_id": body.device_id}, {"_id": 0, "emails": 1})
+        if not dev:
+            raise HTTPException(status_code=404, detail="device_not_found")
+        await db.trial_devices.update_one(
+            {"device_id": body.device_id},
+            {"$set": {"blocked": body.blocked, "blocked_by": admin_email, "blocked_at": _now_iso()}},
+        )
+        emails = [e for e in (dev.get("emails") or []) if e and e != admin_email]
+        if emails:
+            await db.users.update_many({"email": {"$in": emails}}, {"$set": {"trial_blocked": body.blocked}})
+        return {"ok": True, "device_id": body.device_id, "blocked": body.blocked, "emails": emails}
 
     # --- Scenes: legacy (unowned) + manual assignment ----------------------
     @router.get("/scenes")

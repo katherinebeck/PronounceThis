@@ -50,6 +50,7 @@ from phonetics import (
     validate_arpabet,
 )
 from caption_search import CaptionSearchService
+from notify import notify_owner
 from wiktionary import WiktionaryIPA
 import llm
 from auth import (
@@ -1299,6 +1300,41 @@ async def suggest_spelling(q: str) -> Optional[str]:
     return fixed
 
 
+class ClipReportBody(BaseModel):
+    video_id: str
+    reason: str = ""
+    query: str = ""
+
+
+@api_router.post("/caption-search/report")
+async def caption_report(body: ClipReportBody, request: Request):
+    """Student flags a clip (offensive, not American, wrong word…). Lands in
+    Admin → Reported clips for one-tap hide; the owner is emailed."""
+    email = await require_login(request, db)
+    rate_limit(f"cap:report:{email}", 20, 3600)
+    vid = re.sub(r"[^A-Za-z0-9_-]", "", body.video_id)[:20]
+    if not vid:
+        raise HTTPException(status_code=400, detail="bad_video_id")
+    reason = (body.reason or "").strip()[:120]
+    meta = await db.caption_transcript_cache.find_one({"video_id": vid}, {"_id": 0, "channel_meta": 1})
+    cm = (meta or {}).get("channel_meta") or {}
+    now = datetime.now(timezone.utc).isoformat()
+    await db.clip_reports.update_one(
+        {"video_id": vid},
+        {"$addToSet": {"reporters": email, "reasons": reason} if reason else {"reporters": email},
+         "$set": {"status": "open", "last_reason": reason, "query": (body.query or "")[:80],
+                  "title": cm.get("title", ""), "channel_title": cm.get("channel_title", ""),
+                  "updated_at": now},
+         "$setOnInsert": {"video_id": vid, "created_at": now}},
+        upsert=True,
+    )
+    notify_owner("Clip reported", "A member reported a Real Speakers clip",
+                 [f"<b>{email}</b> reported <b>{cm.get('title') or vid}</b> ({cm.get('channel_title') or 'unknown channel'}).",
+                  f"Reason: {reason or 'not given'}. Word searched: {body.query or '—'}.",
+                  "Open Admin → Reported clips to hide or dismiss it."])
+    return {"ok": True}
+
+
 class UnplayableBody(BaseModel):
     video_id: str
     code: int = 0
@@ -1723,6 +1759,8 @@ async def _startup_indexes():
 
     async def _slur_backfill():
         try:
+            import profanity
+            await profanity.load(db)
             await caption_service.backfill_slur_flags()
         except Exception as exc:
             logger.warning("profanity backfill failed: %s", exc)
@@ -1739,6 +1777,7 @@ async def _startup_indexes():
     async def _run_full_ingest() -> None:
         """One pass over all curated channels. Non-overlapping; a lock with no
         progress for 30 min is a crash leftover and is taken over."""
+        rate_limited = False
         status = await db.ingest_status.find_one(
             {"job": "channels"}, {"_id": 0}
         )
@@ -1771,6 +1810,7 @@ async def _startup_indexes():
                 {"$set": {"channels_total": len(ch_ids)}},
             )
             totals = {"ingested": 0, "skipped": 0, "failed": 0}
+            rate_limited = False
             for i, cid in enumerate(ch_ids, start=1):
                 r = await caption_service.ingest_channel_videos(
                     cid, per_channel_limit=200
@@ -1786,15 +1826,18 @@ async def _startup_indexes():
                         "updated_at": datetime.now(timezone.utc).isoformat(),
                     }},
                 )
+                if r.get("rate_limited"):
+                    rate_limited = True
+                    logger.warning("ingest: YouTube throttling — stopping pass after %d/%d channels; will retry tomorrow", i, len(ch_ids))
+                    break
         finally:
-            await db.ingest_status.update_one(
-                {"job": "channels"},
-                {"$set": {
-                    "running": False,
-                    "finished_at": datetime.now(timezone.utc).isoformat(),
-                    "last_full_finished_at": datetime.now(timezone.utc).isoformat(),
-                }},
-            )
+            done_fields = {
+                "running": False,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if not rate_limited:
+                done_fields["last_full_finished_at"] = datetime.now(timezone.utc).isoformat()
+            await db.ingest_status.update_one({"job": "channels"}, {"$set": done_fields})
 
     async def _ingest_supervisor():
         """Runs forever. On boot: if cache is thin, ingest right away.

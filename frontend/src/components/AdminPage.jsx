@@ -8,6 +8,9 @@ import CreditMeter from "./CreditMeter";
 import KitStatus from "./KitStatus";
 import { DictionaryBuilder } from "./DictionaryBuilder";
 import { HiddenVideos } from "./HiddenVideos";
+import { ClipReports } from "./ClipReports";
+import { BlockedWords } from "./BlockedWords";
+import { TrialDevices } from "./TrialDevices";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -693,7 +696,10 @@ export default function AdminPage() {
         </section>
 
 
+        <ClipReports />
+        <BlockedWords />
         <HiddenVideos />
+        <TrialDevices />
 
         {/* User list */}
         <section>
