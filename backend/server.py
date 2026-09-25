@@ -51,6 +51,7 @@ from phonetics import (
 )
 from caption_search import CaptionSearchService
 from notify import notify_owner
+import line_check
 from wiktionary import WiktionaryIPA
 import llm
 from auth import (
@@ -1256,6 +1257,25 @@ def _preferred_markup(text: str) -> tuple:
     return re.sub(r"[A-Za-z]+(?:'[A-Za-z]+)?", _wrap, text), changed
 
 
+_eleven_slots = asyncio.Semaphore(3)  # ElevenLabs plan allows 3 concurrent requests
+
+
+async def _synth_line(text: str, voice_id: Optional[str] = None) -> bytes:
+    """Async, concurrency-capped line synthesis with a short retry when
+    ElevenLabs reports concurrent_limit_exceeded."""
+    for attempt in range(3):
+        async with _eleven_slots:
+            try:
+                return await asyncio.to_thread(_synthesize, text, voice_id)
+            except Exception as exc:  # noqa: BLE001
+                if "concurrent_limit_exceeded" in str(exc) and attempt < 2:
+                    await asyncio.sleep(1.5 * (attempt + 1))
+                    continue
+                raise
+    return b""
+
+
+
 def _synthesize(text: str, voice_id: Optional[str] = None) -> bytes:
     """Blocking ElevenLabs synthesis for an arbitrary line of text.
 
@@ -1459,9 +1479,8 @@ async def download_my_lines(
             audio_bytes = base64.b64decode(cached["audio_b64"])
         else:
             try:
-                audio_bytes = await asyncio.to_thread(
-                    _synthesize, turn["text"], voice_id,
-                )
+                audio_bytes, check = await line_check.render_verified(
+                    turn["text"], lambda: _synth_line(turn["text"], voice_id))
             except Exception as e:
                 logger.exception("Download lines TTS error")
                 raise HTTPException(
@@ -1477,6 +1496,7 @@ async def download_my_lines(
                             "text": turn["text"],
                             "audio_b64": audio_b64,
                             "voice_id": voice_id or DEFAULT_VOICE_ID,
+                            "check": check,
                             "created_at": datetime.now(timezone.utc).isoformat(),
                         }},
                         upsert=True,
@@ -1613,7 +1633,8 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
         )
 
     try:
-        audio_bytes = await asyncio.to_thread(_synthesize, turn["text"], voice_id)
+        audio_bytes, check = await line_check.render_verified(
+            turn["text"], lambda: _synth_line(turn["text"], voice_id))
     except Exception as e:
         logger.exception("ElevenLabs turn TTS error")
         raise HTTPException(status_code=502, detail=f"TTS failed: {e}")
@@ -1628,6 +1649,7 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
             {"$set": {"key": cache_key, "scene_id": scene_id, "text": turn["text"],
                       "turn_index": turn_index, "audio_b64": audio_b64,
                       "voice_id": voice_id or DEFAULT_VOICE_ID,
+                      "check": check,
                       "created_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,
         )
