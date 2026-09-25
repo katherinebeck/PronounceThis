@@ -1265,16 +1265,11 @@ def _synthesize(text: str, voice_id: Optional[str] = None) -> bytes:
     client = _eleven_client()
     vid = voice_id or DEFAULT_VOICE_ID
     spoken, tagged = _preferred_markup(text)
-    from elevenlabs import VoiceSettings
-    # Steadier read for scripted lines: fewer word glitches/echoes (e.g.
-    # "couple you've years") while keeping natural intonation and rhythm.
-    settings = VoiceSettings(stability=0.65, similarity_boost=0.8, style=0.0, use_speaker_boost=True)
     stream = client.text_to_speech.convert(
         text=spoken,
         voice_id=vid,
         model_id="eleven_turbo_v2" if tagged else "eleven_multilingual_v2",
         output_format="mp3_44100_128",
-        voice_settings=settings,
         request_options=ELEVEN_REQUEST_OPTIONS,
     )
     buf = bytearray()
