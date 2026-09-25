@@ -453,3 +453,8 @@
 - **YouTube rate-limit rectification**: `caption_search.RateLimited` + 30-min circuit breaker (`_yt_backoff_until`) tripped on 429/403/"sign in to confirm"; yt-dlp errors captured via quiet logger (no more ERROR spam); "no captions" cached 7 days (was 1 h); rate-limited misses expire with the backoff; ingest sleeps 3–5 s with jitter, stops the pass when throttled and does NOT stamp last_full_finished_at (retries next day). Optional `YTDLP_PROXY` env (yt-dlp `proxy`) for a residential proxy later.
 - Admin page section order: ClipReports, BlockedWords, HiddenVideos, TrialDevices, then Users.
 - Backlog notes from testing agent (non-blocking): blocked-words rescan is synchronous; startup ingest runs on every restart (dev annoyance).
+
+## Changed (Sep 25, 2026 — scene-line voice stability)
+- User reported ElevenLabs glitch: "a difficult couple of years" rendered as "couple you've years" (word echo). Root cause: random model glitch, not text. Per user: no re-record button / no STT self-check — **only** steadier voice settings for scene lines.
+- `_synthesize` (scene lines only; word TTS untouched) now passes `VoiceSettings(stability=0.65, similarity_boost=0.8, style=0.0, use_speaker_boost=True)`. Verified regenerated line reads "of" correctly with natural, expressive delivery.
+- Note: already-generated lines are cached (`turn_audio_cache`); the Wayward Mr Turner line will re-render with the new settings only if the cache entry is cleared or the scene re-uploaded.
