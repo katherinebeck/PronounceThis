@@ -165,6 +165,8 @@ def create_kajabi_router(db: AsyncIOMotorDatabase) -> APIRouter:
                     }},
                     upsert=True,
                 )
+                import password_links
+                password_links.welcome_if_new(db, email)
                 logger.info(f"Kajabi {event_name} → active: {email} / {offer_id}")
             else:
                 logger.warning(f"Kajabi {event_name} missing email/offer_id")

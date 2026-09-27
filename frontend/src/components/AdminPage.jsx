@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Unlink, Check, AlertTriangle, Download, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2, Volume2, RefreshCw, Link2, Unlink, Check, AlertTriangle, Download, Pencil, ChevronLeft, ChevronRight, Mail } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
@@ -264,18 +264,31 @@ export default function AdminPage() {
 
   const copyMagicLink = async (email) => {
     try {
-      const res = await api.post("/admin/magic-link", { email });
-      const url = res?.data?.login_url;
+      const res = await api.post("/admin/password-link", { email });
+      const url = res?.data?.link;
       if (!url) throw new Error("no url");
       await navigator.clipboard.writeText(url);
       setCopiedEmail(email);
-      toast.success(`Sign-in link copied — never expires, single use`);
+      toast.success("Set-password link copied — paste it into Kajabi, WhatsApp or an email");
       setTimeout(
         () => setCopiedEmail((cur) => (cur === email ? null : cur)),
         1800
       );
     } catch (err) {
-      toast.error(err?.response?.data?.detail || "Couldn't copy link");
+      toast.error(err?.response?.data?.detail || "Couldn't create link");
+    }
+  };
+
+  const [sendingEmail, setSendingEmail] = useState(null);
+  const sendWelcome = async (email) => {
+    setSendingEmail(email);
+    try {
+      const res = await api.post("/admin/password-link/send", { email });
+      toast.success(`Welcome email sent to ${email} (${res?.data?.status || "sent"})`);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Couldn't send email");
+    } finally {
+      setSendingEmail(null);
     }
   };
 
@@ -831,7 +844,7 @@ export default function AdminPage() {
                               onClick={() => copyMagicLink(u.email)}
                               className="font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 border thin-rule hover:bg-ink hover:text-surface hover:border-ink transition-colors inline-flex items-center gap-1.5"
                               data-testid={`admin-copy-link-${u.email}`}
-                              title="Copy a one-time sign-in link for this user (never expires)"
+                              title="Copy a set-password link for this member (paste into Kajabi, WhatsApp or an email)"
                             >
                               {copiedEmail === u.email ? (
                                 <>
@@ -841,9 +854,20 @@ export default function AdminPage() {
                               ) : (
                                 <>
                                   <Link2 size={11} />
-                                  Copy link
+                                  Password link
                                 </>
                               )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => sendWelcome(u.email)}
+                              disabled={sendingEmail === u.email}
+                              className="font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 border thin-rule hover:bg-ink hover:text-surface hover:border-ink transition-colors inline-flex items-center gap-1.5 disabled:opacity-60"
+                              data-testid={`admin-send-welcome-${u.email}`}
+                              title="Email this member a personal set-password link now"
+                            >
+                              {sendingEmail === u.email ? <Loader2 size={11} className="animate-spin" /> : <Mail size={11} />}
+                              Email link
                             </button>
                             {active ? (
                               <button

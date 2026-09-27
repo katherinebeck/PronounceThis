@@ -226,6 +226,8 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             }},
             upsert=True,
         )
+        import password_links
+        password_links.welcome_if_new(db, email, password_links.base_url(request))
         return {"ok": True, "email": email, "subscription_end_at": end_at}
 
     @router.post("/memberships/set-end")
@@ -728,6 +730,35 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         await require_admin(request, db)
         result = await sync_from_stripe_customer(db, body.email.strip().lower())
         return result
+
+    @router.post("/password-link")
+    async def admin_password_link(body: MagicLinkBody, request: Request):
+        """Copyable set-password link (Supabase recovery link, generated
+        server-side). Creates the identity if missing. No email is sent."""
+        await require_admin(request, db)
+        import password_links
+        email = body.email.strip().lower()
+        await db.users.update_one(
+            {"email": email},
+            {"$setOnInsert": {"email": email, "trial_word_used": 0, "trial_scene_used": 0,
+                              "created_at": _now_iso(), "last_login_at": None}},
+            upsert=True,
+        )
+        link = await password_links.make_link(email, password_links.base_url(request))
+        if not link:
+            raise HTTPException(status_code=503, detail="Supabase service key missing or link generation failed")
+        return {"ok": True, "email": email, "link": link}
+
+    @router.post("/password-link/send")
+    async def admin_send_password_link(body: MagicLinkBody, request: Request):
+        """Email the welcome / set-password link to a member right now."""
+        await require_admin(request, db)
+        import password_links
+        email = body.email.strip().lower()
+        res = await password_links.send_link_email(db, email, "welcome", password_links.base_url(request))
+        if not res.get("ok"):
+            raise HTTPException(status_code=503, detail=f"Could not send ({res.get('status')})")
+        return res
 
     @router.post("/magic-link")
     async def issue_magic_link(body: MagicLinkBody, request: Request):

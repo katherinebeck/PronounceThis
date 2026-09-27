@@ -114,6 +114,35 @@ async def send_password_reset(email: str, redirect_to: str) -> bool:
     return r.status_code in (200, 204)
 
 
+async def ensure_identity(email: str) -> bool:
+    """Make sure a Supabase identity exists for `email` (create-if-missing).
+    Returns True when it exists afterwards, False if the key is missing or
+    Supabase refused."""
+    if not os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
+        return False
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.post(f"{ISSUER}/admin/users", headers=_admin_headers(),
+                         json={"email": email, "email_confirm": True})
+    if r.status_code in (200, 201):
+        return True
+    body = r.text.lower()
+    return r.status_code == 422 and ("exists" in body or "already" in body)
+
+
+async def generate_set_password_link(email: str, redirect_to: str) -> Optional[str]:
+    """Server-generated recovery link (Admin API `generate_link`) — lets us
+    email it ourselves or hand it to the admin to copy. None on failure."""
+    if not os.environ.get("SUPABASE_SERVICE_ROLE_KEY"):
+        return None
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.post(f"{ISSUER}/admin/generate_link", headers=_admin_headers(),
+                         json={"type": "recovery", "email": email, "redirect_to": redirect_to})
+    if r.status_code in (200, 201):
+        return r.json().get("action_link")
+    logger.warning("supabase generate_link %s → %s %s", email, r.status_code, r.text[:160])
+    return None
+
+
 async def link_existing_users(db: AsyncIOMotorDatabase) -> None:
     """Startup, idempotent: create Supabase identities for legacy accounts so
     their first 'Forgot password' email works. Skips users already linked."""

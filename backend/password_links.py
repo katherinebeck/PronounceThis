@@ -1,0 +1,138 @@
+"""Set-password links for members: welcome email on join, self-serve
+"Forgot password" via our own mailer (Resend) with real delivery status,
+and admin copy/send. The Supabase identity is created on the fly."""
+import asyncio
+import logging
+import os
+from datetime import datetime, timezone
+from typing import Optional
+from urllib.parse import urlparse
+
+import resend
+from fastapi import Request
+from motor.motor_asyncio import AsyncIOMotorDatabase
+
+import supabase_auth
+from auth import APP_PUBLIC_URL, FROM_HEADER
+
+logger = logging.getLogger(__name__)
+
+RESET_PATH = "/auth/reset"
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def base_url(request: Optional[Request]) -> str:
+    origin = request.headers.get("origin") or request.headers.get("referer") if request else None
+    if origin:
+        u = urlparse(origin)
+        return f"{u.scheme}://{u.netloc}"
+    return APP_PUBLIC_URL
+
+
+def _wrap(paragraphs: list[str]) -> str:
+    body = "".join(f'<p style="margin:0 0 14px;font:16px/1.55 Georgia,serif;color:#111">{p}</p>' for p in paragraphs)
+    return f'<div style="max-width:520px;margin:0 auto;padding:24px 16px">{body}</div>'
+
+
+def _email(kind: str, link: Optional[str]) -> tuple[str, str]:
+    """(subject, html) for kind in welcome | reset | no_account."""
+    tip = ('<span style="color:#555;font-size:14px">Using Gmail and can\'t see this? It may be under the '
+           '<b>Promotions</b> or <b>Updates</b> tab — search for “Pronounce This”.</span>')
+    if kind == "welcome":
+        return ("Your Pronounce This access — set your password", _wrap([
+            "Hi there,",
+            "Welcome to Pronounce This — your accent workbench is ready. You just need to choose a password once, and you're in.",
+            f'<a href="{link}" style="color:#b8862b;font-weight:bold">Set my password →</a>',
+            "After that, sign in any time with your email and that password.",
+            "Katherine",
+            tip,
+        ]))
+    if kind == "reset":
+        return ("Pronounce This — your password link", _wrap([
+            "Hi there,",
+            "Here's your link to choose a new Pronounce This password:",
+            f'<a href="{link}" style="color:#b8862b;font-weight:bold">Choose a new password →</a>',
+            "If you didn't ask for this, you can ignore this email — nothing changes.",
+            "Katherine",
+            tip,
+        ]))
+    return ("Pronounce This — no account under this email", _wrap([
+        "Hi there,",
+        "Someone (probably you) asked for a Pronounce This password link for this address, but there's no account under it yet.",
+        "If you're one of Katherine's coaching members, try the email you used when you joined. "
+        "Otherwise you can start free at <a href=\"" + APP_PUBLIC_URL + "\" style=\"color:#b8862b\">Pronounce This</a>.",
+        "Katherine",
+    ]))
+
+
+async def _send(to: str, subject: str, html: str) -> Optional[str]:
+    r = await asyncio.to_thread(resend.Emails.send, {"from": FROM_HEADER, "to": [to], "subject": subject, "html": html})
+    return (r or {}).get("id") if isinstance(r, dict) else getattr(r, "id", None)
+
+
+async def make_link(email: str, base: str) -> Optional[str]:
+    if not await supabase_auth.ensure_identity(email):
+        return None
+    return await supabase_auth.generate_set_password_link(email, f"{base}{RESET_PATH}")
+
+
+async def send_link_email(db: AsyncIOMotorDatabase, email: str, kind: str, base: str) -> dict:
+    """Email a set/reset-password link (or a 'no account' note). Records the
+    send in `auth_emails` so the UI can show real delivery status."""
+    email = email.strip().lower()
+    account = await db.users.find_one({"email": email}, {"_id": 1})
+    link = None
+    if account:
+        link = await make_link(email, base)
+        if not link:
+            logger.warning("password link unavailable for %s (service key / Supabase)", email)
+            return {"ok": False, "status": "unavailable"}
+    else:
+        kind = "no_account"
+    subject, html = _email(kind, link)
+    try:
+        rid = await _send(email, subject, html)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("password link email to %s failed: %s", email, exc)
+        return {"ok": False, "status": "failed"}
+    doc = {"email": email, "kind": kind, "resend_id": rid, "status": "sent", "sent_at": _now_iso()}
+    await db.auth_emails.insert_one(dict(doc))
+    doc.pop("_id", None)
+    return {"ok": True, **doc}
+
+
+async def delivery_status(db: AsyncIOMotorDatabase, email: str) -> dict:
+    """Latest send for this email, refreshed from Resend (sent → delivered / bounced)."""
+    email = email.strip().lower()
+    doc = await db.auth_emails.find_one({"email": email}, {"_id": 0}, sort=[("sent_at", -1)])
+    if not doc:
+        return {"status": "none"}
+    if doc.get("resend_id") and doc.get("status") not in ("delivered", "bounced", "complained"):
+        try:
+            r = await asyncio.to_thread(resend.Emails.get, doc["resend_id"])
+            ev = (r or {}).get("last_event") if isinstance(r, dict) else getattr(r, "last_event", None)
+            if ev and ev != doc.get("status"):
+                doc["status"] = ev
+                await db.auth_emails.update_one({"resend_id": doc["resend_id"]}, {"$set": {"status": ev}})
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("resend status lookup failed: %s", exc)
+    return {"status": doc.get("status"), "sent_at": doc.get("sent_at"), "kind": doc.get("kind"), "to": email}
+
+
+def welcome_if_new(db: AsyncIOMotorDatabase, email: str, base: Optional[str] = None) -> None:
+    """Fire-and-forget: a member who has never signed in gets the welcome
+    set-password email (Kajabi webhook / admin grant)."""
+    async def _go():
+        try:
+            u = await db.users.find_one({"email": email}, {"last_login_at": 1, "supabase_sub": 1})
+            if u and u.get("last_login_at") is None:
+                await send_link_email(db, email, "welcome", base or APP_PUBLIC_URL)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("welcome email for %s failed: %s", email, exc)
+    try:
+        asyncio.get_running_loop().create_task(_go())
+    except RuntimeError:
+        pass

@@ -2,7 +2,10 @@ import React, { useState } from "react";
 import { Loader2, Mail, Lock } from "lucide-react";
 import { supabase, passwordProblem } from "@/lib/supabase";
 import { useAuth, AUTH_ERROR_TEXT } from "@/lib/auth";
+import { api } from "@/lib/api";
 import { toast } from "sonner";
+import ResetSentStatus from "./ResetSentStatus";
+import GoogleButton from "./GoogleButton";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const inputCls =
@@ -25,7 +28,7 @@ export default function AuthForm({ mode, setMode, onDone, compact = false }) {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState(null);
 
   const friendly = (msg = "") => {
     const m = msg.toLowerCase();
@@ -49,9 +52,8 @@ export default function AuthForm({ mode, setMode, onDone, compact = false }) {
     setBusy(true);
     try {
       if (mode === "forgot") {
-        const { error: err } = await supabase.auth.resetPasswordForEmail(clean, { redirectTo: `${window.location.origin}/auth/reset` });
-        if (err) throw err;
-        setSent(true);
+        const { data } = await api.post("/auth/password-link", { email: clean });
+        setSent(data);
       } else {
         const { error: err } = mode === "signup"
           ? await supabase.auth.signUp({ email: clean, password })
@@ -67,24 +69,22 @@ export default function AuthForm({ mode, setMode, onDone, compact = false }) {
         onDone?.(mode);
       }
     } catch (err) {
-      setError(friendly(err?.message));
+      if (err?.response?.status === 429) setError("Too many attempts — please wait a minute and try again.");
+      else if (err?.response?.status === 503) setError("We couldn't send the email right now. Please try again in a moment or contact Katherine.");
+      else setError(friendly(err?.message));
     } finally {
       setBusy(false);
     }
   };
 
   if (sent) {
-    return (
-      <p className="font-serif text-sm text-ink leading-relaxed" data-testid="auth-reset-sent">
-        If an account exists for <span className="font-mono text-rust break-all">{email}</span>, a password reset link is on its way.
-        Open it on this device to choose a new password.
-      </p>
-    );
+    return <ResetSentStatus email={sent.to || email.trim().toLowerCase()} initial={sent} />;
   }
 
   const cta = mode === "forgot" ? "Send reset link" : mode === "signup" ? "Create my account" : "Sign in";
   return (
     <form onSubmit={submit} className="flex flex-col gap-3" data-testid={`auth-form-${mode}`}>
+      {mode !== "forgot" ? <GoogleButton onError={(m) => setError(m)} /> : null}
       <Field icon={Mail} type="email" autoComplete="email" placeholder="you@example.com" value={email}
              onChange={(e) => setEmail(e.target.value)} testId="auth-email" />
       {mode !== "forgot" ? (

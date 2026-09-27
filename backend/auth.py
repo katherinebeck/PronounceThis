@@ -405,6 +405,31 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         await _send_magic_link_email(typed, login_url)
         return {"ok": True}
 
+    @router.post("/password-link")
+    async def request_password_link(body: RequestMagicLinkBody, request: Request):
+        """Self-serve 'Forgot password': we generate the Supabase link server-side
+        and email it through our own mailer (personal template, real delivery
+        status). Unknown emails get a friendly 'no account' note instead."""
+        typed = _normalize_email(body.email)
+        if not EMAIL_RE.match(typed):
+            raise HTTPException(status_code=400, detail="invalid_email")
+        rate_limit(f"pl:email:{typed}", 4, 3600)
+        rate_limit(f"pl:ip:{client_ip(request)}", 20, 3600)
+        import password_links
+        email = await resolve_account_email(db, typed)
+        res = await password_links.send_link_email(db, email, "reset", password_links.base_url(request))
+        if not res.get("ok"):
+            raise HTTPException(status_code=503, detail="email_unavailable")
+        return {"ok": True, "to": email, "sent_at": res.get("sent_at"), "status": res.get("status")}
+
+    @router.get("/password-link/status")
+    async def password_link_status(email: str):
+        import password_links
+        typed = _normalize_email(email)
+        if not EMAIL_RE.match(typed):
+            raise HTTPException(status_code=400, detail="invalid_email")
+        return await password_links.delivery_status(db, await resolve_account_email(db, typed))
+
     @router.get("/verify")
     async def verify_magic_link(token: str, response: Response):
         """Consume a magic-link token; if valid, set the session cookie.
