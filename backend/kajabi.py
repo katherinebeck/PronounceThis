@@ -73,6 +73,11 @@ class CancelBody(BaseModel):
     offer_id: Optional[str] = None
 
 
+def _first_name(attrs: dict) -> str:
+    raw = (attrs.get("first_name") or attrs.get("name") or "").strip()
+    return raw.split()[0].strip(",.").title() if raw else ""
+
+
 def create_kajabi_router(db: AsyncIOMotorDatabase) -> APIRouter:
     router = APIRouter(prefix="/kajabi", tags=["kajabi"])
 
@@ -154,6 +159,7 @@ def create_kajabi_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 # If a user in our DB doesn't have an account yet (they
                 # bought directly on Kajabi first), create a shell user
                 # so login works instantly.
+                first_name = _first_name(customer_attrs)
                 await db.users.update_one(
                     {"email": email},
                     {"$setOnInsert": {
@@ -162,7 +168,7 @@ def create_kajabi_router(db: AsyncIOMotorDatabase) -> APIRouter:
                         "trial_scene_used": 0,
                         "created_at": _now_iso(),
                         "last_login_at": None,
-                    }},
+                    }, **({"$set": {"first_name": first_name}} if first_name else {})},
                     upsert=True,
                 )
                 import password_links

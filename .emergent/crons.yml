@@ -1,0 +1,9 @@
+crons:
+  - name: onboarding-nudge
+    description: "Daily 9am Sydney: reminds members who got a welcome email 3+ days ago but never set a password"
+    cron: "0 9 * * *"
+    timezone: "Australia/Sydney"
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    endpoint: "{{BASE_URL}}/api/cron/onboarding-nudge"
+    method: POST
+    enabled: true

@@ -60,6 +60,7 @@ class CancelBody(BaseModel):
 class GrantBody(BaseModel):
     email: EmailStr
     offer_title: str = "Manual grant"
+    first_name: str = ""
     # How many days from now to expire the grant. 0 or omitted = no expiry
     # (permanent, e.g., for a group-coaching student).
     days: int = 0
@@ -208,7 +209,7 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 "trial_scene_used": 0,
                 "created_at": _now_iso(),
                 "last_login_at": None,
-            }},
+            }, **({"$set": {"first_name": body.first_name.strip().split()[0].title()}} if body.first_name.strip() else {})},
             upsert=True,
         )
         await db.memberships.update_one(
@@ -308,6 +309,12 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 }
         for u in users:
             u["membership"] = by_email.get(u["email"])
+        # Login health: latest password-link email per user.
+        latest: dict[str, dict] = {}
+        async for a in db.auth_emails.find({"email": {"$in": emails}}, {"_id": 0}).sort("sent_at", -1):
+            latest.setdefault(a["email"], {"kind": a.get("kind"), "status": a.get("status"), "sent_at": a.get("sent_at")})
+        for u in users:
+            u["last_auth_email"] = latest.get(u["email"])
         return {"count": len(users), "total": total, "page": page,
                 "limit": limit, "users": users}
 

@@ -37,22 +37,32 @@ def _wrap(paragraphs: list[str]) -> str:
     return f'<div style="max-width:520px;margin:0 auto;padding:24px 16px">{body}</div>'
 
 
-def _email(kind: str, link: Optional[str]) -> tuple[str, str]:
-    """(subject, html) for kind in welcome | reset | no_account."""
+def _email(kind: str, link: Optional[str], first_name: str = "") -> tuple[str, str]:
+    """(subject, html) for kind in welcome | reset | nudge | no_account."""
+    hi = f"Hi {first_name}," if first_name else "Hi there,"
     tip = ('<span style="color:#555;font-size:14px">Using Gmail and can\'t see this? It may be under the '
            '<b>Promotions</b> or <b>Updates</b> tab — search for “Pronounce This”.</span>')
     if kind == "welcome":
         return ("Your Pronounce This access — set your password", _wrap([
-            "Hi there,",
+            hi,
             "Welcome to Pronounce This — your accent workbench is ready. You just need to choose a password once, and you're in.",
             f'<a href="{link}" style="color:#b8862b;font-weight:bold">Set my password →</a>',
             "After that, sign in any time with your email and that password.",
             "Katherine",
             tip,
         ]))
+    if kind == "nudge":
+        return ("Your Pronounce This access is waiting", _wrap([
+            hi,
+            "Just a gentle nudge — your Pronounce This access is all set up, but you haven't chosen a password yet. It takes ten seconds:",
+            f'<a href="{link}" style="color:#b8862b;font-weight:bold">Set my password →</a>',
+            "Then sign in any time with your email and that password. If anything's unclear, just reply to this email.",
+            "Katherine",
+            tip,
+        ]))
     if kind == "reset":
         return ("Pronounce This — your password link", _wrap([
-            "Hi there,",
+            hi,
             "Here's your link to choose a new Pronounce This password:",
             f'<a href="{link}" style="color:#b8862b;font-weight:bold">Choose a new password →</a>',
             "If you didn't ask for this, you can ignore this email — nothing changes.",
@@ -83,7 +93,7 @@ async def send_link_email(db: AsyncIOMotorDatabase, email: str, kind: str, base:
     """Email a set/reset-password link (or a 'no account' note). Records the
     send in `auth_emails` so the UI can show real delivery status."""
     email = email.strip().lower()
-    account = await db.users.find_one({"email": email}, {"_id": 1})
+    account = await db.users.find_one({"email": email}, {"_id": 1, "first_name": 1})
     link = None
     if account:
         link = await make_link(email, base)
@@ -92,7 +102,7 @@ async def send_link_email(db: AsyncIOMotorDatabase, email: str, kind: str, base:
             return {"ok": False, "status": "unavailable"}
     else:
         kind = "no_account"
-    subject, html = _email(kind, link)
+    subject, html = _email(kind, link, (account or {}).get("first_name") or "")
     try:
         rid = await _send(email, subject, html)
     except Exception as exc:  # noqa: BLE001
@@ -100,6 +110,8 @@ async def send_link_email(db: AsyncIOMotorDatabase, email: str, kind: str, base:
         return {"ok": False, "status": "failed"}
     doc = {"email": email, "kind": kind, "resend_id": rid, "status": "sent", "sent_at": _now_iso()}
     await db.auth_emails.insert_one(dict(doc))
+    if kind in ("welcome", "nudge"):
+        await db.users.update_one({"email": email}, {"$set": {f"{kind}_sent_at": doc["sent_at"]}})
     doc.pop("_id", None)
     return {"ok": True, **doc}
 
@@ -136,3 +148,29 @@ def welcome_if_new(db: AsyncIOMotorDatabase, email: str, base: Optional[str] = N
         asyncio.get_running_loop().create_task(_go())
     except RuntimeError:
         pass
+
+
+NUDGE_AFTER_DAYS = 3
+
+
+async def run_onboarding_nudges(db: AsyncIOMotorDatabase, limit: int = 50) -> dict:
+    """Daily job: members who got a welcome email ≥3 days ago, never signed
+    in and haven't been nudged get one gentle reminder with a fresh link."""
+    from datetime import timedelta
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=NUDGE_AFTER_DAYS)).isoformat()
+    cursor = db.users.find(
+        {"welcome_sent_at": {"$lte": cutoff}, "last_login_at": None,
+         "nudge_sent_at": {"$exists": False}, "trial_blocked": {"$ne": True}},
+        {"_id": 0, "email": 1},
+    ).limit(limit)
+    sent = failed = 0
+    async for u in cursor:
+        res = await send_link_email(db, u["email"], "nudge", APP_PUBLIC_URL)
+        if res.get("ok"):
+            sent += 1
+        else:
+            failed += 1
+            await db.users.update_one({"email": u["email"]}, {"$set": {"nudge_sent_at": None}})
+        await asyncio.sleep(0.3)
+    logger.info("onboarding nudges: sent %d, failed %d", sent, failed)
+    return {"sent": sent, "failed": failed}

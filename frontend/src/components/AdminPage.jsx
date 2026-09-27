@@ -8,6 +8,7 @@ import CreditMeter from "./CreditMeter";
 import KitStatus from "./KitStatus";
 import { DictionaryBuilder } from "./DictionaryBuilder";
 import { HiddenVideos } from "./HiddenVideos";
+import LoginHealth from "./LoginHealth";
 import { ClipReports } from "./ClipReports";
 import { BlockedWords } from "./BlockedWords";
 import { TrialDevices } from "./TrialDevices";
@@ -31,6 +32,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [granting, setGranting] = useState(false);
   const [grantEmail, setGrantEmail] = useState("");
+  const [grantName, setGrantName] = useState("");
   const [grantDays, setGrantDays] = useState(0);
   const [grantTitle, setGrantTitle] = useState("Group Coaching Access");
 
@@ -184,11 +186,13 @@ export default function AdminPage() {
     try {
       await api.post("/admin/memberships/grant", {
         email: grantEmail.trim().toLowerCase(),
+        first_name: grantName.trim(),
         offer_title: grantTitle,
         days: Number(grantDays) || 0,
       });
-      toast.success(`Granted access to ${grantEmail}`);
+      toast.success(`Granted access to ${grantEmail} — welcome email on its way if they've never signed in`);
       setGrantEmail("");
+      setGrantName("");
       load();
     } catch (err) {
       toast.error(err?.response?.data?.detail || "Grant failed");
@@ -475,7 +479,7 @@ export default function AdminPage() {
             Use this for group-coaching students, refunds, or comping a friend.
             Set days = 0 for permanent access, or a number of days to auto-expire.
           </p>
-          <form onSubmit={grant} className="grid gap-3 sm:grid-cols-[1.5fr_1fr_0.7fr_auto]">
+          <form onSubmit={grant} className="grid gap-3 sm:grid-cols-[1.5fr_0.8fr_1fr_0.7fr_auto]">
             <input
               type="email"
               required
@@ -484,6 +488,14 @@ export default function AdminPage() {
               onChange={(e) => setGrantEmail(e.target.value)}
               className="w-full px-3 py-2.5 bg-paper border thin-rule font-serif text-base text-ink focus:outline-none focus:border-ink"
               data-testid="admin-grant-email"
+            />
+            <input
+              type="text"
+              placeholder="First name"
+              value={grantName}
+              onChange={(e) => setGrantName(e.target.value)}
+              className="w-full px-3 py-2.5 bg-paper border thin-rule font-serif text-base text-ink focus:outline-none focus:border-ink"
+              data-testid="admin-grant-name"
             />
             <input
               type="text"
@@ -760,6 +772,7 @@ export default function AdminPage() {
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Status</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Ends</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Trial</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Login</th>
                   <th className="px-4 py-3"></th>
                 </tr>
               </thead>
@@ -782,7 +795,7 @@ export default function AdminPage() {
                     const active = m?.is_active;
                     return (
                       <tr key={u.email} className="border-b thin-rule last:border-b-0" data-testid={`admin-user-${u.email}`}>
-                        <td className="px-4 py-3 break-all">{u.email}</td>
+                        <td className="px-4 py-3 whitespace-nowrap">{u.email}</td>
                         <td className="px-4 py-3">
                           {active ? (
                             <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] px-2 py-1 border thin-rule bg-ink text-surface">
@@ -837,7 +850,10 @@ export default function AdminPage() {
                         <td className="px-4 py-3 text-xs text-muted2">
                           {u.trial_word_used}w · {u.trial_scene_used}s
                         </td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <LoginHealth user={u} />
+                        </td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap">
                           <div className="inline-flex items-center gap-2 justify-end">
                             <button
                               type="button"

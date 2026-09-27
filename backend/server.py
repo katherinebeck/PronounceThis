@@ -1326,6 +1326,32 @@ class ClipReportBody(BaseModel):
     query: str = ""
 
 
+@api_router.post("/cron/onboarding-nudge")
+async def cron_onboarding_nudge(request: Request, background_tasks: BackgroundTasks):
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    import hmac
+    import password_links
+    secret = os.environ.get("WEBHOOK_CRON_SECRET", "")
+    auth = request.headers.get("authorization", "")
+    token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+    if not secret or not token or not hmac.compare_digest(token, secret):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    try:
+        body = await request.json()
+    except Exception:  # noqa: BLE001
+        body = {}
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="bad_body")
+    run_id = request.headers.get("x-webhook-id") or body.get("run_id") or f"manual-{datetime.now(timezone.utc).isoformat()}"
+    dup = await db.cron_runs.find_one({"run_id": run_id}, {"_id": 1})
+    if dup:
+        return {"ok": True, "duplicate": True}
+    await db.cron_runs.insert_one({"run_id": run_id, "job": "onboarding-nudge",
+                                   "received_at": datetime.now(timezone.utc).isoformat()})
+    background_tasks.add_task(password_links.run_onboarding_nudges, db)
+    return {"ok": True, "queued": True, "run_id": run_id}
+
+
 @api_router.post("/caption-search/report")
 async def caption_report(body: ClipReportBody, request: Request):
     """Student flags a clip (offensive, not American, wrong word…). Lands in
