@@ -45,6 +45,12 @@ body::before {
     radial-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px);
   background-size: 100% 100%, 3px 3px;
 }
+body:has(.landing)::before { display: none; }
+
+/* Popups use the landing-page type (Fraunces / Inter / Courier Prime) for readability */
+.popup-fonts, .popup-fonts .font-serif, .popup-fonts input, .popup-fonts textarea { font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif; }
+.popup-fonts .font-display { font-family: "Fraunces", Georgia, serif; font-weight: 600; }
+.popup-fonts .font-mono, .popup-fonts .btn-primary, .popup-fonts .btn-secondary { font-family: "Courier Prime", "Courier New", monospace; }
 
 @layer base {
   :root {
@@ -224,6 +230,7 @@ body::before {
     transform 150ms ease,
     box-shadow 150ms ease;
 }
+.btn-primary.btn-lg { font-size: 13px; padding: 0.9rem 1.2rem; }
 .btn-primary:hover {
   background: var(--amber-hi);
   box-shadow: 0 0 0 1px rgba(229, 169, 60, 0.35), 0 8px 24px -12px rgba(229, 169, 60, 0.6);

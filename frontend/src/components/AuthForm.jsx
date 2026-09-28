@@ -9,7 +9,7 @@ import GoogleButton from "./GoogleButton";
 
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const inputCls =
-  "w-full bg-paper border thin-rule pl-9 pr-3 py-3 font-serif text-sm text-ink placeholder:text-muted2 focus:outline-none focus:border-rust";
+  "w-full bg-paper border thin-rule pl-9 pr-3 py-3 font-serif text-base text-ink placeholder:text-muted2 focus:outline-none focus:border-rust";
 
 function Field({ icon: Icon, testId, ...props }) {
   return (
@@ -96,12 +96,12 @@ export default function AuthForm({ mode, setMode, onDone, compact = false }) {
         <Field icon={Lock} type="password" autoComplete="new-password" placeholder="Confirm password" value={confirm}
                onChange={(e) => setConfirm(e.target.value)} testId="auth-confirm" />
       ) : null}
-      {error ? <p className="font-serif text-xs text-crimson" data-testid="auth-error">{error}</p> : null}
-      <button type="submit" className="btn-primary w-full justify-center disabled:opacity-60" disabled={busy} data-testid="auth-submit">
+      {error ? <p className="font-serif text-sm text-crimson" data-testid="auth-error">{error}</p> : null}
+      <button type="submit" className="btn-primary btn-lg w-full justify-center disabled:opacity-60" disabled={busy} data-testid="auth-submit">
         {busy ? <Loader2 size={16} className="animate-spin" /> : cta}
       </button>
       {!compact ? (
-        <div className="flex flex-wrap justify-between gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-muted2">
+        <div className="flex flex-wrap justify-between gap-2 font-mono text-xs uppercase tracking-[0.16em] text-muted2">
           {mode === "signin" ? (
             <>
               <button type="button" className="hover:text-ink" onClick={() => setMode("forgot")} data-testid="auth-forgot">Forgot password?</button>

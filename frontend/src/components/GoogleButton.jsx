@@ -35,7 +35,7 @@ export default function GoogleButton({ onError }) {
   return (
     <>
       <button type="button" onClick={go} disabled={busy}
-        className="w-full justify-center inline-flex items-center gap-3 border thin-rule bg-surface px-4 py-3 font-mono text-[11px] uppercase tracking-[0.22em] text-ink hover:bg-paper transition-colors disabled:opacity-60"
+        className="w-full justify-center inline-flex items-center gap-3 border thin-rule bg-surface px-4 py-3 font-mono text-[13px] uppercase tracking-[0.16em] text-ink hover:bg-paper transition-colors disabled:opacity-60"
         data-testid="auth-google">
         <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
           <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.5 5.4 2.6 13.3l7.8 6C12.3 13.2 17.7 9.5 24 9.5z" />
@@ -45,7 +45,7 @@ export default function GoogleButton({ onError }) {
         </svg>
         Continue with Google
       </button>
-      <div className="flex items-center gap-3 font-mono text-[10px] uppercase tracking-[0.2em] text-muted2">
+      <div className="flex items-center gap-3 font-mono text-xs uppercase tracking-[0.16em] text-muted2">
         <span className="flex-1 border-t thin-rule" /> or with email <span className="flex-1 border-t thin-rule" />
       </div>
     </>

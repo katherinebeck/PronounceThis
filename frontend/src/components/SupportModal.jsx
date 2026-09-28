@@ -20,7 +20,7 @@ export default function SupportModal({ open, onClose }) {
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stage/75 backdrop-blur-md p-4" onClick={onClose} data-testid="support-modal">
+    <div className="popup-fonts fixed inset-0 z-50 flex items-center justify-center bg-stage/75 backdrop-blur-md p-4" onClick={onClose} data-testid="support-modal">
       <div className="theme-light relative w-full max-w-md bg-surface border thin-rule shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b thin-rule">
           <div>

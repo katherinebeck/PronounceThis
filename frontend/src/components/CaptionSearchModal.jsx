@@ -379,7 +379,7 @@ export default function CaptionSearchModal({ open, query, onClose, inline = fals
   if (inline) return body;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto animate-fade-in"
+      className="popup-fonts fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto animate-fade-in"
       data-testid="caption-search-modal"
       onClick={onClose}
     >

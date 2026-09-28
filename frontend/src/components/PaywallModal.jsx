@@ -64,7 +64,7 @@ export default function PaywallModal() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto"
+      className="popup-fonts fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stage/90 sm:bg-stage/75 sm:backdrop-blur-md p-0 sm:p-4 overflow-y-auto"
       data-testid="paywall-modal"
       onClick={closePaywall}
     >
@@ -96,7 +96,7 @@ export default function PaywallModal() {
             </div>
           ) : null}
           {trialOnly ? (
-            <p className="font-serif text-xs text-muted2 italic mt-4" data-testid="paywall-trial-footer">
+            <p className="font-serif text-sm text-muted2 italic mt-4 leading-relaxed" data-testid="paywall-trial-footer">
               Already a member?{" "}
               <button type="button" className="text-ink not-italic underline underline-offset-2 hover:text-rust" onClick={() => { closePaywall(); openLogin(); }} data-testid="paywall-trial-signin">Sign in</button>.
               {" "}Want unlimited access?{" "}
@@ -129,7 +129,7 @@ export default function PaywallModal() {
                   <div className="flex items-center justify-between gap-4">
                     <div>
                       <div className={
-                        "font-mono text-[10px] uppercase tracking-[0.24em] " +
+                        "font-mono text-xs uppercase tracking-[0.18em] " +
                         (isAnnual
                           ? "text-surface/70"
                           : "text-muted2 group-hover:text-surface/70")
@@ -169,13 +169,13 @@ export default function PaywallModal() {
           {!trialOnly ? (
           <div className="mt-5 flex items-center justify-center gap-1.5 text-muted2">
             <Sparkles size={11} />
-            <p className="font-mono text-[10px] uppercase tracking-[0.22em]">
+            <p className="font-mono text-xs uppercase tracking-[0.16em]">
               Cancel anytime. Secure checkout by Stripe.
             </p>
           </div>
           ) : null}
           {!trialOnly ? (
-            <p className="font-serif text-xs text-muted2 mt-4 text-center leading-relaxed" data-testid="paywall-spam-note">
+            <p className="font-serif text-sm text-muted2 mt-4 text-center leading-relaxed" data-testid="paywall-spam-note">
               Don't see our email? Check your spam or junk folder.
             </p>
           ) : null}
