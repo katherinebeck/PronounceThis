@@ -293,6 +293,20 @@ export default function AdminPage() {
   };
 
   const [sendingEmail, setSendingEmail] = useState(null);
+  const [welcomingAll, setWelcomingAll] = useState(false);
+  const welcomeAllNew = async () => {
+    if (!window.confirm("Send the welcome / set-password email to every active member who has never signed in and hasn't been emailed yet?")) return;
+    setWelcomingAll(true);
+    try {
+      const { data } = await api.post("/admin/password-link/send-all-new");
+      toast.success(`Welcome emails sent to ${data.sent.length} member${data.sent.length === 1 ? "" : "s"}${data.failed.length ? ` · ${data.failed.length} failed` : ""}`);
+      load();
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Couldn't send welcome emails");
+    } finally {
+      setWelcomingAll(false);
+    }
+  };
   const sendWelcome = async (email) => {
     setSendingEmail(email);
     try {
@@ -534,6 +548,17 @@ export default function AdminPage() {
               Grant
             </button>
           </form>
+          <button
+            type="button"
+            disabled={welcomingAll}
+            onClick={welcomeAllNew}
+            className="mt-4 font-mono text-[10px] uppercase tracking-[0.2em] text-muted2 hover:text-ink inline-flex items-center gap-1.5 disabled:opacity-60"
+            data-testid="admin-welcome-all-new"
+            title="One-off: email the set-password steps to every existing member who has never signed in"
+          >
+            {welcomingAll ? <Loader2 size={11} className="animate-spin" /> : <Mail size={11} />}
+            Email welcome steps to all members who've never signed in
+          </button>
         </section>
 
         {/* Sync from Stripe */}

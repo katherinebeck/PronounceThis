@@ -46,7 +46,7 @@ def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = 
     if kind == "welcome":
         return ("Your free access to Pronounce This — set your password", _wrap([
             hi,
-            "Katherine has given you access to <b>Pronounce This</b> — the American-accent workbench where you can hear any word or your whole scene read in General American. Here's how to get in (it takes about a minute):",
+            "Welcome to <b>Pronounce This</b>. You just need to choose a password once, and you're in.",
             f'<b>Step 1.</b> Click this button and choose a password:<br><br><a href="{link}" style="display:inline-block;background:#d9a441;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border:1px solid #111">Set my password →</a>',
             f'<b>Step 2.</b> That\'s it — you\'ll land straight in the app. Next time, go to <a href="{app_url}" style="color:#b8862b">{app_url.replace("https://", "")}</a>, tap <b>Sign in</b>, and use this email address with the password you chose. If this is a Gmail address you can also just tap <b>Continue with Google</b>.',
             "If the button has expired by the time you open this, no problem: go to the site, tap Sign in → <b>Forgot password?</b> and a fresh link will arrive within a minute.",

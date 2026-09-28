@@ -791,6 +791,22 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=503, detail=f"Could not send ({res.get('status')})")
         return res
 
+    @router.post("/password-link/send-all-new")
+    async def admin_send_all_new(request: Request):
+        """Welcome email to every active member who has never signed in and
+        hasn't been welcomed yet (one-off onboarding of existing students)."""
+        await require_admin(request, db)
+        import password_links
+        base = password_links.base_url(request)
+        active = await db.memberships.distinct("user_email", {"status": "active"})
+        cursor = db.users.find({"email": {"$in": active}, "last_login_at": None,
+                                "welcome_sent_at": {"$exists": False}}, {"_id": 0, "email": 1}).limit(200)
+        sent, failed = [], []
+        async for u in cursor:
+            res = await password_links.send_link_email(db, u["email"], "welcome", base)
+            (sent if res.get("ok") else failed).append(u["email"])
+        return {"ok": True, "sent": sent, "failed": failed}
+
     @router.post("/magic-link")
     async def issue_magic_link(body: MagicLinkBody, request: Request):
         """Admin utility: mint a one-time sign-in URL for a student and
