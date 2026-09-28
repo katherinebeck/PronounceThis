@@ -46,7 +46,9 @@ export default function AccountChip() {
     );
   }
 
-  const portal = me?.member_portal_url;
+  // Only members granted access outside Stripe (group-coaching / admin grants)
+  // see the Kajabi coaching library link; free-trial users never do.
+  const portal = isSubscriber && !me?.has_stripe_customer ? me?.member_portal_url : null;
   const status = isSubscriber
     ? (me?.subscription_offer_title || "Member")
     : "Free trial";
