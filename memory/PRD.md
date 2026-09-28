@@ -480,3 +480,8 @@
 - Login health: `/admin/users` returns `last_auth_email {kind,status,sent_at}`; `LoginHealth.jsx` cell shows Password set · date / Signed in (legacy link) / Never signed in + last link email status (welcome/reminder/reset delivered|sent|bounced + date).
 - Onboarding nudge: `password_links.run_onboarding_nudges()` — users with `welcome_sent_at` ≥3 days ago, `last_login_at None`, no `nudge_sent_at`, not trial_blocked → one "Your Pronounce This access is waiting" email with a fresh link (max 50/run). Cron endpoint `POST /api/cron/onboarding-nudge` (Bearer `WEBHOOK_CRON_SECRET` in backend/.env, constant-time compare, idempotent via `cron_runs.run_id`, BackgroundTasks). `.emergent/crons.yml`: daily 09:00 Australia/Sydney. **Prod needs `WEBHOOK_CRON_SECRET` in deployment secrets.**
 - Verified: grant with name → welcome "Hi Antonia," with link; backdated → nudge sent, `nudge_sent_at` stamped; cron auth 401/duplicate handling; admin column renders.
+
+## Added (Sep 27, 2026 — Kajabi connection panel + reconcile fix)
+- **Bug fixed**: daily Kajabi reconciliation cancelled *any* active membership not present in Kajabi's purchases list — including Admin manual grants. Now skips `offer_id == manual_grant` / `last_event == admin_grant`.
+- `GET /admin/kajabi/status` + `KajabiStatus.jsx` (bottom of Admin): last webhook event + time, total events, API creds present, offers seen with member/active counts. Webhook URL hint shown. Lets the user verify her free coaching offer is wired.
+- Supabase link expiry is a dashboard setting: Authentication → Sign In / Providers → Email → "Email OTP Expiration" (default 3600; user wants 14400). Note one live link per user (a new link invalidates the previous).

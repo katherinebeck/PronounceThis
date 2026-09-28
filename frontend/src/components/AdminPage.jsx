@@ -12,6 +12,7 @@ import LoginHealth from "./LoginHealth";
 import { ClipReports } from "./ClipReports";
 import { BlockedWords } from "./BlockedWords";
 import { TrialDevices } from "./TrialDevices";
+import { KajabiStatus } from "./KajabiStatus";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -725,6 +726,7 @@ export default function AdminPage() {
         <BlockedWords />
         <HiddenVideos />
         <TrialDevices />
+        <KajabiStatus />
 
         {/* User list */}
         <section>

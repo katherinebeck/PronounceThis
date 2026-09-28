@@ -366,6 +366,9 @@ async def reconcile_memberships(db: AsyncIOMotorDatabase) -> dict:
         email = (m.get("user_email") or "").lower()
         if email in active_emails:
             continue
+        # Access you granted by hand in Admin isn't in Kajabi — never revoke it here.
+        if m.get("offer_id") == "manual_grant" or m.get("last_event") == "admin_grant":
+            continue
         # Already scheduled for termination? Leave alone.
         if m.get("subscription_end_at"):
             continue

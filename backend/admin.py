@@ -379,6 +379,30 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=404, detail="user_not_found")
         return {"ok": True, "email": email, "unlinked": r.modified_count == 1}
 
+    @router.get("/kajabi/status")
+    async def kajabi_status(request: Request):
+        """Is Kajabi talking to us? Last webhook, offers seen, member counts."""
+        await require_admin(request, db)
+        last = await db.webhook_events.find_one({"provider": "kajabi"}, {"_id": 0, "event": 1, "received_at": 1},
+                                                sort=[("received_at", -1)])
+        total = await db.webhook_events.count_documents({"provider": "kajabi"})
+        offers = await db.memberships.aggregate([
+            {"$match": {"offer_id": {"$ne": None}}},
+            {"$group": {"_id": {"offer_id": "$offer_id", "offer_title": "$offer_title"},
+                        "members": {"$sum": 1},
+                        "active": {"$sum": {"$cond": [{"$eq": ["$status", "active"]}, 1, 0]}},
+                        "last_event_at": {"$max": "$updated_at"}}},
+            {"$sort": {"members": -1}},
+        ]).to_list(50)
+        return {
+            "webhook_events": total,
+            "last_webhook": last,
+            "webhook_url_hint": "/api/kajabi/webhook?token=…  (event: Purchase / Offer granted)",
+            "api_credentials": bool(os.environ.get("KAJABI_API_CLIENT_ID") and os.environ.get("KAJABI_API_CLIENT_SECRET")),
+            "offers": [{"offer_id": o["_id"].get("offer_id"), "offer_title": o["_id"].get("offer_title") or "(untitled)",
+                        "members": o["members"], "active": o["active"], "last_event_at": o.get("last_event_at")} for o in offers],
+        }
+
     @router.get("/events")
     async def recent_events(request: Request, limit: int = 50):
         await require_admin(request, db)
