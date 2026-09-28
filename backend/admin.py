@@ -989,6 +989,35 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         from watchdog import get_credit_status
         return await get_credit_status(db)
 
+    @router.get("/line-checks")
+    async def line_checks(request: Request):
+        """Health of the scene-line listen-back check (last 7 days)."""
+        await require_admin(request, db)
+        since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        stats = {"total": 0, "verified": 0, "retried": 0, "gave_up": 0, "stt_unavailable": 0, "unchecked": 0}
+        recent = []
+        cur = db.turn_audio_cache.find({"created_at": {"$gte": since}},
+                                       {"_id": 0, "text": 1, "check": 1, "created_at": 1}).sort("created_at", -1)
+        async for d in cur:
+            stats["total"] += 1
+            c = d.get("check")
+            if not c:
+                stats["unchecked"] += 1
+                continue
+            if c.get("verified"):
+                stats["verified"] += 1
+            if (c.get("renders") or 1) > 1:
+                stats["retried"] += 1
+            if c.get("gave_up"):
+                stats["gave_up"] += 1
+                if len(recent) < 10:
+                    recent.append({"text": (d.get("text") or "")[:120], "heard": (c.get("heard") or "")[:120],
+                                   "renders": c.get("renders"), "at": d.get("created_at")})
+            if c.get("stt_unavailable") or (c.get("heard") is None and not c.get("verified") and not c.get("gave_up")):
+                stats["stt_unavailable"] += 1
+        stt_key = bool(os.environ.get("EMERGENT_LLM_KEY") or os.environ.get("OPENAI_API_KEY"))
+        return {"stt_key_present": stt_key, "since": since, **stats, "recent_gave_up": recent}
+
     @router.get("/payment-health")
     async def payment_health(request: Request):
         """Show any red flags in the payment pipeline.

@@ -13,7 +13,7 @@ from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-MAX_RENDERS = 3            # 1 render + up to 2 retries
+MAX_RENDERS = 4            # 1 render + up to 3 retries
 STT_TIMEOUT_SECONDS = 12
 
 _CONTRACTIONS = {
@@ -137,6 +137,24 @@ async def transcribe(audio_bytes: bytes) -> Optional[str]:
         return None
 
 
+def _proper_nouns(text: str) -> set:
+    """Capitalised words that aren't sentence-initial — names STT may respell."""
+    out = set()
+    for sent in re.split(r"(?<=[.!?])\s+", text or ""):
+        for w in re.findall(r"[A-Za-z][a-z']*", sent)[1:]:
+            if w[0].isupper():
+                out.add(w.lower().replace("'", ""))
+    return out
+
+
+def looks_like_stt_bias(text: str, bad: List[Tuple[str, List[str], List[str]]]) -> bool:
+    """True only when every disputed script word is a name (Abbie/Abby); a
+    repeated glitch on ordinary words ("couple you've years") is a bad take."""
+    names = _proper_nouns(text)
+    words = [w for _, sw, _ in bad for w in sw]
+    return bool(words) and all(w.replace("'", "") in names for w in words)
+
+
 async def render_verified(text: str, render: Callable[[], Awaitable[bytes]],
                           max_renders: int = MAX_RENDERS) -> Tuple[bytes, Dict]:
     """Render → listen back → re-render on a bad take (up to max_renders).
@@ -153,6 +171,7 @@ async def render_verified(text: str, render: Callable[[], Awaitable[bytes]],
         heard = await transcribe(audio)
         if heard is None:                       # STT down: don't block playback
             report["heard"] = None
+            report["stt_unavailable"] = True
             return audio, report
         bad = mismatches(text, heard)
         if not bad:
@@ -165,7 +184,7 @@ async def render_verified(text: str, render: Callable[[], Awaitable[bytes]],
             best, best_bad = audio, len(bad)
             report["heard"] = heard
         sig = repr(bad)
-        if sig == last_sig:                     # same "error" twice → STT bias, not a bad take
+        if sig == last_sig and looks_like_stt_bias(text, bad):   # same name respelled twice
             report["stt_bias"] = True
             break
         last_sig = sig
