@@ -379,6 +379,16 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=404, detail="user_not_found")
         return {"ok": True, "email": email, "unlinked": r.modified_count == 1}
 
+    @router.get("/paid-count")
+    async def paid_count(request: Request):
+        """Active paid (Stripe) subscriptions — founding-member tally."""
+        await require_admin(request, db)
+        q = {"status": "active", "offer_id": {"$regex": "^stripe:"}}
+        total = len(await db.memberships.distinct("user_email", q))
+        monthly = len(await db.memberships.distinct("user_email", {**q, "offer_id": {"$regex": "monthly"}}))
+        yearly = len(await db.memberships.distinct("user_email", {**q, "offer_id": {"$regex": "yearly"}}))
+        return {"paid": total, "monthly": monthly, "yearly": yearly}
+
     @router.get("/kajabi/status")
     async def kajabi_status(request: Request):
         """Is Kajabi talking to us? Last webhook, offers seen, member counts."""

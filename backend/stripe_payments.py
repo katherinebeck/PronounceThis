@@ -203,6 +203,7 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return {"url": portal.url}
 
     @router.post("/stripe/webhook")
+    @router.post("/payments/webhook")  # alias: the URL registered in the Stripe dashboard
     async def stripe_webhook(request: Request):
         payload = await request.body()
         sig = request.headers.get("stripe-signature", "")

@@ -98,6 +98,7 @@ export default function AdminPage() {
 
   // ------------------------ Payment health ---------------------------------
   const [health, setHealth] = useState(null);
+  const [paid, setPaid] = useState(null);
 
   const loadHealth = useCallback(async () => {
     if (!authorized) return;
@@ -106,6 +107,12 @@ export default function AdminPage() {
       setHealth(data);
     } catch {
       setHealth(null);
+    }
+    try {
+      const { data } = await api.get("/admin/paid-count");
+      setPaid(data);
+    } catch {
+      setPaid(null);
     }
   }, [authorized]);
 
@@ -423,9 +430,20 @@ export default function AdminPage() {
           </div>
           <div className="font-display text-2xl text-ink mt-0.5">Memberships</div>
         </div>
-        <a href="/app" className="btn-secondary !py-2 !px-4" data-testid="admin-back">
-          Back to app
-        </a>
+        <div className="flex items-center gap-4">
+          {paid ? (
+            <div className="text-right" data-testid="admin-paid-count" title="Active paid Stripe subscriptions (free coaching members not counted)">
+              <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">Founding members · paid</div>
+              <div className="font-display text-xl text-ink">
+                {paid.paid}<span className="text-muted2 text-base"> / 20</span>
+                <span className="font-mono text-[10px] text-muted2 ml-2">{paid.monthly}m · {paid.yearly}y</span>
+              </div>
+            </div>
+          ) : null}
+          <a href="/app" className="btn-secondary !py-2 !px-4" data-testid="admin-back">
+            Back to app
+          </a>
+        </div>
       </header>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 space-y-10">
