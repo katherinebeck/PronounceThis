@@ -50,7 +50,7 @@ def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = 
             f'<b>Step 1.</b> Click this button and choose a password:<br><br><a href="{link}" style="display:inline-block;background:#d9a441;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border:1px solid #111">Set my password →</a>',
             f'<b>Step 2.</b> That\'s it — you\'ll land straight in the app. Next time, go to <a href="{app_url}" style="color:#b8862b">{app_url.replace("https://", "")}</a>, tap <b>Sign in</b>, and use this email address with the password you chose. If this is a Gmail address you can also just tap <b>Continue with Google</b>.',
             "If the button has expired by the time you open this, no problem: go to the site, tap Sign in → <b>Forgot password?</b> and a fresh link will arrive within a minute.",
-            "See you in there,<br>Katherine",
+            "See you in there,<br>The Pronounce This Team",
             tip,
         ]))
     if kind == "nudge":
@@ -59,7 +59,7 @@ def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = 
             "Just a gentle nudge — your free Pronounce This access is all set up, but you haven't chosen a password yet. It takes ten seconds:",
             f'<a href="{link}" style="display:inline-block;background:#d9a441;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border:1px solid #111">Set my password →</a>',
             f'Then sign in any time at <a href="{app_url}" style="color:#b8862b">{app_url.replace("https://", "")}</a> with this email and that password (or Continue with Google). If anything\'s unclear, just reply to this email.',
-            "Katherine",
+            "The Pronounce This Team",
             tip,
         ]))
     if kind == "reset":
@@ -68,15 +68,15 @@ def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = 
             "Here's your link to choose a new Pronounce This password:",
             f'<a href="{link}" style="color:#b8862b;font-weight:bold">Choose a new password →</a>',
             "If you didn't ask for this, you can ignore this email — nothing changes.",
-            "Katherine",
+            "The Pronounce This Team",
             tip,
         ]))
     return ("Pronounce This — no account under this email", _wrap([
         "Hi there,",
         "Someone (probably you) asked for a Pronounce This password link for this address, but there's no account under it yet.",
-        "If you're one of Katherine's coaching members, try the email you used when you joined. "
+        "If you joined through group coaching, try the email you used when you joined. "
         "Otherwise you can start free at <a href=\"" + APP_PUBLIC_URL + "\" style=\"color:#b8862b\">Pronounce This</a>.",
-        "Katherine",
+        "The Pronounce This Team",
     ]))
 
 
