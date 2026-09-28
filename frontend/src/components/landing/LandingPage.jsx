@@ -16,8 +16,8 @@ const FAQ = [
 ];
 
 const TRIED = [
-  ["Hiring a dialect coach for one session", "Useful — but there's not always time or budget to book a session with a dialect coach before every audition."],
-  ["A generic English pronunciation app", "Built for ESL speakers, not actors. It doesn't upload your scene and give you all of your dialogue spoken back as a reference, and it doesn't include the names, locations, and other words that come up in your dialogue."],
+  ["Hiring a dialect coach for one session", "Useful, but there's not always time or budget to book a session with a dialect coach before every audition."],
+  ["A generic English pronunciation app", "Built for ESL speakers, not actors. This is the first web app specifically designed for non-U.S. actors auditioning for roles requiring a Standard American accent."],
   ["Watching YouTube videos", "It might help you with the accent, but it won't help you apply the accent to your actual lines."],
   ["Guessing and hoping the accent sounds accurate", "All it takes is one mispronounced name or word to cost you the role."],
 ];
@@ -38,7 +38,6 @@ export default function LandingPage() {
           <div className="cta-row">
             <button type="button" className="btn" onClick={tryFree} data-testid="landing-cta-hero">Try Pronounce This.</button>
           </div>
-          <div className="slug slug--pre-shot">Int. Your Next U.S. Audition</div>
           <div className="device-mockup device-mockup--shot" aria-hidden="true">
             <img src="/landing/hero-devices.png" alt="" />
           </div>
@@ -47,13 +46,12 @@ export default function LandingPage() {
 
       <div className="breakdown">
         <div className="wrap">
-          <div className="breakdown-slug">Casting Breakdown — Seeking</div>
-          <div className="section-head"><h2>For the non-U.S. actor who…</h2></div>
+          <div className="section-head"><h2 className="nowrap-heading">For the non-U.S. actor who…</h2></div>
           <div className="breakdown-single">
             <ul>
-              <li>Booked a role and want to know if you're pronouncing your dialogue correctly</li>
               <li>Has a self-tape audition or a scene to prepare for acting class and needs to check their American pronunciation</li>
-              <li>Got a self-tape audition and needs a reader</li>
+              <li>Booked a role and want to know if you're pronouncing your dialogue correctly</li>
+              <li>Got a self-tape audition and needs to run lines or needs 'a reader'</li>
               <li>Is learning the American accent and needs help with their American pronunciation</li>
             </ul>
           </div>
@@ -66,17 +64,17 @@ export default function LandingPage() {
 
       <div className="struggle" id="struggle">
         <div className="wrap">
-          <div className="section-head">
+          <div className="section-head section-head--wide">
             <h2>You've got the audition. Your accent isn't there yet.</h2>
             <p>Imagine you get an audition and you don't have time to work with a dialect coach. You need to check your American pronunciation fast.</p>
           </div>
           <div className="script-page">
             <div className="tried tried--needs">
-              <div className="tried-row"><div className="why">Your script has a character name, location or word that isn't in any dictionary, and you need to know: am I pronouncing it correctly?</div></div>
-              <div className="tried-row"><div className="why">You need a place to listen and rehearse with a reference of your dialogue spoken in a standard American accent.</div></div>
-              <div className="tried-row"><div className="why">You need a tool to record lines with you, or be your reader when you're ready to film your audition.</div></div>
+              <div className="tried-row"><div className="why">Your script has a character name, location or word that isn't in the dictionary, and you need to know: "Am I pronouncing it correctly?"</div></div>
+              <div className="tried-row"><div className="why">You need your dialogue recorded so you can listen and repeat as you practice speaking your line in a standard American accent.</div></div>
+              <div className="tried-row"><div className="why">You need to run lines and practice, and need a resource to help be your reader when you don't have anyone available to help you.</div></div>
             </div>
-            <p className="script-lede">You know the feeling: you get the audition, the self-tape is due, and you're not sure if you're pronouncing all the words correctly.</p>
+            <p className="callout-line">You know the feeling: you get the audition, the self-tape is due, and you're not sure if you're pronouncing all the words correctly.</p>
             <div className="tried">
               {TRIED.map(([what, why]) => (
                 <div className="tried-row" key={what}>
@@ -116,7 +114,7 @@ export default function LandingPage() {
                 <li>See each word transcribed in American IPA</li>
                 <li>Practice with sound lists pulled straight from your scene</li>
                 <li>Download the audio of your character's dialogue for additional practice</li>
-                <li>Download the other character's lines — run lines with it, or use it as your reader while you film your self-tape</li>
+                <li>Download the other character's lines to practice and run lines, or use it as your reader while you film your self-tape</li>
               </ul>
             </div>
             <div className="shot-frame">
