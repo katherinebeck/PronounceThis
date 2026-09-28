@@ -33,7 +33,7 @@ export default function AuthForm({ mode, setMode, onDone, compact = false }) {
   const friendly = (msg = "") => {
     const m = msg.toLowerCase();
     if (m.includes("invalid login")) return "That email and password don't match. Try again or use “Forgot password?”.";
-    if (m.includes("already registered") || m.includes("already been registered")) return "An account with this email already exists — sign in instead.";
+    if (m.includes("already registered") || m.includes("already been registered")) return "You already have an account with this email — use Sign in, or tap “Forgot password?” and we'll email you a link to set one.";
     if (m.includes("rate limit") || m.includes("too many")) return "Too many attempts — please wait a minute and try again.";
     if (m.includes("password")) return msg;
     return msg || "Something went wrong. Please try again.";
