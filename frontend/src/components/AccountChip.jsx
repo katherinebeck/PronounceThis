@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { User, LogOut, CreditCard, ExternalLink, ChevronDown, Loader2, Mail } from "lucide-react";
+import { User, LogOut, CreditCard, ExternalLink, ChevronDown, Loader2, Mail, Sparkles, ArrowRight } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { createStripePortal } from "@/lib/api";
 import { toast } from "sonner";
@@ -110,6 +110,21 @@ export default function AccountChip() {
               </div>
             ) : null}
           </div>
+
+          {!isSubscriber ? (
+            <button
+              type="button"
+              onClick={() => { setOpen(false); openPaywall("join"); }}
+              className="flex items-center justify-between gap-2 w-full px-4 py-3 bg-rust/10 hover:bg-rust/20 transition-colors border-b thin-rule text-left"
+              data-testid="account-join"
+            >
+              <span className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-ink font-semibold">
+                <Sparkles size={12} className="text-rust" />
+                Join Pronounce This
+              </span>
+              <ArrowRight size={12} className="text-rust" />
+            </button>
+          ) : null}
 
           {canOpenStripePortal ? (
             <button

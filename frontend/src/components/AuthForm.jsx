@@ -70,7 +70,7 @@ export default function AuthForm({ mode, setMode, onDone, compact = false }) {
       }
     } catch (err) {
       if (err?.response?.status === 429) setError("Too many attempts — please wait a minute and try again.");
-      else if (err?.response?.status === 503) setError("We couldn't send the email right now. Please try again in a moment or contact Katherine.");
+      else if (err?.response?.status === 503) setError("We couldn't send the email right now. Please try again in a moment or contact support.");
       else setError(friendly(err?.message));
     } finally {
       setBusy(false);
