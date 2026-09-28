@@ -182,24 +182,32 @@ export default function AdminPage() {
 
   const grant = async (e) => {
     e.preventDefault();
-    if (!grantEmail.trim()) return;
+    const emails = grantEmail.split(/[\s,;]+/).map((s) => s.trim().toLowerCase()).filter((s) => s.includes("@"));
+    if (!emails.length) return;
     setGranting(true);
-    try {
-      await api.post("/admin/memberships/grant", {
-        email: grantEmail.trim().toLowerCase(),
-        first_name: grantName.trim(),
-        offer_title: grantTitle,
-        days: Number(grantDays) || 0,
-      });
-      toast.success(`Granted access to ${grantEmail} — welcome email on its way if they've never signed in`);
+    let ok = 0;
+    for (const email of emails) {
+      try {
+        await api.post("/admin/memberships/grant", {
+          email,
+          first_name: emails.length === 1 ? grantName.trim() : "",
+          offer_title: grantTitle,
+          days: Number(grantDays) || 0,
+        });
+        ok += 1;
+      } catch (err) {
+        toast.error(`${email}: ${err?.response?.data?.detail || "grant failed"}`);
+      }
+    }
+    if (ok) {
+      toast.success(ok === 1
+        ? `Access granted to ${emails[0]} — welcome email with sign-in steps on its way`
+        : `Access granted to ${ok} members — welcome emails on their way`);
       setGrantEmail("");
       setGrantName("");
       load();
-    } catch (err) {
-      toast.error(err?.response?.data?.detail || "Grant failed");
-    } finally {
-      setGranting(false);
     }
+    setGranting(false);
   };
 
   // ------------------------ Data export -----------------------------------
@@ -477,14 +485,14 @@ export default function AdminPage() {
             Give a student membership
           </h2>
           <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
-            Use this for group-coaching students, refunds, or comping a friend.
-            Set days = 0 for permanent access, or a number of days to auto-expire.
+            The easy way to onboard group-coaching students: enter their email (or paste several, separated by commas or new lines) and click Grant.
+            Anyone who has never signed in gets a step-by-step welcome email to choose a password. Days = 0 means permanent access.
           </p>
           <form onSubmit={grant} className="grid gap-3 sm:grid-cols-[1.5fr_0.8fr_1fr_0.7fr_auto]">
             <input
-              type="email"
+              type="text"
               required
-              placeholder="student@example.com"
+              placeholder="student@example.com — or paste a list"
               value={grantEmail}
               onChange={(e) => setGrantEmail(e.target.value)}
               className="w-full px-3 py-2.5 bg-paper border thin-rule font-serif text-base text-ink focus:outline-none focus:border-ink"

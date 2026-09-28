@@ -37,26 +37,28 @@ def _wrap(paragraphs: list[str]) -> str:
     return f'<div style="max-width:520px;margin:0 auto;padding:24px 16px">{body}</div>'
 
 
-def _email(kind: str, link: Optional[str], first_name: str = "") -> tuple[str, str]:
+def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = APP_PUBLIC_URL) -> tuple[str, str]:
     """(subject, html) for kind in welcome | reset | nudge | no_account."""
+    app_url = app_url.rstrip("/")
     hi = f"Hi {first_name}," if first_name else "Hi there,"
     tip = ('<span style="color:#555;font-size:14px">Using Gmail and can\'t see this? It may be under the '
            '<b>Promotions</b> or <b>Updates</b> tab — search for “Pronounce This”.</span>')
     if kind == "welcome":
-        return ("Your Pronounce This access — set your password", _wrap([
+        return ("Your free access to Pronounce This — set your password", _wrap([
             hi,
-            "Welcome to Pronounce This — your accent workbench is ready. You just need to choose a password once, and you're in.",
-            f'<a href="{link}" style="color:#b8862b;font-weight:bold">Set my password →</a>',
-            "After that, sign in any time with your email and that password.",
-            "Katherine",
+            "Katherine has given you access to <b>Pronounce This</b> — the American-accent workbench where you can hear any word or your whole scene read in General American. Here's how to get in (it takes about a minute):",
+            f'<b>Step 1.</b> Click this button and choose a password:<br><br><a href="{link}" style="display:inline-block;background:#d9a441;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border:1px solid #111">Set my password →</a>',
+            f'<b>Step 2.</b> That\'s it — you\'ll land straight in the app. Next time, go to <a href="{app_url}" style="color:#b8862b">{app_url.replace("https://", "")}</a>, tap <b>Sign in</b>, and use this email address with the password you chose. If this is a Gmail address you can also just tap <b>Continue with Google</b>.',
+            "If the button has expired by the time you open this, no problem: go to the site, tap Sign in → <b>Forgot password?</b> and a fresh link will arrive within a minute.",
+            "See you in there,<br>Katherine",
             tip,
         ]))
     if kind == "nudge":
         return ("Your Pronounce This access is waiting", _wrap([
             hi,
-            "Just a gentle nudge — your Pronounce This access is all set up, but you haven't chosen a password yet. It takes ten seconds:",
-            f'<a href="{link}" style="color:#b8862b;font-weight:bold">Set my password →</a>',
-            "Then sign in any time with your email and that password. If anything's unclear, just reply to this email.",
+            "Just a gentle nudge — your free Pronounce This access is all set up, but you haven't chosen a password yet. It takes ten seconds:",
+            f'<a href="{link}" style="display:inline-block;background:#d9a441;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border:1px solid #111">Set my password →</a>',
+            f'Then sign in any time at <a href="{app_url}" style="color:#b8862b">{app_url.replace("https://", "")}</a> with this email and that password (or Continue with Google). If anything\'s unclear, just reply to this email.',
             "Katherine",
             tip,
         ]))
@@ -102,7 +104,7 @@ async def send_link_email(db: AsyncIOMotorDatabase, email: str, kind: str, base:
             return {"ok": False, "status": "unavailable"}
     else:
         kind = "no_account"
-    subject, html = _email(kind, link, (account or {}).get("first_name") or "")
+    subject, html = _email(kind, link, (account or {}).get("first_name") or "", base)
     try:
         rid = await _send(email, subject, html)
     except Exception as exc:  # noqa: BLE001
