@@ -13,7 +13,7 @@ from typing import Awaitable, Callable, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
-MAX_RENDERS = 4            # 1 render + up to 3 retries
+MAX_RENDERS = 2            # 1 render + 1 retry (user choice: keep credits low)
 STT_TIMEOUT_SECONDS = 12
 
 _CONTRACTIONS = {
