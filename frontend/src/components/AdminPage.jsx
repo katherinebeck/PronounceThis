@@ -13,6 +13,7 @@ import { ClipReports } from "./ClipReports";
 import { BlockedWords } from "./BlockedWords";
 import { TrialDevices } from "./TrialDevices";
 import { KajabiStatus } from "./KajabiStatus";
+import AdminNav, { ALL_TAB_KEYS, tabLabel } from "./AdminNav";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -24,6 +25,11 @@ import {
 export default function AdminPage() {
   const { me, isAuthenticated, openLogin } = useAuth();
   const [authorized, setAuthorized] = useState(null); // null | true | false
+  const [tab, setTabState] = useState(() => {
+    const h = window.location.hash.replace("#", "");
+    return ALL_TAB_KEYS.includes(h) ? h : "users";
+  });
+  const setTab = (k) => { setTabState(k); window.history.replaceState(null, "", `#${k}`); };
   const [users, setUsers] = useState([]);
   const [query, setQuery] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
@@ -428,11 +434,11 @@ export default function AdminPage() {
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
             Pronounce This · Admin
           </div>
-          <div className="font-display text-2xl text-ink mt-0.5">Memberships</div>
+          <div className="font-display text-2xl text-ink mt-0.5" data-testid="admin-title">{tabLabel(tab)}</div>
         </div>
         <div className="flex items-center gap-4">
           {paid ? (
-            <div className="text-right" data-testid="admin-paid-count" title="Active paid Stripe subscriptions (free coaching members not counted)">
+            <div className="text-right hidden sm:block" data-testid="admin-paid-count" title="Active paid Stripe subscriptions (free coaching members not counted)">
               <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">Founding members · paid</div>
               <div className="font-display text-xl text-ink">
                 {paid.paid}<span className="text-muted2 text-base"> / 20</span>
@@ -446,7 +452,13 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-8 py-8 space-y-10">
+      <div className="flex flex-col md:flex-row md:items-stretch">
+      <aside className="bg-ink md:w-64 md:shrink-0 md:min-h-[calc(100vh-73px)]" data-testid="admin-sidebar">
+        <div className="md:sticky md:top-0">
+          <AdminNav tab={tab} setTab={setTab} alerts={{ users: !!(health && (health.stuck_users_count > 0 || health.failed_webhooks_count > 0)) }} />
+        </div>
+      </aside>
+      <main className="flex-1 min-w-0 px-4 sm:px-8 py-8 space-y-10" data-testid="admin-content">
         {/* Payment health banner — visible only when something is off */}
         {health && (health.stuck_users_count > 0 || health.failed_webhooks_count > 0) ? (
           <section
@@ -509,6 +521,7 @@ export default function AdminPage() {
         ) : null}
 
         {/* Grant access */}
+        {tab === "grant" ? (
         <section className="bg-surface border thin-rule p-6">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
             Grant access
@@ -578,8 +591,10 @@ export default function AdminPage() {
             Email welcome steps to all members who've never signed in
           </button>
         </section>
+        ) : null}
 
         {/* Sync from Stripe */}
+        {tab === "stripe" ? (
         <section className="bg-surface border thin-rule p-6" data-testid="admin-stripe-sync">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
             Sync from Stripe
@@ -618,12 +633,14 @@ export default function AdminPage() {
             </button>
           </form>
         </section>
+        ) : null}
 
-        <CreditMeter />
+        {tab === "credits" ? <CreditMeter /> : null}
 
-        <KitStatus />
+        {tab === "kit" ? <KitStatus /> : null}
 
         {/* Data export */}
+        {tab === "export" ? (
         <section className="bg-surface border thin-rule p-6" data-testid="admin-export">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
             Your data
@@ -659,8 +676,10 @@ export default function AdminPage() {
             </button>
           </div>
         </section>
+        ) : null}
 
         {/* Bulk ingest full transcripts from all curated channels */}
+        {tab === "index" ? (
         <section className="bg-surface border thin-rule p-6" data-testid="admin-ingest">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
             Real Speakers · YouTube channel index
@@ -771,15 +790,16 @@ export default function AdminPage() {
             </details>
           ) : null}
         </section>
+        ) : null}
 
-
-        <ClipReports />
-        <BlockedWords />
-        <HiddenVideos />
-        <TrialDevices />
-        <KajabiStatus />
+        {tab === "reports" ? <ClipReports /> : null}
+        {tab === "blocked" ? <BlockedWords /> : null}
+        {tab === "hidden" ? <HiddenVideos /> : null}
+        {tab === "trial" ? <TrialDevices /> : null}
+        {tab === "kajabi" ? <KajabiStatus /> : null}
 
         {/* User list */}
+        {tab === "users" ? (
         <section>
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
             <div>
@@ -1019,6 +1039,7 @@ export default function AdminPage() {
             Click a date to extend or shorten access (clear it for no end) · Cancel = ends access at end of paid period · Chain icon = unlink password login · Trash = delete the user entirely.
           </p>
         </section>
+        ) : null}
 
         <AlertDialog open={!!pendingDelete} onOpenChange={(o) => { if (!o && !deleting) setPendingDelete(null); }}>
           <AlertDialogContent className="bg-paper border thin-rule rounded-none max-w-md" data-testid="admin-delete-dialog">
@@ -1059,11 +1080,11 @@ export default function AdminPage() {
         </AlertDialog>
 
 
-        <DictionaryBuilder />
+        {tab === "dictionary" ? <DictionaryBuilder /> : null}
 
-        <PronunciationPrefs />
+        {tab === "prefs" ? <PronunciationPrefs /> : null}
 
-
+      </main>
       </div>
     </div>
   );

@@ -47,6 +47,22 @@ body::before {
 }
 body:has(.landing)::before { display: none; }
 
+/* Admin sidebar */
+.admin-nav { display: flex; flex-direction: column; gap: 1.25rem; padding: 1.25rem 0.75rem; }
+.admin-nav-group { display: flex; flex-direction: column; gap: 2px; }
+.admin-nav-group-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.24em; text-transform: uppercase; color: rgba(250, 248, 243, 0.45); padding: 0 0.75rem 0.4rem; }
+.admin-nav-item { display: flex; align-items: center; gap: 0.75rem; width: 100%; text-align: left; padding: 0.6rem 0.75rem; border-radius: 6px; border-left: 3px solid transparent; color: rgba(250, 248, 243, 0.82); font-family: "Inter", -apple-system, sans-serif; font-size: 15px; transition: background-color 0.15s ease, color 0.15s ease; }
+.admin-nav-item:hover { background: rgba(250, 248, 243, 0.08); color: #faf8f3; }
+.admin-nav-item.is-active { background: rgba(250, 248, 243, 0.14); color: #fff; border-left-color: var(--amber); }
+.admin-nav-dot { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: #e54d42; flex-shrink: 0; }
+@media (max-width: 900px) {
+  .admin-nav { flex-direction: row; gap: 0.25rem; padding: 0.5rem 0.75rem; overflow-x: auto; }
+  .admin-nav-group { flex-direction: row; gap: 0.25rem; }
+  .admin-nav-group-label { display: none; }
+  .admin-nav-item { width: auto; white-space: nowrap; border-left: none; border-bottom: 3px solid transparent; border-radius: 6px 6px 0 0; padding: 0.5rem 0.7rem; font-size: 14px; }
+  .admin-nav-item.is-active { border-bottom-color: var(--amber); }
+}
+
 /* Popups use the landing-page type (Fraunces / Inter / Courier Prime) for readability */
 .popup-fonts, .popup-fonts .font-serif, .popup-fonts input, .popup-fonts textarea { font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif; }
 .popup-fonts .font-display { font-family: "Fraunces", Georgia, serif; font-weight: 600; }
