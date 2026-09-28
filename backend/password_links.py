@@ -44,7 +44,7 @@ def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = 
     tip = ('<span style="color:#555;font-size:14px">Using Gmail and can\'t see this? It may be under the '
            '<b>Promotions</b> or <b>Updates</b> tab — search for “Pronounce This”.</span>')
     if kind == "welcome":
-        return ("Your free access to Pronounce This — set your password", _wrap([
+        return ("Your Pronounce This access — set your password", _wrap([
             hi,
             "Welcome to <b>Pronounce This</b>. You just need to choose a password once, and you're in.",
             f'<b>Step 1.</b> Click this button and choose a password:<br><br><a href="{link}" style="display:inline-block;background:#d9a441;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border:1px solid #111">Set my password →</a>',
