@@ -31,7 +31,7 @@ export default function SupportModal({ open, onClose }) {
         </div>
         <div className="px-6 py-6">
           <p className="font-serif text-sm text-ink leading-relaxed">
-            Questions, billing, or a word that sounds off? Email Katherine directly and she'll get back to you.
+            Questions, billing, or a word that sounds off? Email us directly and we'll get back to you.
           </p>
           <div className="mt-4 flex items-center gap-2 border thin-rule bg-paper px-3 py-2.5">
             <Mail size={14} className="text-muted2" />
