@@ -57,6 +57,32 @@ async def tag_subscriber_now(email: str, tag_name: str) -> None:
     logger.info("kit: tagged %s as %r", email, tag_name)
 
 
+async def list_tags() -> list:
+    """All tags in the connected Kit account (follows cursor pagination)."""
+    headers = {"X-Kit-Api-Key": _api_key(), "Accept": "application/json"}
+    out, cursor = [], None
+    async with httpx.AsyncClient(base_url=BASE_URL, headers=headers, timeout=10) as client:
+        for _ in range(20):
+            params = {"per_page": 500}
+            if cursor:
+                params["after"] = cursor
+            data = await _request(client, "GET", "/tags", params=params)
+            out.extend(data.get("tags") or [])
+            pag = data.get("pagination") or {}
+            if not pag.get("has_next_page"):
+                break
+            cursor = pag.get("end_cursor")
+    return out
+
+
+async def account_info() -> dict:
+    headers = {"X-Kit-Api-Key": _api_key(), "Accept": "application/json"}
+    async with httpx.AsyncClient(base_url=BASE_URL, headers=headers, timeout=10) as client:
+        data = await _request(client, "GET", "/account")
+    acct = data.get("account") or data
+    return {"name": acct.get("name"), "primary_email": acct.get("primary_email_address"), "plan": acct.get("plan_type")}
+
+
 def tag_subscriber(email: str, tag_name: str) -> None:
     """Schedule the Kit sync; safe to call from any request handler."""
     if not enabled() or not email:

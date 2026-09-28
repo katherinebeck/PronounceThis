@@ -9,6 +9,20 @@ export default function KitStatus() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState("");
+  const [tags, setTags] = useState(null);
+  const [tagsBusy, setTagsBusy] = useState(false);
+
+  const checkTags = async () => {
+    setTagsBusy(true);
+    try {
+      const { data } = await api.get("/admin/kit/tags");
+      setTags(data);
+    } catch (e) {
+      setTags({ error: e?.response?.data?.detail || e.message });
+    } finally {
+      setTagsBusy(false);
+    }
+  };
 
   useEffect(() => {
     api.get("/admin/kit/status").then((r) => setStatus(r.data)).catch(() => setStatus({ enabled: false }));
@@ -49,6 +63,38 @@ export default function KitStatus() {
             </button>
           </div>
           {result ? <p className="font-serif text-xs text-ink mt-3" data-testid="admin-kit-result">{result}</p> : null}
+
+          <div className="mt-6 pt-5 border-t thin-rule">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">Live check</div>
+                <p className="font-serif text-sm text-ink mt-1">Ask Kit which of our four tags exist in the connected account.</p>
+              </div>
+              <button type="button" onClick={checkTags} disabled={tagsBusy || !status.enabled} className="btn-secondary disabled:opacity-50" data-testid="admin-kit-check-tags">
+                {tagsBusy ? <Loader2 size={14} className="animate-spin" /> : "Check tags in Kit"}
+              </button>
+            </div>
+            {tags?.error ? <p className="font-serif text-sm text-crimson mt-3" data-testid="admin-kit-tags-error">Kit refused: {tags.error}</p> : null}
+            {tags && !tags.error ? (
+              <div className="mt-3" data-testid="admin-kit-tags">
+                <p className="font-mono text-xs text-muted2 mb-2">
+                  Account: {tags.account?.name || "—"}{tags.account?.primary_email ? ` · ${tags.account.primary_email}` : ""} · {tags.total_tags_in_account} tags total
+                </p>
+                <ul className="grid gap-1.5 sm:grid-cols-2">
+                  {tags.tags.map((t) => (
+                    <li key={t.name} className="flex items-center gap-2 font-serif text-sm text-ink" data-testid={`admin-kit-tag-${t.name.replace(/\s+/g, "-").toLowerCase()}`}>
+                      <span className={"inline-block w-2 h-2 rounded-full " + (t.exists ? "bg-sage" : "bg-rule")} />
+                      {t.name}
+                      <span className="font-mono text-xs text-muted2">{t.exists ? `in Kit (id ${t.id})` : "not created yet — appears on first use"}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="font-serif text-xs text-muted2 italic mt-3">
+                  Kit shows tags under Grow → Subscribers → Tags (left panel). If the account email above isn't the Kit account you're looking at, the key belongs to a different account.
+                </p>
+              </div>
+            ) : null}
+          </div>
         </>
       )}
     </section>

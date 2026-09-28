@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 import { PronunciationPrefs } from "./PronunciationPrefs";
 import CreditMeter from "./CreditMeter";
+import LineCheckHealth from "./LineCheckHealth";
 import KitStatus from "./KitStatus";
 import { DictionaryBuilder } from "./DictionaryBuilder";
 import { HiddenVideos } from "./HiddenVideos";
@@ -635,7 +636,7 @@ export default function AdminPage() {
         </section>
         ) : null}
 
-        {tab === "credits" ? <CreditMeter /> : null}
+        {tab === "credits" ? (<><CreditMeter /><LineCheckHealth /></>) : null}
 
         {tab === "kit" ? <KitStatus /> : null}
 

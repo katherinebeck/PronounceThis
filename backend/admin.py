@@ -969,6 +969,24 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return {"enabled": kit.enabled(), "key_prefix": key[:4] if key else "", "looks_v4": key.startswith("kit_"),
                 "tags": [kit.TAG_TRIAL, kit.TAG_MONTHLY, kit.TAG_ANNUAL, kit.TAG_CANCELLED]}
 
+    @router.get("/kit/tags")
+    async def kit_tags(request: Request):
+        """Ask Kit which of our tags exist in the connected account (live)."""
+        await require_admin(request, db)
+        import kit
+        if not kit.enabled():
+            raise HTTPException(status_code=400, detail="KIT_API_KEY not set")
+        try:
+            existing = await kit.list_tags()
+            account = await kit.account_info()
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e)[:400])
+        by_name = {t["name"].strip().lower(): t for t in existing}
+        ours = [kit.TAG_TRIAL, kit.TAG_MONTHLY, kit.TAG_ANNUAL, kit.TAG_CANCELLED]
+        return {"account": account,
+                "tags": [{"name": n, "exists": n.lower() in by_name, "id": by_name.get(n.lower(), {}).get("id")} for n in ours],
+                "total_tags_in_account": len(existing)}
+
     @router.post("/kit/test")
     async def kit_test(request: Request, body: dict):
         """Tag an email with PT Trial right now and report Kit's exact answer."""

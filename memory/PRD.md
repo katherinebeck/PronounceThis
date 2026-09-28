@@ -507,3 +507,9 @@
 - Agent-side once domain is ACTIVE (not before — breaks login): set REACT_APP_SUPABASE_URL (frontend) + SUPABASE_URL (backend) to https://auth.pronouncethis.us in Secrets, Republish. No code changes needed.
 - AccountChip: "Coaching library" (KAJABI_MEMBER_PORTAL_URL) now shows only for active members WITHOUT a Stripe customer (admin/Kajabi group-coaching grants). Free trial + Stripe monthly/annual never see it (Stripe members see "Manage subscription"). Verified with QA trial account.
 - AccountChip: free-trial users get a highlighted "Join Pronounce This →" row (testid account-join) under Status → opens the Join popup (monthly/annual). Copy: SupportModal "Email us directly and we'll get back to you."; AuthForm 503 error "…or contact support." Verified via screenshots.
+
+## 2026-06 — Wayward "couple of years" recurrence (prod) + Kit visibility
+- Reproduced the glitch deliberately in preview: Whisper hears "couple-you've years" → mismatch detected, so the listen-back check CAN catch it. Gap fixed: `render_verified` previously treated any identical mismatch twice as "STT bias" and served the take; now `looks_like_stt_bias()` only short-circuits when every disputed script word is a proper noun (names). MAX_RENDERS 3 → 4. Report gains `stt_unavailable`.
+- Admin → Audio budget now has `LineCheckHealth.jsx` (GET /admin/line-checks: 7-day totals verified/retried/gave_up/unchecked + stt_key_present + last 10 gave-up lines) so user can see if the check runs in PRODUCTION (needs EMERGENT_LLM_KEY in Secrets + Republish since Sep 25 code).
+- Kit: `kit.list_tags()` + `kit.account_info()`; GET /admin/kit/tags → KitStatus "Check tags in Kit" button lists which of PT Trial/Monthly/Annual/Cancelled exist + account name/email. User may pre-create tags manually (name match is case-insensitive; POST /tags is idempotent).
+- Emails (password_links.py) still signed "Katherine" (welcome/nudge/reset/no_account) — user to decide whether to change to team voice.
