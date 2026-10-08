@@ -8,8 +8,8 @@ import { toast } from "sonner";
 // Shown when a trial-gated (or subscriber-only) request comes back 402.
 // The subscribe buttons open Stripe Checkout for the selected plan.
 const FALLBACK_PRICES = [
-  { lookup_key: "accent_coach_monthly", label: "Monthly", amount: 9, currency: "usd", interval: "month" },
-  { lookup_key: "accent_coach_yearly", label: "Annual", amount: 90, currency: "usd", interval: "year", savings_note: "Save $18 vs monthly" },
+  { lookup_key: "accent_coach_monthly", label: "Monthly", amount: 19, currency: "usd", interval: "month" },
+  { lookup_key: "accent_coach_yearly", label: "Annual", amount: 190, currency: "usd", interval: "year", savings_note: "Save $38 vs monthly" },
 ];
 
 export default function PaywallModal() {
@@ -54,7 +54,7 @@ export default function PaywallModal() {
     paywallReason === "scene"
       ? "You've used your free scene upload. "
       : paywallReason === "word"
-      ? "You've used your 5 free words. "
+      ? "You've used your 2 free words. "
       : paywallReason === "subscription"
       ? "This is a members-only feature. "
       : "";

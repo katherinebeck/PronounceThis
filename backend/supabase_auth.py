@@ -78,7 +78,7 @@ async def resolve_user_email(db: AsyncIOMotorDatabase, claims: dict) -> Optional
         from notify import notify_owner
         import kit
         notify_owner("New free trial", "Someone just started a free trial",
-                     [f"<b>{user['email']}</b> created an account.", "They get 5 free words and 1 free scene."])
+                     [f"<b>{user['email']}</b> created an account.", "They get 2 free words and 1 free scene."])
         kit.tag_subscriber(user["email"], kit.TAG_TRIAL)
     return user["email"]
 

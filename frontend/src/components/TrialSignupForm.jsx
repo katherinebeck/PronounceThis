@@ -7,7 +7,7 @@ export default function TrialSignupForm() {
   const { closePaywall } = useAuth();
   return (
     <div data-testid="trial-signup">
-      <p className="font-serif text-base text-muted2 mb-4">Get 5 free words + 1 free scene. No credit card needed.</p>
+      <p className="font-serif text-base text-muted2 mb-4">Get 2 free words + 1 free scene. No credit card needed.</p>
       <AuthForm mode="signup" setMode={() => {}} compact onDone={closePaywall} />
     </div>
   );

@@ -49,7 +49,7 @@ export default function WelcomeModal() {
       title: "You're in — try it free first.",
       body: (
         <>
-          You get <strong className="font-mono not-italic text-ink">5 free words</strong> and{" "}
+          You get <strong className="font-mono not-italic text-ink">2 free words</strong> and{" "}
           <strong className="font-mono not-italic text-ink">1 free scene</strong> to
           feel out the app before you subscribe. No card required, no timer.
         </>

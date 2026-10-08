@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import price_cache
 import re
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -46,7 +47,7 @@ JWT_DAYS = 90                       # session lifetime
 MAGIC_LINK_TTL_MIN = 15             # magic link expiry
 MAGIC_LINK_MAX_USES = 10            # scanners/prefetchers may open a link before the person does
 MAGIC_LINK_RATE_LIMIT_MIN = 1       # 1 magic link per minute per email
-TRIAL_WORD_LIMIT = 5
+TRIAL_WORD_LIMIT = 2
 TRIAL_SCENE_LIMIT = 1
 
 APP_PUBLIC_URL = (os.environ.get("APP_PUBLIC_URL") or "").rstrip("/")
@@ -467,7 +468,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             import kit
             notify_owner("New free trial", "Someone just started a free trial",
                          [f"<b>{email}</b> signed in for the first time.",
-                          "They get 5 free words and 1 free scene."])
+                          "They get 2 free words and 1 free scene."])
             kit.tag_subscriber(email, kit.TAG_TRIAL)
 
         session = _issue_jwt(email)
@@ -498,15 +499,9 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "annual_offer_url": os.environ.get("KAJABI_ANNUAL_OFFER_URL", ""),
             "member_portal_url": os.environ.get("KAJABI_MEMBER_PORTAL_URL", ""),
         }
-        # Static plan shape (backend does not need Stripe here — checkout is
-        # created on demand). Prices come from Stripe by lookup_key.
-        stripe_prices = [
-            {"lookup_key": "accent_coach_monthly", "label": "Monthly",
-             "amount": 9, "currency": "usd", "interval": "month"},
-            {"lookup_key": "accent_coach_yearly", "label": "Annual",
-             "amount": 90, "currency": "usd", "interval": "year",
-             "savings_note": "Save $18 vs monthly"},
-        ]
+        # Live amounts from Stripe by lookup_key (cached) so the paywall always
+        # shows exactly what checkout will charge.
+        stripe_prices = await price_cache.get_plans()
         if not email:
             return AuthMeResponse(
                 authenticated=False,

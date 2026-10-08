@@ -514,3 +514,8 @@
 - Kit: `kit.list_tags()` + `kit.account_info()`; GET /admin/kit/tags → KitStatus "Check tags in Kit" button lists which of PT Trial/Monthly/Annual/Cancelled exist + account name/email. User may pre-create tags manually (name match is case-insensitive; POST /tags is idempotent).
 - Emails (password_links.py) still signed "Katherine" (welcome/nudge/reset/no_account) — user to decide whether to change to team voice.
 - Emails (password_links.py welcome/nudge/reset/no_account) now signed "The Pronounce This Team"; "one of Katherine's coaching members" → "joined through group coaching". No user-facing "Katherine" left in frontend or backend templates (sender stays login@katherinebeck.com / support info@katherinebeck.com).
+
+## 2026-06 — Standard pricing $19/$190 + trial 2 words
+- `price_cache.py`: /me `stripe_prices` now pulled LIVE from Stripe by lookup_key (10-min cache; defaults 19/190; savings_note computed) so the paywall always shows what checkout charges. setup_stripe.py amounts → 1900/19000 and was run in preview (TEST mode: archived old $9/$90, created new under same lookup_keys).
+- PRODUCTION (live Stripe) still has $9/$90 under the lookup keys until the user updates them in the Stripe Dashboard (create $19/mo + $190/yr prices on the product, move lookup_keys `accent_coach_monthly` / `accent_coach_yearly`, archive old). Existing $9 subscribers keep their archived price. Founding-member $9 is now sold via Kajabi sales page (webhook grants access).
+- TRIAL_WORD_LIMIT 5 → 2; all copy updated (landing FAQ, TrialSignupForm, LoginModal, WelcomeModal, PaywallModal, owner notify emails). Existing trial users who already used ≥2 words are now at the paywall.

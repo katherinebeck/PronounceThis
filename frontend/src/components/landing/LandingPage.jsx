@@ -12,7 +12,7 @@ const FAQ = [
   ["How does the reader's line work?",
    "Upload your scene, choose your character, then choose a male or female voice for the reader. Download the reader's lines — it pauses when your character is speaking, so it's timed to the scene."],
   ["What happens after the free trial?",
-   "Once you've looked up your 5 free words and used your one free scene upload, you'll have the option to sign up for our monthly or annual plan. Choose whichever works for you, then keep using Pronounce This."],
+   "Once you've looked up your 2 free words and used your one free scene upload, you'll have the option to sign up for our monthly or annual plan. Choose whichever works for you, then keep using Pronounce This."],
 ];
 
 const TRIED = [
