@@ -1271,22 +1271,33 @@ def _preferred_markup(text: str, allow_tags: bool = True) -> tuple:
     def _wrap(m: re.Match) -> str:
         nonlocal changed
         w = m.group(0)
-        if w.lower() in _FUNCTION_WORDS:
+        lw = w.lower()
+        if lw in _FUNCTION_WORDS:
             return w
-        arp = PREFERRED_ARPA.get(w.lower())
+        arp = PREFERRED_ARPA.get(lw)
+        forced = lw in _ALWAYS_PREFERRED
+        custom = CUSTOM_IPA.get(lw)
+        if custom:
+            # Coach-typed IPA in My Dictionary is a deliberate correction
+            # ("oner" → ˈwʌnɚ): it wins and applies in any case.
+            phones = ipa_to_arpabet(custom)
+            if phones:
+                arp, forced = " ".join(phones), True
         if not arp:
             return w
-        # Dictionary words (mostly place names) are only forced when used as a
-        # name — capitalised in the line. Lowercase everyday words ("city",
-        # "beach") keep the natural multilingual voice.
-        if not w[0].isupper() and w.lower() not in _ALWAYS_PREFERRED:
+        # Dictionary-migrated words (mostly place names) are only forced when
+        # used as a name — capitalised in the line. Lowercase everyday words
+        # ("city", "beach") keep the natural multilingual voice.
+        if not forced and not w[0].isupper():
             return w
         changed = True
         return f'<phoneme alphabet="cmu-arpabet" ph="{arp}">{w}</phoneme>'
     return re.sub(r"[A-Za-z]+(?:'[A-Za-z]+)?", _wrap, text), changed
 
 
-_ALWAYS_PREFERRED = frozenset({"because"})  # seeded coach preferences that apply in any case
+# Preferences that apply in any case: seeded ones + anything the coach added
+# via Admin → Pronunciations (filled at startup; dictionary migrations excluded).
+_ALWAYS_PREFERRED: set = {"because"}
 
 
 _eleven_slots = asyncio.Semaphore(3)  # ElevenLabs plan allows 3 concurrent requests
@@ -1644,14 +1655,14 @@ async def download_my_lines(
 # id from the client) and gives us stable IDs the frontend can display.
 READER_VOICES = {
     "jessica": DEFAULT_VOICE_ID,          # Jessica Anne Bogart — female US
-    "david":   "Zv7P8CISODgj9wDHyyI9",    # David — male US
+    "david":   "zfc8CJQpe8Kqyl0vvCzo",    # Mike — male, neutral American (key kept for cached links)
 }
 
 READER_VOICE_META = [
     {"key": "jessica", "label": "Female voice", "gender": "female",
      "description": "American English, confident, conversational"},
     {"key": "david",   "label": "Male voice",   "gender": "male",
-     "description": "American English, warm, natural"},
+     "description": "American English, neutral, natural"},
 ]
 
 
@@ -1755,6 +1766,8 @@ async def _startup_indexes():
     await ensure_auth_indexes(db)
     async for pref in db.pronunciation_prefs.find({}, {"_id": 0}):
         PREFERRED_ARPA[pref["word"]] = pref["arpabet"]
+        if pref.get("source") != "dictionary":
+            _ALWAYS_PREFERRED.add(pref["word"])
     await load_custom_ipa(db)
     # Drop cached scene-line takes the listen-back had flagged as bad so they
     # re-render with the current logic on next play. Idempotent.

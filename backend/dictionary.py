@@ -302,6 +302,8 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
             CUSTOM_IPA[w] = ipa_final
         else:
             CUSTOM_IPA.pop(w, None)
+        # Scene lines containing this word re-render with the correction next play.
+        await db.turn_audio_cache.delete_many({"text": {"$regex": rf"\b{re.escape(w)}\b", "$options": "i"}})
         return {"ok": True, **doc}
 
     @router.post("/skip")
