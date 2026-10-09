@@ -1168,7 +1168,8 @@ async def tts(req: TTSRequest, request: Request):
     # Plain entries: accept legacy (no version) or current; reject the
     # short-lived v2 turbo renders that sounded off on common words.
     ok_version = (cached or {}).get("tts_version") != 2
-    same_voice = (cached or {}).get("voice_id") == DEFAULT_VOICE_ID
+    same_voice = (cached or {}).get("voice_id") == DEFAULT_VOICE_ID and \
+        ((cached or {}).get("model") or "eleven_multilingual_v2") == TTS_SETTINGS["model"]
     if cached and cached.get("audio_b64") and (
         cached.get("manual_override") or (same_voice and (
             ok_version if not req.phonetic else cached.get("tts_version") == TTS_VERSION))
@@ -1192,16 +1193,25 @@ async def tts(req: TTSRequest, request: Request):
         # like "Harry" are said exactly as the IPA shown on screen.
         # Ordinary words: plain multilingual_v2 (original engine).
         # A trailing period cues a declarative (falling-pitch) reading.
-        if variant_phones:
+        if TTS_SETTINGS["model"] == "eleven_v4":
+            # Eleven v4: same natural voice, pronunciation forced via inline IPA.
+            phones = variant_phones or (get_arpabet(word) if req.phonetic else None)
+            ipa = CUSTOM_IPA.get(word.lower()) if (req.phonetic and not variant_phones) else None
+            ipa = ipa or (arpabet_to_ipa(phones) if phones else None)
+            spoken = f"/{ipa.strip('/')}/" if ipa else word
+            model_id = "eleven_v4"
+        elif variant_phones:
             spoken = f'<phoneme alphabet="cmu-arpabet" ph="{" ".join(variant_phones)}">{word}</phoneme>'
+            model_id = "eleven_turbo_v2"
         else:
             spoken = _phoneme_markup(word) if req.phonetic else word
+            model_id = "eleven_turbo_v2" if req.phonetic else "eleven_multilingual_v2"
         if not spoken.endswith((".", "!", "?")):
             spoken += "."
         stream = client.text_to_speech.convert(
             text=spoken,
             voice_id=voice_id,
-            model_id="eleven_turbo_v2" if req.phonetic else "eleven_multilingual_v2",
+            model_id=model_id,
             output_format="mp3_44100_128",
             request_options=ELEVEN_REQUEST_OPTIONS,
         )
@@ -1227,6 +1237,7 @@ async def tts(req: TTSRequest, request: Request):
             {"$set": {"word": cache_key, "audio_b64": audio_b64,
                       "tts_version": TTS_VERSION if req.phonetic else 3,
                       "voice_id": DEFAULT_VOICE_ID,
+                      "model": TTS_SETTINGS["model"],
                       "created_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,
         )

@@ -555,3 +555,4 @@
 
 ## 2026-06 — Eleven v4 support (Admin switch)
 - `TTS_SETTINGS["model"]` (app_settings/_id=tts, default eleven_multilingual_v2), Admin → Audio budget `TtsModelSwitch.jsx` (GET/PUT /admin/tts-model). On eleven_v4 take order = ("ipa","respell","plain"): corrected words become inline IPA `/ˈwʌnɚ/` on the SAME natural voice (v4 has no phoneme tags, never uses turbo). Cache entries store `model`; mismatch → re-render. Verified Jessica + David on v4: 1 take, "oner"→"one-er", "of course" clean, ~1s/line. User's ElevenLabs plan now Creator (121k chars).
+- Word tool TTS follows TTS_SETTINGS too: on eleven_v4 phonetic lookups use inline IPA (CUSTOM_IPA or arpabet_to_ipa) on the natural voice instead of turbo phoneme tags; audio_cache entries store model and re-render on model change. User reported 'wooner' on multilingual respell path → v4 is the recommended fix.
