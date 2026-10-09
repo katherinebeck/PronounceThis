@@ -1297,6 +1297,9 @@ def _preferred_markup(text: str, mode: str = "tags") -> tuple:
         if mode == "respell":
             r = respell_arpabet(arp.split())
             return (r.capitalize() if w[0].isupper() else r) or w
+        if mode == "ipa":                       # Eleven v4 inline IPA
+            ipa = custom or arpabet_to_ipa(arp.split())
+            return f"/{ipa.strip('/')}/" if ipa else w
         return f'<phoneme alphabet="cmu-arpabet" ph="{arp}">{w}</phoneme>'
     spoken = re.sub(r"[A-Za-z]+(?:'[A-Za-z]+)?", _wrap, text)
     return spoken, (changed and mode == "tags")
@@ -1309,7 +1312,15 @@ _ALWAYS_PREFERRED: set = {"because"}
 
 # Take order for scene lines: natural voice with respelled corrections first,
 # phoneme tags (turbo) only if the listen-back rejects it, then plain.
-_TAKE_MODES = ("respell", "tags", "plain")
+_TAKE_MODES = ("respell", "tags", "plain")           # multilingual_v2 pipeline
+_TAKE_MODES_V4 = ("ipa", "respell", "plain")          # eleven_v4: inline IPA, no turbo ever
+TTS_MODELS = {"eleven_multilingual_v2": "Multilingual v2 (current)", "eleven_v4": "Eleven v4"}
+TTS_SETTINGS = {"model": "eleven_multilingual_v2"}    # loaded from app_settings at startup
+
+
+def take_mode(n: int) -> str:
+    modes = _TAKE_MODES_V4 if TTS_SETTINGS["model"] == "eleven_v4" else _TAKE_MODES
+    return modes[min(n, 3) - 1]
 
 _eleven_slots = asyncio.Semaphore(3)  # ElevenLabs plan allows 3 concurrent requests
 
@@ -1342,7 +1353,7 @@ def _synthesize(text: str, voice_id: Optional[str] = None, mode: str = "respell"
     stream = client.text_to_speech.convert(
         text=spoken,
         voice_id=vid,
-        model_id="eleven_turbo_v2" if tagged else "eleven_multilingual_v2",
+        model_id="eleven_turbo_v2" if tagged else TTS_SETTINGS["model"],
         output_format="mp3_44100_128",
         request_options=ELEVEN_REQUEST_OPTIONS,
     )
@@ -1555,7 +1566,8 @@ async def download_my_lines(
         cached = await db.turn_audio_cache.find_one(
             {"key": cache_key}, {"_id": 0},
         )
-        if cached and cached.get("audio_b64") and cached.get("voice_id") == (voice_id or DEFAULT_VOICE_ID):
+        if cached and cached.get("audio_b64") and cached.get("voice_id") == (voice_id or DEFAULT_VOICE_ID) \
+                and (cached.get("model") or "eleven_multilingual_v2") == TTS_SETTINGS["model"]:
             audio_bytes = base64.b64decode(cached["audio_b64"])
         else:
             try:
@@ -1565,7 +1577,7 @@ async def download_my_lines(
 
                 async def _render():
                     takes["n"] += 1
-                    return await _synth_line(turn["text"], voice_id, mode=_TAKE_MODES[min(takes["n"], 3) - 1])
+                    return await _synth_line(turn["text"], voice_id, mode=take_mode(takes["n"]))
 
                 audio_bytes, check = await line_check.render_verified(turn["text"], _render)
             except Exception as e:
@@ -1583,6 +1595,8 @@ async def download_my_lines(
                             "text": turn["text"],
                             "audio_b64": audio_b64,
                             "voice_id": voice_id or DEFAULT_VOICE_ID,
+                      "model": TTS_SETTINGS["model"],
+                            "model": TTS_SETTINGS["model"],
                             "check": check,
                             "created_at": datetime.now(timezone.utc).isoformat(),
                         }},
@@ -1712,7 +1726,8 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
 
     cache_key = f"{scene_id}:{turn_index}" + (f":{voice_key}" if voice_key else "")
     cached = await db.turn_audio_cache.find_one({"key": cache_key}, {"_id": 0})
-    if cached and cached.get("audio_b64") and cached.get("voice_id") == (voice_id or DEFAULT_VOICE_ID):
+    if cached and cached.get("audio_b64") and cached.get("voice_id") == (voice_id or DEFAULT_VOICE_ID) \
+            and (cached.get("model") or "eleven_multilingual_v2") == TTS_SETTINGS["model"]:
         return TurnTTSResponse(
             scene_id=scene_id, turn_index=turn_index,
             speaker=turn.get("speaker"), audio_b64=cached["audio_b64"],
@@ -1724,7 +1739,7 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
 
         async def _render():
             takes["n"] += 1
-            return await _synth_line(turn["text"], voice_id, mode=_TAKE_MODES[min(takes["n"], 3) - 1])
+            return await _synth_line(turn["text"], voice_id, mode=take_mode(takes["n"]))
 
         audio_bytes, check = await line_check.render_verified(turn["text"], _render)
     except Exception as e:
@@ -1741,6 +1756,7 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
             {"$set": {"key": cache_key, "scene_id": scene_id, "text": turn["text"],
                       "turn_index": turn_index, "audio_b64": audio_b64,
                       "voice_id": voice_id or DEFAULT_VOICE_ID,
+                      "model": TTS_SETTINGS["model"],
                       "check": check,
                       "created_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,
@@ -1780,6 +1796,9 @@ async def _startup_indexes():
         if pref.get("source") != "dictionary":
             _ALWAYS_PREFERRED.add(pref["word"])
     await load_custom_ipa(db)
+    tts_doc = await db.app_settings.find_one({"_id": "tts"})
+    if tts_doc and tts_doc.get("model") in TTS_MODELS:
+        TTS_SETTINGS["model"] = tts_doc["model"]
     # Drop cached scene-line takes the listen-back had flagged as bad so they
     # re-render with the current logic on next play. Idempotent.
     purged = await db.turn_audio_cache.delete_many(

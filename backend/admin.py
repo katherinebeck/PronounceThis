@@ -52,6 +52,10 @@ ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
 MAX_AUDIO_BYTES = 2 * 1024 * 1024   # 2 MB is plenty for a single word
 
 
+class TtsModelBody(BaseModel):
+    model: str
+
+
 class PageAllowanceBody(BaseModel):
     allowance: Optional[int] = None
 
@@ -1026,6 +1030,23 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         if not res.matched_count:
             raise HTTPException(status_code=404, detail="user not found")
         return await page_allowance.usage(db, key)
+
+    @router.get("/tts-model")
+    async def get_tts_model(request: Request):
+        await require_admin(request, db)
+        import server
+        return {"model": server.TTS_SETTINGS["model"], "options": server.TTS_MODELS}
+
+    @router.put("/tts-model")
+    async def set_tts_model(body: TtsModelBody, request: Request):
+        """Switch the scene/word voice model app-wide; cached lines re-render on the new model."""
+        await require_admin(request, db)
+        import server
+        if body.model not in server.TTS_MODELS:
+            raise HTTPException(status_code=400, detail="unknown model")
+        server.TTS_SETTINGS["model"] = body.model
+        await db.app_settings.update_one({"_id": "tts"}, {"$set": {"model": body.model, "updated_at": datetime.now(timezone.utc).isoformat()}}, upsert=True)
+        return {"model": body.model}
 
     @router.get("/stripe/prices")
     async def stripe_prices(request: Request):
