@@ -540,3 +540,4 @@
 - Fix in server.py: `_FUNCTION_WORDS` never phoneme-tagged in sentences; `_synth_line/_synthesize(allow_tags=)`; both scene-line render paths (download-lines + single turn) pass a render() that uses tags on take 1 only, plain on retries. Startup purges turn_audio_cache entries with check.gave_up/stt_bias so flagged takes re-render. Verified: with PREFERRED_ARPA["of"]="AH1 V", "No, of course not." → 1 take, verified.
 - Needs Republish; the user's existing scene lines flagged bad will re-render on next play; unflagged old takes need re-upload.
 - Removed 'Specifically Designed For Actors' eyebrow under Pronounce This Scene on the Word page.
+- Scene intro copy (Word page promo + Scene upload page): 'Hear each word, see it written phonetically (IPA) and practice with sound lists pulled from your scene. Download an audio of your character's dialogue or download your reader's lines.'

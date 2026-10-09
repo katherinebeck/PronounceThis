@@ -209,7 +209,7 @@ export default function PronouncePage({ onGoToScenes }) {
             Pronounce This Scene<span className="text-rust">.</span>
           </h2>
           <p className="mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
-            Upload a scene. Hear it spoken in an American accent.
+            Hear each word, see it written phonetically (IPA) and practice with sound lists pulled from your scene. Download an audio of your character's dialogue or download your reader's lines.
           </p>
           <button
             type="button"
