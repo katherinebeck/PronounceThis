@@ -539,3 +539,4 @@
 - Reproduced: plain multilingual_v2 render is clean; the glitch ("UV course"/"You've course") happens ONLY when "of" is a coach pronunciation preference → `<phoneme ph="AH1 V">` on turbo_v2. Deterministic, so retries couldn't help. Live DB has "of"=ʌv as a pref (Word tool wants citation form).
 - Fix in server.py: `_FUNCTION_WORDS` never phoneme-tagged in sentences; `_synth_line/_synthesize(allow_tags=)`; both scene-line render paths (download-lines + single turn) pass a render() that uses tags on take 1 only, plain on retries. Startup purges turn_audio_cache entries with check.gave_up/stt_bias so flagged takes re-render. Verified: with PREFERRED_ARPA["of"]="AH1 V", "No, of course not." → 1 take, verified.
 - Needs Republish; the user's existing scene lines flagged bad will re-render on next play; unflagged old takes need re-upload.
+- Removed 'Specifically Designed For Actors' eyebrow under Pronounce This Scene on the Word page.
