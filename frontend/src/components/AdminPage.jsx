@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { PronunciationPrefs } from "./PronunciationPrefs";
 import CreditMeter from "./CreditMeter";
 import LineCheckHealth from "./LineCheckHealth";
+import StripePrices from "./StripePrices";
 import KitStatus from "./KitStatus";
 import { DictionaryBuilder } from "./DictionaryBuilder";
 import { HiddenVideos } from "./HiddenVideos";
@@ -595,7 +596,8 @@ export default function AdminPage() {
         ) : null}
 
         {/* Sync from Stripe */}
-        {tab === "stripe" ? (
+        {tab === "stripe" ? (<>
+        <StripePrices />
         <section className="bg-surface border thin-rule p-6" data-testid="admin-stripe-sync">
           <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">
             Sync from Stripe
@@ -634,7 +636,7 @@ export default function AdminPage() {
             </button>
           </form>
         </section>
-        ) : null}
+        </>) : null}
 
         {tab === "credits" ? (<><CreditMeter /><LineCheckHealth /></>) : null}
 

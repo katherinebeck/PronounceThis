@@ -15,6 +15,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 import csv
 import io
@@ -1006,6 +1007,34 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         await require_admin(request, db)
         from watchdog import get_credit_status
         return await get_credit_status(db)
+
+    @router.get("/stripe/prices")
+    async def stripe_prices(request: Request):
+        """Every price in the connected Stripe account with its lookup key and product state."""
+        await require_admin(request, db)
+        import stripe
+        key = os.environ.get("STRIPE_SECRET_KEY", "")
+        if not key:
+            raise HTTPException(status_code=400, detail="STRIPE_SECRET_KEY not set")
+        stripe.api_key = key
+        try:
+            prices = await asyncio.to_thread(lambda: stripe.Price.list(limit=100, expand=["data.product"]).data)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e)[:300])
+        rows = []
+        for p in prices:
+            prod = p.product if not isinstance(p.product, str) else None
+            rows.append({
+                "price_id": p.id, "lookup_key": p.lookup_key, "active": p.active,
+                "amount": (p.unit_amount or 0) / 100, "currency": p.currency,
+                "interval": (p.recurring or {}).get("interval") if p.recurring else "one-time",
+                "product_name": prod.name if prod else str(p.product),
+                "product_active": prod.active if prod else None,
+            })
+        rows.sort(key=lambda r: (not r["active"], r["product_name"], r["amount"]))
+        needed = ["accent_coach_monthly", "accent_coach_yearly", "founding_monthly", "founding_yearly"]
+        ok = {k: any(r["lookup_key"] == k and r["active"] and r["product_active"] for r in rows) for k in needed}
+        return {"mode": "live" if key.startswith("sk_live") else "test", "prices": rows, "lookup_ok": ok}
 
     @router.get("/line-checks")
     async def line_checks(request: Request):
