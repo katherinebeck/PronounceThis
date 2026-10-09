@@ -11,8 +11,8 @@
   --rule: #2d303b;
   --ink: #f1f2f6;
   --muted2: #989dae;
-  --amber: #e5a93c;
-  --amber-hi: #f2b84f;
+  --amber: #ef5973;
+  --amber-hi: #d94a63;
   --font-type: "American Typewriter", "Courier Prime", "Courier New", monospace;
   --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
   --font-display: "Syne", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -41,7 +41,7 @@ body::before {
   pointer-events: none;
   z-index: 0;
   background:
-    radial-gradient(ellipse 70% 45% at 50% -10%, rgba(229, 169, 60, 0.13) 0%, rgba(10, 10, 12, 0) 70%),
+    radial-gradient(ellipse 70% 45% at 50% -10%, rgba(239, 89, 115, 0.13) 0%, rgba(10, 10, 12, 0) 70%),
     radial-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px);
   background-size: 100% 100%, 3px 3px;
 }
@@ -63,10 +63,10 @@ body:has(.landing)::before { display: none; }
   .admin-nav-item.is-active { border-bottom-color: var(--amber); }
 }
 
-/* Popups use the landing-page type (Fraunces / Inter / Courier Prime) for readability */
-.popup-fonts, .popup-fonts .font-serif, .popup-fonts input, .popup-fonts textarea { font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif; }
-.popup-fonts .font-display { font-family: "Fraunces", Georgia, serif; font-weight: 600; }
-.popup-fonts .font-mono, .popup-fonts .btn-primary, .popup-fonts .btn-secondary { font-family: "Courier Prime", "Courier New", monospace; }
+/* Popups use the landing-page type (PT Sans / Open Sans) for readability */
+.popup-fonts, .popup-fonts .font-serif, .popup-fonts input, .popup-fonts textarea { font-family: "Open Sans", -apple-system, BlinkMacSystemFont, sans-serif; }
+.popup-fonts .font-display { font-family: "PT Sans", "Helvetica Neue", Arial, sans-serif; font-weight: 700; }
+.popup-fonts .font-mono, .popup-fonts .btn-primary, .popup-fonts .btn-secondary { font-family: "Open Sans", -apple-system, sans-serif; letter-spacing: 0.12em; }
 
 @layer base {
   :root {
@@ -146,8 +146,8 @@ body:has(.landing)::before { display: none; }
   color: var(--stage);
 }
 .word-block.highlight {
-  background-color: rgba(229, 169, 60, 0.12);
-  outline: 1px solid rgba(229, 169, 60, 0.4);
+  background-color: rgba(239, 89, 115, 0.12);
+  outline: 1px solid rgba(239, 89, 115, 0.4);
 }
 .word-block .english {
   font-family: var(--font-type);
@@ -249,7 +249,7 @@ body:has(.landing)::before { display: none; }
 .btn-primary.btn-lg { font-size: 13px; padding: 0.9rem 1.2rem; }
 .btn-primary:hover {
   background: var(--amber-hi);
-  box-shadow: 0 0 0 1px rgba(229, 169, 60, 0.35), 0 8px 24px -12px rgba(229, 169, 60, 0.6);
+  box-shadow: 0 0 0 1px rgba(239, 89, 115, 0.35), 0 8px 24px -12px rgba(239, 89, 115, 0.6);
 }
 .btn-primary:active {
   transform: translateY(1px);
@@ -280,7 +280,7 @@ body:has(.landing)::before { display: none; }
 .btn-secondary:hover {
   border-color: var(--amber);
   color: var(--amber);
-  background: rgba(229, 169, 60, 0.06);
+  background: rgba(239, 89, 115, 0.06);
 }
 .btn-secondary.active {
   background: var(--amber);
@@ -334,17 +334,17 @@ body:has(.landing)::before { display: none; }
 }
 
 /* ---------- Light theme (whole app) ---------- */
-:root { --stage: #f4f1ea; --paper: #faf8f3; --surface: #ffffff; --elevated: #efece4; --rule: #dddad2; --ink: #17140f; --muted2: #5d5648; --amber: #e5a93c; --amber-hi: #d9932e; }
+:root { --stage: #f4f1ea; --paper: #faf8f3; --surface: #ffffff; --elevated: #efece4; --rule: #dddad2; --ink: #17140f; --muted2: #5d5648; --amber: #ef5973; --amber-hi: #d94a63; --primary: 350 82% 64%; --ring: 350 82% 64%; }
 body { background: var(--stage); color: var(--ink); }
 .glass-bar { background: rgba(250, 248, 243, 0.85); }
-.btn-primary, .btn-primary:hover { color: #17140f; }
+.btn-primary, .btn-primary:hover { color: #ffffff; }
 .btn-secondary { color: var(--ink); border-color: #cfcabe; }
 /* Inverted (dark) chips/pills keep white text */
 .bg-ink, .bg-ink .text-ink, .bg-ink.text-stage, .bg-ink.text-surface, .bg-ink .text-surface { color: #ffffff; }
 .text-stage, .text-surface { color: #ffffff; }
 .text-surface\/70 { color: rgba(255, 255, 255, 0.75); }
 .hover\:bg-ink:hover, .hover\:bg-ink:hover .text-muted2, .hover\:bg-ink:hover .text-ink, .hover\:text-surface:hover { color: #ffffff; }
-.bg-rust.text-stage, .bg-rustDeep.text-stage, .bg-rust.text-surface { color: #17140f; }
+.bg-rust.text-stage, .bg-rustDeep.text-stage, .bg-rust.text-surface { color: #ffffff; }
 /* Modal backdrops stay dim */
 .bg-stage\/90, .bg-stage\/75 { background-color: rgba(23, 20, 15, 0.55); }
 input::placeholder { color: #6b6659; }

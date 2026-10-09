@@ -4,13 +4,13 @@ import "./landing.css";
 
 const FAQ = [
   ["I've already tried an accent app. What's different about Pronounce This?",
-   "Other accent apps are primarily built for ESL learners. Pronounce This is designed specifically for non-U.S. actors — not just learning how to pronounce words correctly, but applying the accent to your scene. You get a reference for how your dialogue sounds in an American accent, and the other character's lines ready to download. Use the recording to run lines and practice, or let it be the reader for you when you film your audition."],
+   "Other accent apps are primarily built for ESL learners. Pronounce This is designed specifically for non-U.S. actors. It's not just learning how to pronounce words correctly but applying the accent to your scene. You get a reference for how your dialogue sounds in an American accent and the other character's lines ready to download. Use the recording to run lines and practice or let it be the reader for you when you film your audition."],
   ["Do I still need a dialect coach?",
-   "Working with a dialect coach on your scene is great for immediate feedback. Pronounce This is great when you don't have the time or the budget to work with a dialect coach on every audition — an excellent resource to make sure your pronunciation is correct before you film your next scene."],
-  ["How fast can I actually prep the accent before a self-tape audition?",
-   "Paste your scene in and the breakdown is immediate — IPA, sound lists, and downloadable audio for both your lines and your reader's. It's that fast."],
+   "Working with a dialect coach on your scene is great for immediate feedback. Pronounce This is the perfect tool when you don't have the time or the budget to work with a dialect coach on every audition. It's an excellent resource to make sure your pronunciation is correct before you film your next scene."],
   ["How does the reader's line work?",
-   "Upload your scene, choose your character, then choose a male or female voice for the reader. Download the reader's lines — it pauses when your character is speaking, so it's timed to the scene."],
+   "Upload your scene, choose your character, then choose a male or female voice for the reader. Download the reader's lines. You'll hear pauses when your character is speaking as it's timed to the scene."],
+  ["How fast can I actually prep the accent before a self-tape audition?",
+   "Paste your scene in and the breakdown is immediate. IPA transcription, sound lists and downloadable audio for both your lines and your reader's. It's that fast."],
   ["What happens after the free trial?",
    "Once you've looked up your 2 free words and used your one free scene upload, you'll have the option to sign up for our monthly or annual plan. Choose whichever works for you, then keep using Pronounce This."],
 ];
@@ -22,121 +22,131 @@ const TRIED = [
   ["Guessing and hoping the accent sounds accurate", "All it takes is one mispronounced name or word to cost you the role."],
 ];
 
+const TryButton = ({ onClick, testid, children = "Try Pronounce This" }) => (
+  <button type="button" className="btn" onClick={onClick} data-testid={testid}>{children}</button>
+);
+
 export default function LandingPage() {
   const { openPaywall, openLogin } = useAuth();
   const tryFree = () => openPaywall("trial");
 
   return (
     <div className="landing" data-testid="landing-page">
-      <div className="hero">
+      <div className="topbar">
         <div className="wrap">
-          <div className="title-row">
-            <h1>Pronounce This<span className="dot">.</span></h1>
-            <button type="button" className="link-quiet" onClick={openLogin} data-testid="landing-signin">Already a member? Sign in</button>
-          </div>
+          <button type="button" className="link-quiet" onClick={openLogin} data-testid="landing-signin">Already a member? Sign in</button>
+        </div>
+      </div>
+
+      <section className="hero">
+        <div className="wrap">
+          <h1 className="logo-line">
+            <img src="/landing/logo.png" alt="Pronounce This." className="logo" data-testid="landing-logo" />
+          </h1>
           <p className="lede">An American accent pronunciation tool built for actors.</p>
-          <div className="cta-row">
-            <button type="button" className="btn" onClick={tryFree} data-testid="landing-cta-hero">Try Pronounce This.</button>
-          </div>
-          <div className="device-mockup device-mockup--shot" aria-hidden="true">
+          <div className="device-shot" aria-hidden="true">
             <img src="/landing/hero-devices.png" alt="" />
           </div>
+          <TryButton onClick={tryFree} testid="landing-cta-hero" />
         </div>
-      </div>
+      </section>
 
-      <div className="breakdown">
+      <section className="breakdown">
         <div className="wrap">
-          <div className="section-head"><h2 className="nowrap-heading">For the non-U.S. actor who…</h2></div>
-          <div className="breakdown-single">
+          <h2>For the non-U.S. actor who…</h2>
+          <div className="box">
             <ul>
-              <li>Has a self-tape audition or a scene to prepare for acting class and needs to check their American pronunciation</li>
-              <li>Booked a role and want to know if you're pronouncing your dialogue correctly</li>
-              <li>Got a self-tape audition and needs to run lines or needs 'a reader'</li>
-              <li>Is learning the American accent and needs help with their American pronunciation</li>
+              <li>Has a <strong>self-tape audition or a scene to prepare for acting class</strong> and needs to check their American pronunciation</li>
+              <li><strong>Booked a role</strong> and want to know if you're pronouncing your dialogue correctly</li>
+              <li>Got a self-tape audition and <strong>needs to run lines or needs 'a reader'</strong></li>
+              <li>Is <strong>learning the American accent</strong> and needs help with their American pronunciation</li>
             </ul>
           </div>
-          <div className="breakdown-cta">
-            <p>Let's get ready for your next U.S. role.</p>
-            <button type="button" className="btn" onClick={tryFree} data-testid="landing-cta-breakdown">Try Pronounce This.</button>
+          <TryButton onClick={tryFree} testid="landing-cta-breakdown" />
+        </div>
+      </section>
+
+      <section className="struggle" id="struggle">
+        <div className="wrap narrow">
+          <h2 className="stack">You've got the audition.<br />Your accent isn't there yet…</h2>
+          <p>Imagine you get an audition and you don't have time to work with a dialect coach. You need to check your American pronunciation fast.</p>
+          <p>Your script has a character name, location or word that isn't in the dictionary, and you need to know: "Am I pronouncing it correctly?"</p>
+          <p>You need your dialogue recorded so you can listen and repeat as you practice speaking your line in a standard American accent.</p>
+          <p>You need to run lines and practice, and need a resource to help be your reader when you don't have anyone available to help you.</p>
+          <hr />
+          <h3>What are you going to do when you get the audition, the self-tape is due and you're not sure if you're pronouncing all the words correctly?</h3>
+          <div className="tried">
+            {TRIED.map(([what, why]) => (
+              <div className="tried-row" key={what}>
+                <div className="what">{what}</div>
+                <div className="why">{why}</div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="struggle" id="struggle">
+      <section className="ways" id="scenes">
         <div className="wrap">
-          <div className="section-head section-head--wide">
-            <h2>You've got the audition. Your accent isn't there yet.</h2>
-            <p>Imagine you get an audition and you don't have time to work with a dialect coach. You need to check your American pronunciation fast.</p>
-          </div>
-          <div className="script-page">
-            <div className="tried tried--needs">
-              <div className="tried-row"><div className="why">Your script has a character name, location or word that isn't in the dictionary, and you need to know: "Am I pronouncing it correctly?"</div></div>
-              <div className="tried-row"><div className="why">You need your dialogue recorded so you can listen and repeat as you practice speaking your line in a standard American accent.</div></div>
-              <div className="tried-row"><div className="why">You need to run lines and practice, and need a resource to help be your reader when you don't have anyone available to help you.</div></div>
-            </div>
-            <p className="callout-line">You know the feeling: you get the audition, the self-tape is due, and you're not sure if you're pronouncing all the words correctly.</p>
-            <div className="tried">
-              {TRIED.map(([what, why]) => (
-                <div className="tried-row" key={what}>
-                  <div className="what">{what}</div>
-                  <div className="why">{why}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="scenes" id="scenes">
-        <div className="wrap">
-          <div className="section-head"><h2>Ways to use Pronounce This.</h2></div>
-          <div className="scene-card">
-            <div className="shot-frame shot-frame--second">
-              <img src="/landing/word-tool.jpg?v=light" alt='Pronounce This Word tool showing the pronunciation of "server"' />
-            </div>
-            <div>
-              <div className="scene-slug">Pronounce a word</div>
-              <h3>Type any word, name, or location</h3>
-              <p>Type a word, name or location and hear how it's pronounced, see it spelled phonetically, and hear real speakers on YouTube say the word.</p>
+          <h2>Ways to use Pronounce This.</h2>
+          <div className="feature">
+            <div className="feature-text">
+              <h3>Pronounce a word</h3>
+              <p>Type any word, name or location and hear how it's pronounced, see it spelled phonetically, and hear American speakers on YouTube say the word.</p>
               <ul>
                 <li>Instant IPA transcription for any word, name, or place</li>
                 <li>Hear it spoken in an American accent</li>
                 <li>Watch real people say it, in their own voices</li>
               </ul>
             </div>
+            <div className="feature-shot">
+              <img src="/landing/word-tool.jpg?v=light" alt='Pronounce This Word tool showing the pronunciation of "server"' />
+            </div>
           </div>
-          <div className="scene-card">
-            <div>
-              <div className="scene-slug">Pronounce your scene</div>
-              <h3>Hear your dialogue spoken in the American accent</h3>
-              <p>Got an audition or working on a role? Upload your scene, choose your character, and hear it read back in the accent, word by word.</p>
+          <div className="feature feature--flip">
+            <div className="feature-text">
+              <h3>Pronounce your scene</h3>
+              <p>Got an audition or working on a role? Upload your scene, choose your character, and hear it spoken in the accent, word by word.</p>
               <ul>
                 <li>See each word transcribed in American IPA</li>
                 <li>Practice with sound lists pulled straight from your scene</li>
                 <li>Download the audio of your character's dialogue for additional practice</li>
-                <li>Download the other character's lines to practice and run lines, or use it as your reader while you film your self-tape</li>
+                <li>Download the other character's lines to run lines or, use it as your reader while you film your self-tape</li>
               </ul>
             </div>
-            <div className="shot-frame">
+            <div className="feature-shot">
               <img src="/landing/scene-tool.jpg?v=light" alt="Pronounce your scene tool showing a scene with lines transcribed in IPA and sound lists" />
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="testimonial">
+      <section className="preview">
+        <div className="wrap narrow">
+          <h3>Want to have a look inside of Pronounce This?<br />Get a sneak preview here.</h3>
+          <div className="video" data-testid="landing-video">
+            <iframe
+              src="https://fast.wistia.net/embed/iframe/d0vcs02fod?videoFoam=true"
+              title="A look inside Pronounce This"
+              allow="autoplay; fullscreen"
+              allowFullScreen
+            />
+          </div>
+          <TryButton onClick={tryFree} testid="landing-cta-preview" />
+        </div>
+      </section>
+
+      <section className="testimonial">
         <div className="wrap">
           <blockquote>"…this is actually incredible! What a game changer!"</blockquote>
         </div>
-      </div>
+      </section>
 
-      <div className="faq">
+      <section className="faq">
         <div className="wrap">
-          <div className="section-head">
-            <h2>Got a question?</h2>
-            <p>Get your questions answered about Pronounce This.</p>
-          </div>
-          <div className="faq-list">
+          <h2>Got a question?</h2>
+          <p className="sub">Get your questions answered about Pronounce This.</p>
+          <div className="faq-grid">
             {FAQ.map(([q, a]) => (
               <details className="faq-item" key={q}>
                 <summary>{q}</summary>
@@ -145,17 +155,17 @@ export default function LandingPage() {
             ))}
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="closing">
+      <section className="closing">
         <div className="wrap">
           <h2>Get ready for your next role<span className="dot">.</span></h2>
           <p>Bring your scene. Leave knowing exactly how it sounds in an American accent.</p>
-          <button type="button" className="btn" onClick={tryFree} data-testid="landing-cta-closing">Try Pronounce This.</button>
+          <TryButton onClick={tryFree} testid="landing-cta-closing" />
         </div>
-      </div>
+      </section>
 
-      <footer>Pronounce This — an American accent pronunciation tool for actors</footer>
+      <footer>© {new Date().getFullYear()} Pronounce This — an American accent pronunciation tool for actors</footer>
     </div>
   );
 }

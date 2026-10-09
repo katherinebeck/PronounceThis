@@ -90,7 +90,7 @@ export default function PronouncePage({ onGoToScenes }) {
 
         <form
           onSubmit={submit}
-          className="reveal reveal-4 border border-ink/70 bg-surface p-2 sm:p-3 flex items-center gap-2 sm:gap-3 transition-[border-color,box-shadow] duration-200 focus-within:border-rust focus-within:shadow-[0_0_0_1px_rgba(229,169,60,0.35),0_24px_60px_-30px_rgba(229,169,60,0.4)]"
+          className="reveal reveal-4 border border-ink/70 bg-surface p-2 sm:p-3 flex items-center gap-2 sm:gap-3 transition-[border-color,box-shadow] duration-200 focus-within:border-rust focus-within:shadow-[0_0_0_1px_rgba(239,89,115,0.35),0_24px_60px_-30px_rgba(239,89,115,0.4)]"
         >
           <Search size={16} className="hidden sm:block text-muted2 ml-3" />
           <input
