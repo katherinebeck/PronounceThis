@@ -161,7 +161,28 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
         just-completed checkout can flip the UI to authenticated-subscriber."""
         record = await db.payment_transactions.find_one({"session_id": session_id})
         if not record:
-            raise HTTPException(404, "not_found")
+            # Payment Link / Buy Button purchases never went through our
+            # /checkout, so there is no record yet — ask Stripe directly.
+            if not session_id.startswith("cs_"):
+                raise HTTPException(404, "not_found")
+            try:
+                s = _to_dict(stripe.checkout.Session.retrieve(session_id))
+            except stripe.error.StripeError:
+                raise HTTPException(404, "not_found")
+            paid = s.get("payment_status") == "paid" or s.get("status") == "complete"
+            record = {
+                "session_id": session_id, "email": _session_email(s),
+                "status": "completed" if paid else (s.get("status") or "open"),
+                "payment_status": s.get("payment_status") or "unpaid",
+                "stripe_subscription_id": s.get("subscription"), "source": "payment_link",
+                "created_at": _now_iso(), "updated_at": _now_iso(),
+            }
+            await db.payment_transactions.update_one(
+                {"session_id": session_id}, {"$setOnInsert": record}, upsert=True)
+            if paid:
+                await _grant_from_session(db, s)
+            return {"session_id": session_id, "status": record["status"],
+                    "payment_status": record["payment_status"], "email": record["email"]}
         if record.get("payment_status") != "paid":
             try:
                 raw = stripe.checkout.Session.retrieve(session_id)
