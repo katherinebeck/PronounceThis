@@ -38,10 +38,13 @@ export default function PaywallModal() {
     } catch (err) {
       setLoading(null);
       const detail = err?.response?.data?.detail;
+      const friendly = String(detail || "").startsWith("unknown_price")
+        ? "That plan is temporarily unavailable. Please try the other plan or contact support."
+        : null;
       toast.error(
         detail === "not_authenticated"
           ? "Please sign in first."
-          : String(detail || err?.message || "Could not start checkout")
+          : friendly || String(detail || err?.message || "Could not start checkout")
       );
     }
   };
