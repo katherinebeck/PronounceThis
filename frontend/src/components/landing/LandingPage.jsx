@@ -125,12 +125,16 @@ export default function LandingPage() {
         <div className="wrap narrow">
           <h3>Want to have a look inside of Pronounce This?<br />Get a sneak preview here.</h3>
           <div className="video" data-testid="landing-video">
-            <iframe
-              src="https://fast.wistia.net/embed/iframe/d0vcs02fod?videoFoam=true"
+            <video
+              controls
+              playsInline
+              preload="metadata"
+              poster="/landing/walkthrough-poster.jpg"
               title="A look inside Pronounce This"
-              allow="autoplay; fullscreen"
-              allowFullScreen
-            />
+            >
+              <source src="/landing/walkthrough.mp4" type="video/mp4" />
+              <source src="/landing/walkthrough.webm" type="video/webm" />
+            </video>
           </div>
           <TryButton onClick={tryFree} testid="landing-cta-preview" />
         </div>

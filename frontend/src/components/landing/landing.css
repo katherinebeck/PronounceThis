@@ -115,7 +115,7 @@
 /* sneak preview video */
 .landing .preview h3{margin-bottom:28px;line-height:1.4;}
 .landing .video{position:relative;width:100%;max-width:830px;margin:0 auto 36px;aspect-ratio:16/9;background:#000;border-radius:6px;overflow:hidden;box-shadow:0 24px 50px -24px rgba(34,34,31,0.45);}
-.landing .video iframe{position:absolute;inset:0;width:100%;height:100%;border:0;}
+.landing .video iframe,.landing .video video{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;}
 
 /* testimonial */
 .landing .testimonial{padding:44px 0;background:var(--cream);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
