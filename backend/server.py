@@ -1276,9 +1276,17 @@ def _preferred_markup(text: str, allow_tags: bool = True) -> tuple:
         arp = PREFERRED_ARPA.get(w.lower())
         if not arp:
             return w
+        # Dictionary words (mostly place names) are only forced when used as a
+        # name — capitalised in the line. Lowercase everyday words ("city",
+        # "beach") keep the natural multilingual voice.
+        if not w[0].isupper() and w.lower() not in _ALWAYS_PREFERRED:
+            return w
         changed = True
         return f'<phoneme alphabet="cmu-arpabet" ph="{arp}">{w}</phoneme>'
     return re.sub(r"[A-Za-z]+(?:'[A-Za-z]+)?", _wrap, text), changed
+
+
+_ALWAYS_PREFERRED = frozenset({"because"})  # seeded coach preferences that apply in any case
 
 
 _eleven_slots = asyncio.Semaphore(3)  # ElevenLabs plan allows 3 concurrent requests
