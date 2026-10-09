@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
+import Logo from "@/components/Logo";
 import { Toaster } from "sonner";
 import ScenesSidebar from "@/components/ScenesSidebar";
 import SceneReader from "@/components/SceneReader";
@@ -58,9 +59,9 @@ export default function AppRoot() {
             color: "#F1F2F6",
             border: "1px solid #2D303B",
             borderRadius: 0,
-            fontFamily: "JetBrains Mono, monospace",
-            fontSize: "12px",
-            letterSpacing: "0.05em",
+            fontFamily: "Open Sans, sans-serif",
+            fontSize: "13px",
+            letterSpacing: "0.02em",
           },
         }}
       />
@@ -317,9 +318,9 @@ function Header({ tab, onSwitchTab }) {
       data-testid="app-header"
     >
       <div className="px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-3 sm:gap-6">
-        <div className="font-display font-bold text-base sm:text-xl text-ink leading-none tracking-tight uppercase whitespace-nowrap">
-          Pronounce This<span className="text-rust">.</span>
-        </div>
+        <a href="/" className="flex items-center leading-none" data-testid="header-logo" aria-label="Pronounce This home">
+          <Logo className="h-5 sm:h-6" />
+        </a>
         <TabNav tab={tab} onSwitchTab={onSwitchTab} className="hidden sm:flex" />
         <AccountChip />
       </div>

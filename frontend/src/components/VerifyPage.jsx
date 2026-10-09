@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import Logo from "./Logo";
 import { Loader2, Check, XCircle } from "lucide-react";
 import { verifyMagicLink } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -69,9 +70,7 @@ export default function VerifyPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-paper px-4">
       <div className="w-full max-w-md bg-surface border thin-rule px-8 py-12 text-center">
-        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">
-          Pronounce This
-        </div>
+        <div className="flex justify-center"><Logo className="h-5" /></div>
         {state === "verifying" && (
           <>
             <div className="inline-flex items-center justify-center w-14 h-14 border thin-rule bg-paper my-5">

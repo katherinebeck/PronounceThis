@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import Logo from "./Logo";
 import { createPortal } from "react-dom";
 import { X, Mail, Copy } from "lucide-react";
 import { toast } from "sonner";
@@ -24,7 +25,7 @@ export default function SupportModal({ open, onClose }) {
       <div className="theme-light relative w-full max-w-md bg-surface border thin-rule shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b thin-rule">
           <div>
-            <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2">Pronounce This</div>
+            <Logo className="h-4 mb-1.5" />
             <div className="font-display text-2xl text-ink">Contact support</div>
           </div>
           <button type="button" className="text-muted2 hover:text-ink p-1" onClick={onClose} aria-label="Close" data-testid="support-close"><X size={20} /></button>

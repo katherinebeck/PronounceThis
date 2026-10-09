@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Logo from "./Logo";
 import { Loader2, Check, Lock } from "lucide-react";
 import { supabase, passwordProblem } from "@/lib/supabase";
 
@@ -41,7 +42,7 @@ export default function ResetPasswordPage() {
   return (
     <div className="theme-light min-h-screen flex items-center justify-center bg-paper px-4" data-testid="reset-page">
       <div className="w-full max-w-md bg-surface border thin-rule px-8 py-10">
-        <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 text-center">Pronounce This</div>
+        <div className="text-center"><Logo className="h-5" /></div>
         <h1 className="font-display text-2xl text-ink text-center mt-2 mb-6" data-testid="reset-title">Choose a new password</h1>
         {ready === null ? (
           <p className="font-serif text-sm text-muted2 italic text-center"><Loader2 size={14} className="inline animate-spin mr-2" />Checking your link…</p>

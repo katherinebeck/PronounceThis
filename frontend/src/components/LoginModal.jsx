@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import Logo from "./Logo";
 import { X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import AuthForm from "./AuthForm";
@@ -30,7 +31,7 @@ export default function LoginModal() {
       <div className="theme-light relative w-full max-w-md bg-surface border thin-rule shadow-2xl max-h-[92dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-6 py-4 border-b thin-rule">
           <div>
-            <div className="font-mono text-xs uppercase tracking-[0.22em] text-muted2">Pronounce This</div>
+            <Logo className="h-4 mb-1.5" />
             <div className="font-display text-2xl text-ink" data-testid="login-title">{TITLES[mode]}</div>
           </div>
           <button type="button" className="text-muted2 hover:text-ink p-1" onClick={closeLogin} aria-label="Close" data-testid="login-close">

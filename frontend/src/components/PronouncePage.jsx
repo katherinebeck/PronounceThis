@@ -75,10 +75,7 @@ export default function PronouncePage({ onGoToScenes }) {
     <div className="flex-1 overflow-auto bg-paper" data-testid="pronounce-page">
       <div className="max-w-3xl mx-auto px-5 sm:px-10 lg:px-14 py-8 sm:py-12 lg:py-16">
         <div className="mb-8 sm:mb-10">
-          <div className="reveal font-mono text-[10px] uppercase tracking-[0.28em] text-rust mb-3">
-            An American Accent Pronunciation Tool
-          </div>
-          <h1 className="reveal reveal-2 font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
+          <h1 className="reveal font-display font-bold text-3xl sm:text-4xl lg:text-5xl text-ink leading-[0.98] tracking-tight">
             Pronounce This Word<span className="text-rust">.</span>
           </h1>
           <p className="reveal reveal-3 mt-4 sm:mt-5 text-lg sm:text-lg text-muted2 font-serif leading-relaxed max-w-2xl">
@@ -129,11 +126,11 @@ export default function PronouncePage({ onGoToScenes }) {
           <div className="mt-8 sm:mt-10 border thin-rule bg-surface animate-fade-in shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)]" data-testid="pronounce-result">
             <div className="px-5 sm:px-8 py-6 sm:py-8 border-b thin-rule flex items-start justify-between gap-4 sm:gap-6 flex-wrap">
               <div className="min-w-0">
-                <div className="font-serif text-4xl sm:text-5xl lg:text-6xl text-ink leading-none break-words">
+                <div className="font-typewriter text-4xl sm:text-5xl lg:text-6xl text-ink leading-none break-words">
                   {result.word}
                 </div>
                 {hasVariants ? null : result.ipa ? (
-                  <div className="font-mono text-xl sm:text-2xl lg:text-3xl text-rust mt-3 tracking-tight break-words" data-testid="pronounce-ipa">
+                  <div className="font-typewriter text-xl sm:text-2xl lg:text-3xl text-rust mt-3 tracking-tight break-words" data-testid="pronounce-ipa">
                     {result.ipa}
                   </div>
                 ) : (

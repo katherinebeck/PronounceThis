@@ -15,9 +15,10 @@ module.exports = {
     },
     extend: {
       fontFamily: {
-        display: ['"Syne"', "-apple-system", "BlinkMacSystemFont", "sans-serif"],
-        serif: ['"American Typewriter"', '"Courier Prime"', '"Courier New"', "monospace"],
-        mono: ['"JetBrains Mono"', '"IBM Plex Mono"', "ui-monospace", "monospace"],
+        display: ['"PT Sans"', '"Helvetica Neue"', "Arial", "sans-serif"],
+        serif: ['"Open Sans"', "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        mono: ['"Open Sans"', "-apple-system", "BlinkMacSystemFont", "sans-serif"],
+        typewriter: ['"Courier Prime"', '"American Typewriter"', '"Courier New"', "monospace"],
       },
       colors: {
         stage: "#F4F1EA",

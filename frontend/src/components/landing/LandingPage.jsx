@@ -74,7 +74,7 @@ export default function LandingPage() {
           <p>You need your dialogue recorded so you can listen and repeat as you practice speaking your line in a standard American accent.</p>
           <p>You need to run lines and practice, and need a resource to help be your reader when you don't have anyone available to help you.</p>
           <hr />
-          <h3>What are you going to do when you get the audition, the self-tape is due and you're not sure if you're pronouncing all the words correctly?</h3>
+          <h3>What are you going to do when you get the audition, the<br className="h3-break" />self-tape is due and you're not sure if you're pronouncing all the words correctly?</h3>
           <div className="tried">
             {TRIED.map(([what, why]) => (
               <div className="tried-row" key={what}>
@@ -88,10 +88,10 @@ export default function LandingPage() {
 
       <section className="ways" id="scenes">
         <div className="wrap">
-          <h2>Ways to use Pronounce This.</h2>
+          <h2 className="inline-logo-line">Ways to use <img src="/landing/logo@600.png" alt="Pronounce This." className="inline-logo" /></h2>
           <div className="feature">
             <div className="feature-text">
-              <h3>Pronounce a word</h3>
+              <h3>Pronounce This Word</h3>
               <p>Type any word, name or location and hear how it's pronounced, see it spelled phonetically, and hear American speakers on YouTube say the word.</p>
               <ul>
                 <li>Instant IPA transcription for any word, name, or place</li>
@@ -105,7 +105,7 @@ export default function LandingPage() {
           </div>
           <div className="feature feature--flip">
             <div className="feature-text">
-              <h3>Pronounce your scene</h3>
+              <h3>Pronounce This Scene</h3>
               <p>Got an audition or working on a role? Upload your scene, choose your character, and hear it spoken in the accent, word by word.</p>
               <ul>
                 <li>See each word transcribed in American IPA</li>
@@ -115,7 +115,7 @@ export default function LandingPage() {
               </ul>
             </div>
             <div className="feature-shot">
-              <img src="/landing/scene-tool.jpg?v=light" alt="Pronounce your scene tool showing a scene with lines transcribed in IPA and sound lists" />
+              <img src="/landing/scene-tool.jpg?v=light" alt="Pronounce This Scene tool showing a scene with lines transcribed in IPA and sound lists" />
             </div>
           </div>
         </div>
@@ -160,7 +160,7 @@ export default function LandingPage() {
       <section className="closing">
         <div className="wrap">
           <h2>Get ready for your next role<span className="dot">.</span></h2>
-          <p>Bring your scene. Leave knowing exactly how it sounds in an American accent.</p>
+          <p className="inline-logo-line">It's time to prepare for your next American accent audition with <img src="/landing/logo@600.png" alt="Pronounce This." className="inline-logo inline-logo--sm" /></p>
           <TryButton onClick={tryFree} testid="landing-cta-closing" />
         </div>
       </section>

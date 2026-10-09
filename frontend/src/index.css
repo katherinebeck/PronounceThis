@@ -13,9 +13,9 @@
   --muted2: #989dae;
   --amber: #ef5973;
   --amber-hi: #d94a63;
-  --font-type: "American Typewriter", "Courier Prime", "Courier New", monospace;
-  --font-mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, monospace;
-  --font-display: "Syne", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-type: "Open Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "Open Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: "PT Sans", "Helvetica Neue", Arial, sans-serif;
 }
 
 html,
