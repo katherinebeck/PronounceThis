@@ -1242,13 +1242,30 @@ async def _log_tts_play(word: str, phonetic: bool) -> None:
         logger.debug("tts_log write failed: %s", exc)
 
 
-def _preferred_markup(text: str) -> tuple:
-    """Wrap coach-preferred words in phoneme tags. Returns (text, changed)."""
+# Closed-class words are reduced in connected speech; forcing their citation
+# form via phoneme tags makes ElevenLabs stumble ("Of course" → "You've course").
+_FUNCTION_WORDS = frozenset("""
+a an the of to in on at by for from with as and or but nor so yet if than that this
+these those there here it its is are was were be been being am do does did have has had
+he she they them we you i me him her us my your his our their who whom what which
+not no yes up out off over under into onto about just can could will would shall should
+may might must
+""".split())
+
+
+def _preferred_markup(text: str, allow_tags: bool = True) -> tuple:
+    """Wrap coach-preferred words in phoneme tags. Returns (text, changed).
+    Function words are never tagged; allow_tags=False disables tagging entirely
+    (used as the fallback take when a tagged render fails the listen-back)."""
     changed = False
+    if not allow_tags:
+        return text, False
 
     def _wrap(m: re.Match) -> str:
         nonlocal changed
         w = m.group(0)
+        if w.lower() in _FUNCTION_WORDS:
+            return w
         arp = PREFERRED_ARPA.get(w.lower())
         if not arp:
             return w
@@ -1260,13 +1277,13 @@ def _preferred_markup(text: str) -> tuple:
 _eleven_slots = asyncio.Semaphore(3)  # ElevenLabs plan allows 3 concurrent requests
 
 
-async def _synth_line(text: str, voice_id: Optional[str] = None) -> bytes:
+async def _synth_line(text: str, voice_id: Optional[str] = None, allow_tags: bool = True) -> bytes:
     """Async, concurrency-capped line synthesis with a short retry when
     ElevenLabs reports concurrent_limit_exceeded."""
     for attempt in range(3):
         async with _eleven_slots:
             try:
-                return await asyncio.to_thread(_synthesize, text, voice_id)
+                return await asyncio.to_thread(_synthesize, text, voice_id, allow_tags)
             except Exception as exc:  # noqa: BLE001
                 if "concurrent_limit_exceeded" in str(exc) and attempt < 2:
                     await asyncio.sleep(1.5 * (attempt + 1))
@@ -1276,7 +1293,7 @@ async def _synth_line(text: str, voice_id: Optional[str] = None) -> bytes:
 
 
 
-def _synthesize(text: str, voice_id: Optional[str] = None) -> bytes:
+def _synthesize(text: str, voice_id: Optional[str] = None, allow_tags: bool = True) -> bytes:
     """Blocking ElevenLabs synthesis for an arbitrary line of text.
 
     Lines containing a coach-preferred word are rendered on eleven_turbo_v2
@@ -1284,7 +1301,7 @@ def _synthesize(text: str, voice_id: Optional[str] = None) -> bytes:
     other lines keep the original multilingual voice."""
     client = _eleven_client()
     vid = voice_id or DEFAULT_VOICE_ID
-    spoken, tagged = _preferred_markup(text)
+    spoken, tagged = _preferred_markup(text, allow_tags)
     stream = client.text_to_speech.convert(
         text=spoken,
         voice_id=vid,
@@ -1505,8 +1522,15 @@ async def download_my_lines(
             audio_bytes = base64.b64decode(cached["audio_b64"])
         else:
             try:
-                audio_bytes, check = await line_check.render_verified(
-                    turn["text"], lambda: _synth_line(turn["text"], voice_id))
+                # Take 1 honours pronunciation preferences; if the listen-back
+                # rejects it, the retry renders plain (tags are the usual culprit).
+                takes = {"n": 0}
+
+                async def _render():
+                    takes["n"] += 1
+                    return await _synth_line(turn["text"], voice_id, allow_tags=takes["n"] == 1)
+
+                audio_bytes, check = await line_check.render_verified(turn["text"], _render)
             except Exception as e:
                 logger.exception("Download lines TTS error")
                 raise HTTPException(
@@ -1659,8 +1683,13 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
         )
 
     try:
-        audio_bytes, check = await line_check.render_verified(
-            turn["text"], lambda: _synth_line(turn["text"], voice_id))
+        takes = {"n": 0}
+
+        async def _render():
+            takes["n"] += 1
+            return await _synth_line(turn["text"], voice_id, allow_tags=takes["n"] == 1)
+
+        audio_bytes, check = await line_check.render_verified(turn["text"], _render)
     except Exception as e:
         logger.exception("ElevenLabs turn TTS error")
         raise HTTPException(status_code=502, detail=f"TTS failed: {e}")
@@ -1712,6 +1741,12 @@ async def _startup_indexes():
     async for pref in db.pronunciation_prefs.find({}, {"_id": 0}):
         PREFERRED_ARPA[pref["word"]] = pref["arpabet"]
     await load_custom_ipa(db)
+    # Drop cached scene-line takes the listen-back had flagged as bad so they
+    # re-render with the current logic on next play. Idempotent.
+    purged = await db.turn_audio_cache.delete_many(
+        {"$or": [{"check.gave_up": True}, {"check.stt_bias": True}]})
+    if purged.deleted_count:
+        logger.info("purged %d flagged scene-line takes from cache", purged.deleted_count)
     # Human recordings (dictionary builder or the retired "tricky words"
     # uploader) used to be played to members. Convert each to an ElevenLabs
     # phoneme preference and archive the human take. Idempotent.
