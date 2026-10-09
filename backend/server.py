@@ -46,6 +46,7 @@ from phonetics import (
     get_arpabet,
     heteronym_variants,
     ipa_to_arpabet,
+    respell_arpabet,
     transcribe_word,
     validate_arpabet,
 )
@@ -1260,12 +1261,14 @@ may might must
 """.split())
 
 
-def _preferred_markup(text: str, allow_tags: bool = True) -> tuple:
-    """Wrap coach-preferred words in phoneme tags. Returns (text, changed).
-    Function words are never tagged; allow_tags=False disables tagging entirely
-    (used as the fallback take when a tagged render fails the listen-back)."""
+def _preferred_markup(text: str, mode: str = "tags") -> tuple:
+    """Apply coach pronunciation corrections to a line. Returns (text, uses_tags).
+    mode="respell": swap corrected words for a plain-English respelling so the
+                    whole line stays on the natural multilingual voice.
+    mode="tags":    wrap them in phoneme tags (needs the turbo model).
+    mode="plain":   no changes."""
     changed = False
-    if not allow_tags:
+    if mode == "plain":
         return text, False
 
     def _wrap(m: re.Match) -> str:
@@ -1291,8 +1294,12 @@ def _preferred_markup(text: str, allow_tags: bool = True) -> tuple:
         if not forced and not w[0].isupper():
             return w
         changed = True
+        if mode == "respell":
+            r = respell_arpabet(arp.split())
+            return (r.capitalize() if w[0].isupper() else r) or w
         return f'<phoneme alphabet="cmu-arpabet" ph="{arp}">{w}</phoneme>'
-    return re.sub(r"[A-Za-z]+(?:'[A-Za-z]+)?", _wrap, text), changed
+    spoken = re.sub(r"[A-Za-z]+(?:'[A-Za-z]+)?", _wrap, text)
+    return spoken, (changed and mode == "tags")
 
 
 # Preferences that apply in any case: seeded ones + anything the coach added
@@ -1300,16 +1307,20 @@ def _preferred_markup(text: str, allow_tags: bool = True) -> tuple:
 _ALWAYS_PREFERRED: set = {"because"}
 
 
+# Take order for scene lines: natural voice with respelled corrections first,
+# phoneme tags (turbo) only if the listen-back rejects it, then plain.
+_TAKE_MODES = ("respell", "tags", "plain")
+
 _eleven_slots = asyncio.Semaphore(3)  # ElevenLabs plan allows 3 concurrent requests
 
 
-async def _synth_line(text: str, voice_id: Optional[str] = None, allow_tags: bool = True) -> bytes:
+async def _synth_line(text: str, voice_id: Optional[str] = None, mode: str = "respell") -> bytes:
     """Async, concurrency-capped line synthesis with a short retry when
     ElevenLabs reports concurrent_limit_exceeded."""
     for attempt in range(3):
         async with _eleven_slots:
             try:
-                return await asyncio.to_thread(_synthesize, text, voice_id, allow_tags)
+                return await asyncio.to_thread(_synthesize, text, voice_id, mode)
             except Exception as exc:  # noqa: BLE001
                 if "concurrent_limit_exceeded" in str(exc) and attempt < 2:
                     await asyncio.sleep(1.5 * (attempt + 1))
@@ -1319,7 +1330,7 @@ async def _synth_line(text: str, voice_id: Optional[str] = None, allow_tags: boo
 
 
 
-def _synthesize(text: str, voice_id: Optional[str] = None, allow_tags: bool = True) -> bytes:
+def _synthesize(text: str, voice_id: Optional[str] = None, mode: str = "respell") -> bytes:
     """Blocking ElevenLabs synthesis for an arbitrary line of text.
 
     Lines containing a coach-preferred word are rendered on eleven_turbo_v2
@@ -1327,7 +1338,7 @@ def _synthesize(text: str, voice_id: Optional[str] = None, allow_tags: bool = Tr
     other lines keep the original multilingual voice."""
     client = _eleven_client()
     vid = voice_id or DEFAULT_VOICE_ID
-    spoken, tagged = _preferred_markup(text, allow_tags)
+    spoken, tagged = _preferred_markup(text, mode)
     stream = client.text_to_speech.convert(
         text=spoken,
         voice_id=vid,
@@ -1554,7 +1565,7 @@ async def download_my_lines(
 
                 async def _render():
                     takes["n"] += 1
-                    return await _synth_line(turn["text"], voice_id, allow_tags=takes["n"] == 1)
+                    return await _synth_line(turn["text"], voice_id, mode=_TAKE_MODES[min(takes["n"], 3) - 1])
 
                 audio_bytes, check = await line_check.render_verified(turn["text"], _render)
             except Exception as e:
@@ -1713,7 +1724,7 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
 
         async def _render():
             takes["n"] += 1
-            return await _synth_line(turn["text"], voice_id, allow_tags=takes["n"] == 1)
+            return await _synth_line(turn["text"], voice_id, mode=_TAKE_MODES[min(takes["n"], 3) - 1])
 
         audio_bytes, check = await line_check.render_verified(turn["text"], _render)
     except Exception as e:

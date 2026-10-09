@@ -582,6 +582,34 @@ def classify_ipa(ipa: Optional[str]) -> List[str]:
     return [c for c in _CATEGORY_ORDER if c in cats]
 
 
+def respell_arpabet(phones) -> str:
+    """ARPAbet → a plain-English respelling the natural TTS voice reads
+    correctly ("W AH1 N ER0" → "wunner", "B IH0 K AH1 Z" → "bikuz")."""
+    vowels = {"AA": "ah", "AE": "a", "AH": "u", "AO": "aw", "AW": "ow", "AY": "ai", "EH": "e", "ER": "er",
+              "EY": "ay", "IH": "i", "IY": "ee", "OW": "oh", "OY": "oy", "UH": "oo", "UW": "oo"}
+    cons = {"B": "b", "CH": "ch", "D": "d", "DH": "th", "F": "f", "G": "g", "HH": "h", "JH": "j", "K": "k",
+            "L": "l", "M": "m", "N": "n", "NG": "ng", "P": "p", "R": "r", "S": "s", "SH": "sh", "T": "t",
+            "TH": "th", "V": "v", "W": "w", "Y": "y", "Z": "z", "ZH": "zh"}
+    short = {"AA", "AE", "AH", "IH", "EH", "UH"}
+    toks = [(p.rstrip("012"), p[-1] if p[-1] in "012" else "") for p in phones]
+    out = []
+    for i, (p, stress) in enumerate(toks):
+        if p in vowels:
+            v = vowels[p]
+            if p == "AH" and stress == "0" and i == len(toks) - 1:
+                v = "uh"
+            out.append(v)
+        elif p in cons:
+            c = cons[p]
+            prev = toks[i - 1] if i else None
+            nxt = toks[i + 1][0] if i + 1 < len(toks) else None
+            if (prev and prev[0] in short and prev[1] in ("1", "2") and len(c) == 1
+                    and c not in "wyh" and nxt in vowels):
+                c = c * 2
+            out.append(c)
+    return "".join(out)
+
+
 def transcribe_word(word: str) -> Tuple[Optional[str], List[str], List[str]]:
     """Return (ipa, arpabet_phones, sound_categories) for a single word.
 
