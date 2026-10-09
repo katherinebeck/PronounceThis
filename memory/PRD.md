@@ -556,3 +556,8 @@
 ## 2026-06 — Eleven v4 support (Admin switch)
 - `TTS_SETTINGS["model"]` (app_settings/_id=tts, default eleven_multilingual_v2), Admin → Audio budget `TtsModelSwitch.jsx` (GET/PUT /admin/tts-model). On eleven_v4 take order = ("ipa","respell","plain"): corrected words become inline IPA `/ˈwʌnɚ/` on the SAME natural voice (v4 has no phoneme tags, never uses turbo). Cache entries store `model`; mismatch → re-render. Verified Jessica + David on v4: 1 take, "oner"→"one-er", "of course" clean, ~1s/line. User's ElevenLabs plan now Creator (121k chars).
 - Word tool TTS follows TTS_SETTINGS too: on eleven_v4 phonetic lookups use inline IPA (CUSTOM_IPA or arpabet_to_ipa) on the natural voice instead of turbo phoneme tags; audio_cache entries store model and re-render on model change. User reported 'wooner' on multilingual respell path → v4 is the recommended fix.
+
+## 2026-06 — Eleven v4 hard-wired; male voice → Jarnathon
+- Admin TTS model toggle REMOVED (user: irrelevant). `TTS_MODEL = "eleven_v4"` constant in server.py; `TTS_SETTINGS`/`TTS_MODELS`/`GET,PUT /admin/tts-model`/`TtsModelSwitch.jsx` deleted; app_settings/_id=tts no longer read. Turbo + phoneme-tag paths gone from `_generate`/`_synthesize`; take order always ("ipa","respell","plain").
+- Male reader voice: David → **Jarnathon** (`c6SfcYrb2t09NHXiT80T`, ElevenLabs v4-recommended). Key "david" kept so cache keys/links keep working; cached male lines re-render via voice_id mismatch. Label stays "Male voice".
+- Verified via curl: `/api/tts` oner (phonetic) → 200 on v4; scene turn with `?voice=david` → model eleven_v4, Whisper listen-back verified in 1 take.

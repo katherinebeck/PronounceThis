@@ -7,7 +7,6 @@ import { PronunciationPrefs } from "./PronunciationPrefs";
 import CreditMeter from "./CreditMeter";
 import LineCheckHealth from "./LineCheckHealth";
 import StripePrices from "./StripePrices";
-import TtsModelSwitch from "./TtsModelSwitch";
 import KitStatus from "./KitStatus";
 import { DictionaryBuilder } from "./DictionaryBuilder";
 import { HiddenVideos } from "./HiddenVideos";
@@ -654,7 +653,7 @@ export default function AdminPage() {
         </section>
         </>) : null}
 
-        {tab === "credits" ? (<><CreditMeter /><TtsModelSwitch /><LineCheckHealth /></>) : null}
+        {tab === "credits" ? (<><CreditMeter /><LineCheckHealth /></>) : null}
 
         {tab === "kit" ? <KitStatus /> : null}
 
