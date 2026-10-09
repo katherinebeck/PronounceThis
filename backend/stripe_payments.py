@@ -339,6 +339,14 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
     email = await resolve_account_email(db, email)
     sub_id = session.get("subscription")
     lookup_key = (session.get("metadata") or {}).get("lookup_key", "")
+    if not lookup_key and sub_id:
+        # Payment Link / Buy Button purchases carry no app metadata — read the
+        # plan from the subscription's price instead.
+        try:
+            sub = await asyncio.to_thread(stripe.Subscription.retrieve, sub_id)
+            lookup_key = _sub_lookup_key(_to_dict(sub))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"could not read plan for sub {sub_id}: {exc}")
     offer_title = _lookup_key_to_title(lookup_key)
 
     # Auto-create the user shell if they somehow don't have one yet
