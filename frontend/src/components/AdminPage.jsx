@@ -152,6 +152,21 @@ export default function AdminPage() {
     }
   };
 
+  const setPageAllowance = async (u) => {
+    const current = u.pages?.allowance ?? 25;
+    const raw = window.prompt(`Monthly scene-page allowance for ${u.email} (blank = default 25):`, String(current));
+    if (raw === null) return;
+    const n = raw.trim() === "" ? null : parseInt(raw, 10);
+    if (n !== null && (!Number.isFinite(n) || n < 1)) return toast.error("Enter a whole number of pages");
+    try {
+      await api.patch(`/admin/users/${encodeURIComponent(u.email)}/page-allowance`, { allowance: n });
+      toast.success(`Allowance for ${u.email}: ${n ?? "default (25)"} pages/month`);
+      load();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Could not update allowance");
+    }
+  };
+
   const [editingEnd, setEditingEnd] = useState(null); // { email, value }
   const [savingEnd, setSavingEnd] = useState(false);
 
@@ -848,6 +863,7 @@ export default function AdminPage() {
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Status</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Ends</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Trial</th>
+                  <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Pages / mo</th>
                   <th className="px-4 py-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted2">Login</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -925,6 +941,20 @@ export default function AdminPage() {
                         </td>
                         <td className="px-4 py-3 text-xs text-muted2">
                           {u.trial_word_used}w · {u.trial_scene_used}s
+                        </td>
+                        <td className="px-4 py-3 text-xs whitespace-nowrap">
+                          {u.pages ? (
+                            <button
+                              type="button"
+                              onClick={() => setPageAllowance(u)}
+                              className={"group inline-flex items-center gap-1 hover:text-ink " + (u.pages.remaining <= 0 ? "text-crimson" : u.pages.used / u.pages.allowance >= 0.8 ? "text-rust" : "text-muted2")}
+                              title={`Resets ${new Date(u.pages.resets_at).toLocaleDateString()} · click to change allowance`}
+                              data-testid={`admin-pages-${u.email}`}
+                            >
+                              {u.pages.used} / {u.pages.allowance}
+                              <Pencil size={10} className="opacity-40 group-hover:opacity-100" />
+                            </button>
+                          ) : <span className="text-muted2">—</span>}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <LoginHealth user={u} />

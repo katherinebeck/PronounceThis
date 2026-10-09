@@ -52,6 +52,7 @@ from phonetics import (
 from caption_search import CaptionSearchService
 from notify import notify_owner
 import line_check
+import page_allowance
 from wiktionary import WiktionaryIPA
 import llm
 from auth import (
@@ -98,7 +99,7 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-MAX_SCENE_PAGES = 10
+MAX_SCENE_PAGES = page_allowance.MEMBER_PAGE_CAP
 TRIAL_MAX_SCENE_PAGES = 2
 MS_PER_SPOKEN_WORD = 420  # ~140 wpm conversational pace, used to size reader-track gaps
 SCENE_RETENTION_DAYS = 90
@@ -880,6 +881,10 @@ async def upload_scene(
                 ),
             )
         pages = [(p.extract_text() or "") for p in reader.pages]
+        if actor.is_subscriber:
+            allowance = await page_allowance.usage(db, actor.email)
+            if len(pages) > allowance["remaining"]:
+                raise HTTPException(status_code=429, detail=page_allowance.limit_message(allowance, len(pages)))
     except HTTPException:
         raise
     except Exception as e:
@@ -917,6 +922,8 @@ async def upload_scene(
     doc["dialogue"] = dialogue
     doc["proper_nouns"] = proper_nouns
     await db.scenes.insert_one(doc)
+    if actor.is_subscriber:
+        await page_allowance.record(db, actor.email, len(pages), scene.id)
 
     # Quota safety net: pre-cache Real Speaker caption search for every
     # proper noun in the scene. Runs in the background so the upload

@@ -24,6 +24,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import page_allowance
 import price_cache
 import re
 import secrets
@@ -74,6 +75,9 @@ class AuthMeResponse(BaseModel):
     trial_scene_used: int = 0
     trial_word_limit: int = TRIAL_WORD_LIMIT
     trial_scene_limit: int = TRIAL_SCENE_LIMIT
+    pages_used: Optional[int] = None
+    pages_allowance: Optional[int] = None
+    pages_reset_at: Optional[str] = None
     # Kept for now to preserve backwards-compat during the Kajabi → Stripe
     # transition; the paywall now uses `stripe_prices` instead.
     monthly_offer_url: str = ""
@@ -560,6 +564,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         # after a possible self-heal that just linked the customer.
         user = await db.users.find_one({"email": email}) or user
         used = await effective_trial_used(db, user, device_id)
+        pages = await page_allowance.usage(db, email, user) if status["status"] == "active" else None
 
         return AuthMeResponse(
             authenticated=True,
@@ -569,6 +574,9 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             subscription_end_at=status["subscription_end_at"],
             trial_word_used=used["word"],
             trial_scene_used=used["scene"],
+            pages_used=pages["used"] if pages else None,
+            pages_allowance=pages["allowance"] if pages else None,
+            pages_reset_at=pages["resets_at"] if pages else None,
             stripe_prices=stripe_prices,
             has_stripe_customer=bool(user.get("stripe_customer_id")),
             is_admin=is_admin_email(email),

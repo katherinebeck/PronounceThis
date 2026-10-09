@@ -16,6 +16,7 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
+import page_allowance
 import base64
 import csv
 import io
@@ -49,6 +50,10 @@ def _in_days(days: int) -> str:
 ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
                        "audio/webm", "audio/ogg", "audio/mp4", "audio/m4a"}
 MAX_AUDIO_BYTES = 2 * 1024 * 1024   # 2 MB is plenty for a single word
+
+
+class PageAllowanceBody(BaseModel):
+    allowance: Optional[int] = None
 
 
 class CancelBody(BaseModel):
@@ -310,6 +315,8 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 }
         for u in users:
             u["membership"] = by_email.get(u["email"])
+            if (u["membership"] or {}).get("is_active"):
+                u["pages"] = await page_allowance.usage(db, u["email"], u)
         # Login health: latest password-link email per user.
         latest: dict[str, dict] = {}
         async for a in db.auth_emails.find({"email": {"$in": emails}}, {"_id": 0}).sort("sent_at", -1):
@@ -1007,6 +1014,18 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         await require_admin(request, db)
         from watchdog import get_credit_status
         return await get_credit_status(db)
+
+    @router.patch("/users/{email}/page-allowance")
+    async def set_page_allowance(email: str, body: PageAllowanceBody, request: Request):
+        """Per-member monthly scene-page allowance (null → default)."""
+        await require_admin(request, db)
+        key = email.strip().lower()
+        res = await db.users.update_one(
+            {"email": key},
+            {"$set": {"page_allowance": body.allowance}} if body.allowance else {"$unset": {"page_allowance": ""}})
+        if not res.matched_count:
+            raise HTTPException(status_code=404, detail="user not found")
+        return await page_allowance.usage(db, key)
 
     @router.get("/stripe/prices")
     async def stripe_prices(request: Request):

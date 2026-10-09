@@ -108,6 +108,10 @@ export default function AccountChip() {
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-2">
                 {trialWordRemaining} {trialWordRemaining === 1 ? "word" : "words"} · {trialSceneRemaining} scene left
               </div>
+            ) : me?.pages_allowance ? (
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-2" data-testid="account-pages">
+                {me.pages_used} of {me.pages_allowance} scene pages used · resets {new Date(me.pages_reset_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+              </div>
             ) : null}
           </div>
 

@@ -541,3 +541,8 @@
 - Needs Republish; the user's existing scene lines flagged bad will re-render on next play; unflagged old takes need re-upload.
 - Removed 'Specifically Designed For Actors' eyebrow under Pronounce This Scene on the Word page.
 - Scene intro copy (Word page promo + Scene upload page): 'Hear each word, see it written phonetically (IPA) and practice with sound lists pulled from your scene. Download an audio of your character's dialogue or download your reader's lines.'
+
+## 2026-06 — Scene-page allowance (fair use)
+- `page_allowance.py`: MEMBER_PAGE_CAP=8 pages/upload (was 10), MONTHLY_PAGE_ALLOWANCE=25 pages per billing month, cycle anchored to the member's active-membership created_at day-of-month (clamped for short months); per-user override `users.page_allowance`. Usage stored in `page_usage` {email,pages,scene_id,at}. Upload returns 429 with a friendly message (resets date + support email) when a PDF exceeds remaining pages; trial unchanged (2 pages / 1 scene).
+- /me adds pages_used / pages_allowance / pages_reset_at (members only) → AccountChip shows "X of 25 scene pages used · resets <date>". Admin → All users: "Pages / mo" column (used/allowance, amber ≥80%, red at limit; click → prompt to set per-member allowance via PATCH /admin/users/{email}/page-allowance). Uploaders show 429 toast for 15s.
+- Verified: cycle math (anchor 31st), usage/record/limit message, /me fields, admin column, account menu line. Decision: single tier for now; add Premium when members hit the cap.

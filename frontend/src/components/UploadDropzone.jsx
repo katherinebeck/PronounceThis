@@ -30,7 +30,7 @@ export default function UploadDropzone({ onUploaded }) {
       const status = e?.response?.status;
       if (status !== 402 && status !== 401) {
         const detail = e?.response?.data?.detail;
-        toast.error(typeof detail === "string" ? detail : "Upload failed.");
+        toast.error(typeof detail === "string" ? detail : "Upload failed.", { duration: status === 429 ? 15000 : 5000 });
       }
     } finally {
       setBusy(false);
