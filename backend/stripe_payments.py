@@ -137,7 +137,10 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return {"checkout_url": url}
 
     PLAN_KEYS = {"monthly": "accent_coach_monthly", "annual": "accent_coach_yearly",
-                 "yearly": "accent_coach_yearly"}
+                 "yearly": "accent_coach_yearly",
+                 # Hidden founding-member prices (not shown in the app; linked from Kajabi)
+                 "founding-monthly": "founding_monthly", "founding-annual": "founding_yearly",
+                 "founding-yearly": "founding_yearly"}
 
     @router.get("/payments/checkout")
     async def checkout_link(request: Request, plan: str = "monthly"):
@@ -286,6 +289,8 @@ def _lookup_key_to_title(lookup_key: str) -> str:
     return {
         "accent_coach_monthly": "Pronounce This — Monthly",
         "accent_coach_yearly": "Pronounce This — Annual",
+        "founding_monthly": "Pronounce This — Founding Member (Monthly)",
+        "founding_yearly": "Pronounce This — Founding Member (Annual)",
     }.get(lookup_key, "Pronounce This")
 
 

@@ -25,6 +25,8 @@ CATALOG = {
     "prices": [
         {"lookup_key": "accent_coach_monthly", "amount": 1900, "currency": "usd", "interval": "month"},
         {"lookup_key": "accent_coach_yearly", "amount": 19000, "currency": "usd", "interval": "year"},
+        {"lookup_key": "founding_monthly", "amount": 900, "currency": "usd", "interval": "month"},
+        {"lookup_key": "founding_yearly", "amount": 9000, "currency": "usd", "interval": "year"},
     ],
 }
 
