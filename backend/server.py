@@ -1655,14 +1655,14 @@ async def download_my_lines(
 # id from the client) and gives us stable IDs the frontend can display.
 READER_VOICES = {
     "jessica": DEFAULT_VOICE_ID,          # Jessica Anne Bogart — female US
-    "david":   "zfc8CJQpe8Kqyl0vvCzo",    # Mike — male, neutral American (key kept for cached links)
+    "david":   "Zv7P8CISODgj9wDHyyI9",    # David J Hensley — male US
 }
 
 READER_VOICE_META = [
     {"key": "jessica", "label": "Female voice", "gender": "female",
      "description": "American English, confident, conversational"},
     {"key": "david",   "label": "Male voice",   "gender": "male",
-     "description": "American English, neutral, natural"},
+     "description": "American English, warm, natural"},
 ]
 
 
@@ -1775,6 +1775,15 @@ async def _startup_indexes():
         {"$or": [{"check.gave_up": True}, {"check.stt_bias": True}]})
     if purged.deleted_count:
         logger.info("purged %d flagged scene-line takes from cache", purged.deleted_count)
+    # One-time: scene lines containing a coach-corrected dictionary word were
+    # rendered before scenes honoured those corrections — drop them once.
+    if CUSTOM_IPA and not await db.app_migrations.find_one({"_id": "custom_ipa_scene_lines_v1"}):
+        words = [re.escape(w) for w in CUSTOM_IPA if w and " " not in w]
+        if words:
+            res = await db.turn_audio_cache.delete_many(
+                {"text": {"$regex": r"\b(" + "|".join(words) + r")\b", "$options": "i"}})
+            logger.info("purged %d scene-line takes containing corrected words", res.deleted_count)
+        await db.app_migrations.insert_one({"_id": "custom_ipa_scene_lines_v1", "at": datetime.now(timezone.utc).isoformat()})
     # Human recordings (dictionary builder or the retired "tricky words"
     # uploader) used to be played to members. Convert each to an ElevenLabs
     # phoneme preference and archive the human take. Idempotent.
