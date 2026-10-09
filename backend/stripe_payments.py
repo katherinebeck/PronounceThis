@@ -412,6 +412,12 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
                      [f"<b>{email}</b> subscribed to <b>{offer_title}</b>.",
                       "Their access is active now."])
         kit.tag_subscriber(email, kit.member_tag(lookup_key))
+        try:
+            import password_links
+            kind = await password_links.send_member_welcome(db, email)
+            logger.info(f"member welcome email ({kind}) → {email}")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"member welcome email for {email} failed: {exc}")
 
 
 async def _sync_subscription(

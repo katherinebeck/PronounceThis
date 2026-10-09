@@ -53,6 +53,20 @@ def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = 
             "See you in there,<br>The Pronounce This Team",
             tip,
         ]))
+    if kind == "member":
+        return ("You're in — welcome to Pronounce This", _wrap([
+            hi,
+            "Thank you for joining <b>Pronounce This</b>. Your membership is active and everything is unlocked.",
+            f'<a href="{app_url}/app" style="display:inline-block;background:#ef5973;color:#fff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:999px">Open Pronounce This →</a>',
+            "<b>What you have:</b><br>"
+            "• <b>Pronounce This Word</b> — type any word, name or place to see it written phonetically (IPA), hear it in a Standard American accent, and watch real Americans say it.<br>"
+            "• <b>Pronounce This Scene</b> — upload your sides (text-based PDF, up to 8 pages), pick your character, hear every line, and practice with sound lists from your scene.<br>"
+            "• <b>Downloads</b> — your character's lines to practice with, and your reader's lines to run lines or film your self-tape.<br>"
+            "• <b>25 scene pages every month</b>, resetting on your billing date. Need more for a big audition? Just reply to this email.",
+            f'Sign in any time at <a href="{app_url}" style="color:#ef5973">{app_url.replace("https://", "")}</a> with this email address (or Continue with Google). Manage or cancel your plan from the account menu.',
+            "Break a leg,<br>The Pronounce This Team",
+            tip,
+        ]))
     if kind == "nudge":
         return ("Your Pronounce This access is waiting", _wrap([
             hi,
@@ -150,6 +164,34 @@ def welcome_if_new(db: AsyncIOMotorDatabase, email: str, base: Optional[str] = N
         asyncio.get_running_loop().create_task(_go())
     except RuntimeError:
         pass
+
+
+async def send_member_welcome(db: AsyncIOMotorDatabase, email: str) -> Optional[str]:
+    """Once per member, right after a Stripe purchase: never-signed-in buyers
+    get the set-password welcome; existing users get the 'you're in' note.
+    Returns the kind sent, or None if already sent / failed."""
+    email = email.strip().lower()
+    claimed = await db.users.find_one_and_update(
+        {"email": email, "member_welcome_sent_at": None},
+        {"$set": {"member_welcome_sent_at": _now_iso()}},
+        projection={"last_login_at": 1, "first_name": 1})
+    if not claimed:
+        return None
+    try:
+        if claimed.get("last_login_at") is None:
+            res = await send_link_email(db, email, "welcome", APP_PUBLIC_URL)
+            ok, kind = res.get("ok", False), "welcome"
+        else:
+            subject, html = _email("member", None, claimed.get("first_name") or "")
+            rid = await _send(email, subject, html)
+            await db.auth_emails.insert_one({"email": email, "kind": "member", "resend_id": rid, "status": "sent", "sent_at": _now_iso()})
+            ok, kind = True, "member"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("member welcome email to %s failed: %s", email, exc)
+        ok, kind = False, None
+    if not ok:
+        await db.users.update_one({"email": email}, {"$unset": {"member_welcome_sent_at": ""}})
+    return kind
 
 
 NUDGE_AFTER_DAYS = 3
