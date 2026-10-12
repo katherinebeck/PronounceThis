@@ -52,6 +52,11 @@ ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
 MAX_AUDIO_BYTES = 2 * 1024 * 1024   # 2 MB is plenty for a single word
 
 
+class EmailPreviewSendBody(BaseModel):
+    kind: str
+    first_name: str = "Kate"
+
+
 class PageAllowanceBody(BaseModel):
     allowance: Optional[int] = None
 
@@ -397,6 +402,19 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=400, detail="unknown kind")
         subject, html = password_links._email(kind, "#set-password-link", first_name.strip(), APP_PUBLIC_URL)
         return {"kind": kind, "subject": subject, "from": FROM_HEADER, "html": html, "kinds": list(kinds)}
+
+    @router.post("/email-preview/send")
+    async def email_preview_send(body: EmailPreviewSendBody, request: Request):
+        """Email the preview to the signed-in admin's own inbox (link is a dummy)."""
+        admin_email = await require_admin(request, db)
+        import password_links
+        if body.kind not in ("welcome", "member", "nudge", "reset", "no_account"):
+            raise HTTPException(status_code=400, detail="unknown kind")
+        subject, html = password_links._email(body.kind, f"{APP_PUBLIC_URL}/login", body.first_name.strip(), APP_PUBLIC_URL)
+        rid = await password_links._send(admin_email, f"[TEST] {subject}", html)
+        if not rid:
+            raise HTTPException(status_code=503, detail="send_failed")
+        return {"ok": True, "to": admin_email, "resend_id": rid}
 
     @router.get("/buyers")
     async def recent_buyers(request: Request, days: int = 1):

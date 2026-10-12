@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Send } from "lucide-react";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 
 const KINDS = [
@@ -16,6 +17,19 @@ export default function EmailPreviews() {
   const [firstName, setFirstName] = useState("Kate");
   const [d, setD] = useState(null);
   const [err, setErr] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const sendToMe = async () => {
+    setSending(true);
+    try {
+      const { data } = await api.post("/admin/email-preview/send", { kind, first_name: firstName });
+      toast.success(`Test email sent to ${data.to}`);
+    } catch (e) {
+      toast.error(e?.response?.status === 503 ? "Email service didn't accept it — check Resend." : "Couldn't send the test email.");
+    } finally {
+      setSending(false);
+    }
+  };
 
   useEffect(() => {
     setD(null); setErr("");
@@ -42,7 +56,13 @@ export default function EmailPreviews() {
             data-testid="admin-email-first-name" />
         </label>
       </div>
-      <p className="font-serif text-xs text-muted2 mb-3" data-testid="admin-email-when">{meta?.when}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+        <p className="font-serif text-xs text-muted2" data-testid="admin-email-when">{meta?.when}</p>
+        <button type="button" onClick={sendToMe} disabled={sending || !d} className="btn-secondary !py-1.5 !px-3 text-xs inline-flex items-center gap-1.5 disabled:opacity-60"
+          data-testid="admin-email-send-test">
+          {sending ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />} Send this preview to me
+        </button>
+      </div>
       {err ? <p className="font-serif text-sm text-crimson">{err}</p>
         : !d ? <p className="font-serif text-sm text-muted2 italic inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Rendering…</p>
         : (
