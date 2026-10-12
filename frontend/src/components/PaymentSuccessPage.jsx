@@ -3,6 +3,7 @@ import Logo from "./Logo";
 import { Loader2, Check, XCircle, Mail } from "lucide-react";
 import { getPaymentStatus } from "@/lib/api";
 import AuthForm from "./AuthForm";
+import CheckoutPasswordForm from "./CheckoutPasswordForm";
 import { useAuth } from "@/lib/auth";
 
 // Landing spot after a Stripe Checkout completes. Polls until we see
@@ -13,6 +14,8 @@ export default function PaymentSuccessPage() {
   const [state, setState] = useState("checking"); // checking | ok | link | failed | timeout
   const [tries, setTries] = useState(0);
   const [email, setEmail] = useState("");
+  const [sessionId, setSessionId] = useState("");
+  const [existing, setExisting] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -21,6 +24,7 @@ export default function PaymentSuccessPage() {
       setState("failed");
       return;
     }
+    setSessionId(sid);
     let cancelled = false;
     let attempt = 0;
 
@@ -104,17 +108,21 @@ export default function PaymentSuccessPage() {
               <Mail size={22} className="text-rust" />
             </div>
             <p className="font-display text-xl text-ink" data-testid="payment-success-status">
-              Payment received. Create your password.
+              {existing ? "Payment received. Sign in." : "Payment received. Choose your password."}
             </p>
             <p className="font-serif text-sm text-muted2 italic mt-3 mb-5 leading-relaxed">
-              Use the same email you paid with —{" "}
-              <span className="not-italic text-ink" data-testid="payment-success-email">{email || "your checkout email"}</span>{" "}
-              — so your membership is attached to your account.
+              {existing
+                ? <>Your membership is attached to <span className="not-italic text-ink" data-testid="payment-success-email">{email || "your checkout email"}</span>. Sign in with that email to get started.</>
+                : <>Your membership is ready. Pick a password and you'll land straight in the app — we've also emailed a set-password link to <span className="not-italic text-ink" data-testid="payment-success-email">{email || "your checkout email"}</span> as a backup.</>}
             </p>
             <div className="text-left">
-              <AuthForm mode="signup" setMode={() => {}} compact onDone={() => window.location.assign("/app")} />
+              {existing
+                ? <AuthForm mode="signin" setMode={() => {}} compact onDone={() => window.location.assign("/app")} />
+                : <CheckoutPasswordForm sessionId={sessionId} email={email} onExisting={() => setExisting(true)} />}
             </div>
-            <p className="font-serif text-xs text-muted2 mt-4">Already have an account? <a href="/app" className="text-ink underline">Sign in</a>.</p>
+            {!existing && (
+              <p className="font-serif text-xs text-muted2 mt-4">Already have an account? <button type="button" className="text-ink underline" onClick={() => setExisting(true)} data-testid="payment-success-signin">Sign in</button>.</p>
+            )}
           </>
         )}
         {(state === "failed" || state === "timeout") && (

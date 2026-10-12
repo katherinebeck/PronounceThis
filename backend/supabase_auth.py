@@ -75,11 +75,13 @@ async def resolve_user_email(db: AsyncIOMotorDatabase, claims: dict) -> Optional
             await db.users.update_one({"email": email}, {"$set": {"supabase_sub": sub}})
     if user.get("last_login_at") is None:
         await db.users.update_one({"email": user["email"]}, {"$set": {"last_login_at": _now().isoformat()}})
-        from notify import notify_owner
-        import kit
-        notify_owner("New free trial", "Someone just started a free trial",
-                     [f"<b>{user['email']}</b> created an account.", "They get 2 free words and 1 free scene."])
-        kit.tag_subscriber(user["email"], kit.TAG_TRIAL)
+        from auth import _membership_status
+        if (await _membership_status(db, user["email"]))["status"] != "active":
+            from notify import notify_owner
+            import kit
+            notify_owner("New free trial", "Someone just started a free trial",
+                         [f"<b>{user['email']}</b> created an account.", "They get 2 free words and 1 free scene."])
+            kit.tag_subscriber(user["email"], kit.TAG_TRIAL)
     return user["email"]
 
 
@@ -127,6 +129,35 @@ async def ensure_identity(email: str) -> bool:
         return True
     body = r.text.lower()
     return r.status_code == 422 and ("exists" in body or "already" in body)
+
+
+async def admin_user_id(email: str) -> Optional[str]:
+    """Supabase user id for an exact (case-insensitive) email, or None."""
+    email = email.strip().lower()
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.get(f"{ISSUER}/admin/users", headers=_admin_headers(),
+                        params={"filter": email, "page": 1, "per_page": 100})
+    if r.status_code != 200:
+        logger.warning("supabase admin list %s → %s", email, r.status_code)
+        return None
+    exact = [u for u in r.json().get("users", []) if (u.get("email") or "").lower() == email]
+    return exact[0]["id"] if len(exact) == 1 else None
+
+
+async def admin_set_password(email: str, password: str) -> bool:
+    """Server-side password set (post-checkout onboarding). Creates the
+    identity if needed, marks the email confirmed. True on success."""
+    if not await ensure_identity(email):
+        return False
+    uid = await admin_user_id(email)
+    if not uid:
+        return False
+    async with httpx.AsyncClient(timeout=15) as c:
+        r = await c.put(f"{ISSUER}/admin/users/{uid}", headers=_admin_headers(),
+                        json={"password": password, "email_confirm": True})
+    if r.status_code != 200:
+        logger.warning("supabase admin set password %s → %s", email, r.status_code)
+    return r.status_code == 200
 
 
 async def generate_set_password_link(email: str, redirect_to: str) -> Optional[str]:

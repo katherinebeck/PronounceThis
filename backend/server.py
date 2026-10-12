@@ -756,6 +756,11 @@ async def root():
     return {"message": "Pronounce This API"}
 
 
+@api_router.get("/health")
+async def health():
+    return {"ok": True}
+
+
 @api_router.get("/sound-categories")
 async def sound_categories():
     return {"categories": SOUND_CATEGORIES}
@@ -2011,17 +2016,30 @@ async def _startup_indexes():
                 except Exception:
                     full_overdue = True
             if indexed < 200 or status.get("channel_sig") != channel_sig or full_overdue:
-                logger.info(
-                    "ingest supervisor: startup ingest (indexed=%d, channels changed=%s)",
-                    indexed, status.get("channel_sig") != channel_sig,
-                )
-                try:
-                    await db.ingest_status.update_one(
-                        {"job": "channels"}, {"$set": {"channel_sig": channel_sig}}, upsert=True
+                # A throttled pass never records a full finish, so without a
+                # cooldown every redeploy re-ran the whole ingest (memory spike).
+                recent_attempt = False
+                last_try = status.get("finished_at") or status.get("started_at")
+                if last_try and indexed >= 200 and status.get("channel_sig") == channel_sig:
+                    try:
+                        recent_attempt = (datetime.now(timezone.utc) - datetime.fromisoformat(
+                            last_try.replace("Z", "+00:00"))).total_seconds() < DAILY_CHECK_SECONDS
+                    except Exception:
+                        recent_attempt = False
+                if recent_attempt:
+                    logger.info("ingest supervisor: skipping startup ingest (attempted %s)", last_try)
+                else:
+                    logger.info(
+                        "ingest supervisor: startup ingest (indexed=%d, channels changed=%s)",
+                        indexed, status.get("channel_sig") != channel_sig,
                     )
-                    await _run_full_ingest()
-                except Exception as exc:
-                    logger.warning("startup ingest failed: %s", exc)
+                    try:
+                        await db.ingest_status.update_one(
+                            {"job": "channels"}, {"$set": {"channel_sig": channel_sig}}, upsert=True
+                        )
+                        await _run_full_ingest()
+                    except Exception as exc:
+                        logger.warning("startup ingest failed: %s", exc)
 
             # Weekly refresh loop.
             while True:

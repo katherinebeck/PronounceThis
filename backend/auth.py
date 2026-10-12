@@ -467,7 +467,8 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             {"email": email},
             {"$set": {"last_login_at": _now().isoformat()}},
         )
-        if prev is not None and not prev.get("last_login_at"):
+        if prev is not None and not prev.get("last_login_at") \
+                and (await _membership_status(db, email))["status"] != "active":
             from notify import notify_owner
             import kit
             notify_owner("New free trial", "Someone just started a free trial",

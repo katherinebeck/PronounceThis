@@ -76,6 +76,11 @@ class PortalRequest(BaseModel):
     origin_url: str
 
 
+class CheckoutPasswordRequest(BaseModel):
+    session_id: str = Field(..., pattern=r"^cs_[A-Za-z0-9_]+$")
+    password: str = Field(..., min_length=8, max_length=128)
+
+
 def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
     router = APIRouter(tags=["stripe"])
 
@@ -212,6 +217,35 @@ def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "payment_status": record["payment_status"],
             "email": record.get("email"),
         }
+
+    @router.post("/payments/set-password")
+    async def set_password_after_checkout(body: CheckoutPasswordRequest, request: Request):
+        """Post-checkout onboarding: a paid Checkout Session (≤24h old) for a
+        never-signed-in buyer proves ownership; set their password so the
+        success page can sign them straight in."""
+        rate_limit(f"setpw:ip:{client_ip(request)}", 10, 3600)
+        try:
+            s = _to_dict(stripe.checkout.Session.retrieve(body.session_id))
+        except stripe.error.StripeError:
+            raise HTTPException(404, "not_found")
+        if not (s.get("payment_status") == "paid" or s.get("status") == "complete"):
+            raise HTTPException(402, "unpaid")
+        if datetime.now(timezone.utc).timestamp() - float(s.get("created") or 0) > 24 * 3600:
+            raise HTTPException(410, "expired")
+        email = _session_email(s)
+        if not email:
+            raise HTTPException(400, "no_email")
+        email = await resolve_account_email(db, email)
+        await _grant_from_session(db, s)
+        user = await db.users.find_one({"email": email}, {"last_login_at": 1, "checkout_password_set_at": 1})
+        if not user or user.get("last_login_at") is not None or user.get("checkout_password_set_at"):
+            raise HTTPException(409, "already_signed_in")
+        import supabase_auth
+        if not await supabase_auth.admin_set_password(email, body.password):
+            raise HTTPException(503, "password_unavailable")
+        await db.users.update_one({"email": email}, {"$set": {"checkout_password_set_at": _now_iso()}})
+        logger.info(f"checkout password set → {email}")
+        return {"email": email}
 
     @router.post("/payments/portal")
     async def create_portal(body: PortalRequest, request: Request):
