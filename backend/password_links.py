@@ -47,8 +47,8 @@ def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = 
         return ("Your Pronounce This access — set your password", _wrap([
             hi,
             "Welcome to <b>Pronounce This</b>. You just need to choose a password once, and you're in.",
-            f'<b>Step 1.</b> Click this button and choose a password:<br><br><a href="{link}" style="display:inline-block;background:#d9a441;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border:1px solid #111">Set my password →</a>',
-            f'<b>Step 2.</b> That\'s it — you\'ll land straight in the app. Next time, go to <a href="{app_url}/login" style="color:#b8862b">{app_url.replace("https://", "")}/login</a> and use this email address with the password you chose. If this is a Gmail address you can also just tap <b>Continue with Google</b>.',
+            f'<b>Step 1.</b> If you haven\'t set up your password yet, click this button and choose a password:<br><br><a href="{link}" style="display:inline-block;background:#d9a441;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border:1px solid #111">Set my password →</a>',
+            f'<b>Step 2.</b> That\'s it — you\'ll land straight in the app. Next time, go to <a href="{app_url}/login" style="color:#b8862b">{app_url.replace("https://", "")}/login</a> and enter your email address with the password you chose. If this is a Gmail address you can also just tap <b>Continue with Google</b>.',
             f"If the button has expired by the time you open this, no problem: go to <a href=\"{app_url}/login\" style=\"color:#b8862b\">{app_url.replace('https://', '')}/login</a>, tap <b>Forgot password?</b> and a fresh link will arrive within a minute.",
             "See you in there,<br>The Pronounce This Team",
             tip,
@@ -70,9 +70,9 @@ def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = 
     if kind == "nudge":
         return ("Your Pronounce This access is waiting", _wrap([
             hi,
-            "Just a gentle nudge — your free Pronounce This access is all set up, but you haven't chosen a password yet. It takes ten seconds:",
+            "Just a gentle nudge — your Pronounce This access is all set up and waiting, but you haven't logged in yet. Choosing a password takes ten seconds:",
             f'<a href="{link}" style="display:inline-block;background:#d9a441;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border:1px solid #111">Set my password →</a>',
-            f'Then sign in any time at <a href="{app_url}" style="color:#b8862b">{app_url.replace("https://", "")}</a> with this email and that password (or Continue with Google). If anything\'s unclear, just reply to this email.',
+            f'Then log in any time at <a href="{app_url}/login" style="color:#b8862b">{app_url.replace("https://", "")}/login</a> with this email and that password (or Continue with Google). If anything\'s unclear, just reply to this email.',
             "The Pronounce This Team",
             tip,
         ]))
@@ -194,14 +194,14 @@ async def send_member_welcome(db: AsyncIOMotorDatabase, email: str) -> Optional[
     return kind
 
 
-NUDGE_AFTER_DAYS = 3
+NUDGE_AFTER_HOURS = 24
 
 
 async def run_onboarding_nudges(db: AsyncIOMotorDatabase, limit: int = 50) -> dict:
-    """Daily job: members who got a welcome email ≥3 days ago, never signed
-    in and haven't been nudged get one gentle reminder with a fresh link."""
+    """Runs every few hours: members who got a welcome email ≥24h ago, never
+    signed in and haven't been nudged get one gentle reminder with a fresh link."""
     from datetime import timedelta
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=NUDGE_AFTER_DAYS)).isoformat()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=NUDGE_AFTER_HOURS)).isoformat()
     cursor = db.users.find(
         {"welcome_sent_at": {"$lte": cutoff}, "last_login_at": None,
          "nudge_sent_at": {"$exists": False}, "trial_blocked": {"$ne": True}},
