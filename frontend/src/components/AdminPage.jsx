@@ -15,6 +15,7 @@ import { ClipReports } from "./ClipReports";
 import { BlockedWords } from "./BlockedWords";
 import { TrialDevices } from "./TrialDevices";
 import { KajabiStatus } from "./KajabiStatus";
+import NewBuyers from "./NewBuyers";
 import AdminNav, { ALL_TAB_KEYS, tabLabel } from "./AdminNav";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -815,6 +816,7 @@ export default function AdminPage() {
         {tab === "hidden" ? <HiddenVideos /> : null}
         {tab === "trial" ? <TrialDevices /> : null}
         {tab === "kajabi" ? <KajabiStatus /> : null}
+        {tab === "buyers" ? <NewBuyers /> : null}
 
         {/* User list */}
         {tab === "users" ? (

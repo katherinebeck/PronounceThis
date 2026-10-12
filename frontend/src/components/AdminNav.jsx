@@ -1,12 +1,13 @@
 import React from "react";
 import {
   Users, UserPlus, RefreshCw, Link2, ShieldAlert, Flag, Ban, EyeOff, Youtube,
-  BookOpen, SlidersHorizontal, Gauge, Mail, Download,
+  BookOpen, SlidersHorizontal, Gauge, Mail, Download, ShoppingBag,
 } from "lucide-react";
 
 export const ADMIN_TABS = [
   { group: "Members", items: [
     { key: "users", label: "All users", icon: Users },
+    { key: "buyers", label: "New buyers", icon: ShoppingBag },
     { key: "grant", label: "Grant access", icon: UserPlus },
     { key: "stripe", label: "Stripe sync", icon: RefreshCw },
     { key: "kajabi", label: "Kajabi", icon: Link2 },

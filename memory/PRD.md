@@ -567,3 +567,4 @@
 - **No "New free trial" for paying members**: first-login notify + Kit PT Trial tag (supabase_auth.resolve_user, auth.py magic-link) now skipped when `_membership_status` is active.
 - **Prod OOM root cause**: deployer found backend OOMKilled at tier_0 512Mi; startup YouTube ingest re-ran on every boot because throttled passes never set last_full_finished_at. Added 24h cooldown (skip if finished_at/started_at < 24h ago when cache ≥200 & channel list unchanged). Added GET /api/health. User advised: raise tier to Launch (1 GB) and finish www CNAME/SSL in Deployment panel.
 - Tested: /app/test_reports/iteration_29.json (100% backend+frontend, real Stripe test checkout e2e).
+- **Admin → New buyers** (`NewBuyers.jsx`, `GET /api/admin/buyers?days=1|7|30`): Stripe buyers in window with plan, paid time, signed-in yes/not yet (+ last set-password email status), and per-row "Password link" copy / "Resend email" follow-ups for anyone still at the door.

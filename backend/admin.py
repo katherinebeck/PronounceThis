@@ -387,6 +387,39 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=404, detail="user_not_found")
         return {"ok": True, "email": email, "unlinked": r.modified_count == 1}
 
+    @router.get("/buyers")
+    async def recent_buyers(request: Request, days: int = 1):
+        """Stripe buyers from the last N days with whether they've signed in
+        yet, so the coach can follow up on anyone stuck at the door."""
+        await require_admin(request, db)
+        days = max(1, min(days, 90))
+        since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        mems = await db.memberships.find(
+            {"offer_id": {"$regex": "^stripe:"}, "last_payment_at": {"$gte": since}},
+            {"_id": 0, "user_email": 1, "offer_title": 1, "status": 1, "last_payment_at": 1},
+        ).sort("last_payment_at", -1).to_list(500)
+        emails = [m["user_email"] for m in mems]
+        users = {u["email"]: u async for u in db.users.find(
+            {"email": {"$in": emails}},
+            {"_id": 0, "email": 1, "last_login_at": 1, "created_at": 1, "checkout_password_set_at": 1})}
+        latest: dict[str, dict] = {}
+        async for a in db.auth_emails.find({"email": {"$in": emails}}, {"_id": 0}).sort("sent_at", -1):
+            latest.setdefault(a["email"], {"kind": a.get("kind"), "status": a.get("status"), "sent_at": a.get("sent_at")})
+        rows = []
+        for m in mems:
+            u = users.get(m["user_email"], {})
+            # A renewal of an older account isn't a new buyer.
+            if u.get("created_at") and u["created_at"] < since and u.get("last_login_at") and u["last_login_at"] < since:
+                continue
+            rows.append({
+                "email": m["user_email"], "plan": m.get("offer_title"), "status": m.get("status"),
+                "bought_at": m.get("last_payment_at"), "last_login_at": u.get("last_login_at"),
+                "signed_in": bool(u.get("last_login_at")),
+                "via_checkout_password": bool(u.get("checkout_password_set_at")),
+                "last_auth_email": latest.get(m["user_email"]),
+            })
+        return {"days": days, "count": len(rows), "signed_in": sum(r["signed_in"] for r in rows), "buyers": rows}
+
     @router.get("/paid-count")
     async def paid_count(request: Request):
         """Active paid (Stripe) subscriptions — founding-member tally."""
