@@ -59,7 +59,25 @@
 
 /* top bar + hero */
 .landing .topbar{padding:14px 0 0;}
-.landing .topbar .wrap{text-align:right;}
+.landing .topbar .wrap{display:flex;justify-content:flex-end;align-items:center;gap:12px;}
+.landing .member-q{font-size:0.9rem;color:var(--ink-soft);}
+.landing .btn-login{
+  display:inline-flex;align-items:center;justify-content:center;
+  font-family:var(--font-body);font-weight:700;font-size:0.9rem;color:var(--ink);
+  padding:8px 20px;border:1.5px solid var(--ink);border-radius:999px;text-decoration:none;background:transparent;
+  transition:background-color 0.15s ease,color 0.15s ease,transform 0.15s ease;
+}
+.landing .btn-login:hover{background:var(--ink);color:#fff;transform:translateY(-1px);}
+
+/* /login page */
+.landing.login-page{padding:56px 16px 72px;display:flex;justify-content:center;align-items:flex-start;}
+@media (max-width:640px){ .landing.login-page{padding:36px 16px 56px;} }
+.landing .login-card-wrap{width:100%;max-width:440px;}
+.landing .login-logo{width:min(320px,72vw);height:auto;display:block;margin:0 auto;}
+.landing .login-title{font-size:clamp(1.5rem, 2.4vw, 1.9rem);margin:34px 0 28px;}
+.landing .login-card{padding:28px 24px;}
+@media (min-width:640px){ .landing .login-card{padding:32px;} }
+.landing .login-foot{margin:24px 0 0;font-size:0.95rem;}
 .landing .hero{padding:28px 0 64px;}
 .landing .logo-line{margin:0 0 10px;line-height:0;}
 .landing .logo{width:min(440px, 78vw);height:auto;display:inline-block;}

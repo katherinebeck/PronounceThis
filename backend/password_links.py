@@ -48,8 +48,8 @@ def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = 
             hi,
             "Welcome to <b>Pronounce This</b>. You just need to choose a password once, and you're in.",
             f'<b>Step 1.</b> Click this button and choose a password:<br><br><a href="{link}" style="display:inline-block;background:#d9a441;color:#111;text-decoration:none;font-weight:bold;padding:12px 22px;border:1px solid #111">Set my password →</a>',
-            f'<b>Step 2.</b> That\'s it — you\'ll land straight in the app. Next time, go to <a href="{app_url}" style="color:#b8862b">{app_url.replace("https://", "")}</a>, tap <b>Sign in</b>, and use this email address with the password you chose. If this is a Gmail address you can also just tap <b>Continue with Google</b>.',
-            "If the button has expired by the time you open this, no problem: go to the site, tap Sign in → <b>Forgot password?</b> and a fresh link will arrive within a minute.",
+            f'<b>Step 2.</b> That\'s it — you\'ll land straight in the app. Next time, go to <a href="{app_url}/login" style="color:#b8862b">{app_url.replace("https://", "")}/login</a> and use this email address with the password you chose. If this is a Gmail address you can also just tap <b>Continue with Google</b>.',
+            f"If the button has expired by the time you open this, no problem: go to <a href=\"{app_url}/login\" style=\"color:#b8862b\">{app_url.replace('https://', '')}/login</a>, tap <b>Forgot password?</b> and a fresh link will arrive within a minute.",
             "See you in there,<br>The Pronounce This Team",
             tip,
         ]))
@@ -63,7 +63,7 @@ def _email(kind: str, link: Optional[str], first_name: str = "", app_url: str = 
             "• <b>Pronounce This Scene</b> — upload your sides (text-based PDF, up to 8 pages), pick your character, hear every line, and practice with sound lists from your scene.<br>"
             "• <b>Downloads</b> — your character's lines to practice with, and your reader's lines to run lines or film your self-tape.<br>"
             "• <b>25 scene pages every month</b>, resetting on your billing date. Need more for a big audition? Just reply to this email.",
-            f'Sign in any time at <a href="{app_url}" style="color:#ef5973">{app_url.replace("https://", "")}</a> with this email address (or Continue with Google). Manage or cancel your plan from the account menu.',
+            f'Log in any time at <a href="{app_url}/login" style="color:#ef5973">{app_url.replace("https://", "")}/login</a> with this email address (or Continue with Google). Manage or cancel your plan from the account menu.',
             "Break a leg,<br>The Pronounce This Team",
             tip,
         ]))

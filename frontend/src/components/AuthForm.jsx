@@ -21,7 +21,7 @@ function Field({ icon: Icon, testId, ...props }) {
 }
 
 // mode: "signin" | "signup" | "forgot". onDone(mode) fires after success.
-export default function AuthForm({ mode, setMode, onDone, compact = false }) {
+export default function AuthForm({ mode, setMode, onDone, compact = false, ctaLabel }) {
   const { refresh } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -81,7 +81,7 @@ export default function AuthForm({ mode, setMode, onDone, compact = false }) {
     return <ResetSentStatus email={sent.to || email.trim().toLowerCase()} initial={sent} />;
   }
 
-  const cta = mode === "forgot" ? "Send reset link" : mode === "signup" ? "Create my account" : "Sign in";
+  const cta = ctaLabel || (mode === "forgot" ? "Send reset link" : mode === "signup" ? "Create my account" : "Sign in");
   return (
     <form onSubmit={submit} className="flex flex-col gap-3" data-testid={`auth-form-${mode}`}>
       {mode !== "forgot" ? <GoogleButton onError={(m) => setError(m)} /> : null}

@@ -27,14 +27,15 @@ const TryButton = ({ onClick, testid, children = "Try Pronounce This" }) => (
 );
 
 export default function LandingPage() {
-  const { openPaywall, openLogin } = useAuth();
+  const { openPaywall } = useAuth();
   const tryFree = () => openPaywall("trial");
 
   return (
     <div className="landing" data-testid="landing-page">
       <div className="topbar">
         <div className="wrap">
-          <button type="button" className="link-quiet" onClick={openLogin} data-testid="landing-signin">Already a member? Sign in</button>
+          <span className="member-q" data-testid="landing-member-q">Already a member?</span>
+          <a href="/login" className="btn-login" data-testid="landing-signin">Log in</a>
         </div>
       </div>
 

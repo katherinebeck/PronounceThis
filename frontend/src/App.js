@@ -16,6 +16,7 @@ import PaymentSuccessPage from "@/components/PaymentSuccessPage";
 import LandingPage from "@/components/landing/LandingPage";
 import ResetPasswordPage from "@/components/ResetPasswordPage";
 import PaymentCancelPage from "@/components/PaymentCancelPage";
+import LoginPage from "@/components/LoginPage";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { api, listScenes, getScene, fetchSoundCategories } from "@/lib/api";
 import "@/App.css";
@@ -72,6 +73,8 @@ export default function AppRoot() {
         <VerifyPage />
       ) : path.startsWith("/auth/reset") ? (
         <ResetPasswordPage />
+      ) : path.startsWith("/login") ? (
+        <LoginPage />
       ) : path.startsWith("/payment/success") ? (
         <PaymentSuccessPage />
       ) : path.startsWith("/payment/cancel") ? (
