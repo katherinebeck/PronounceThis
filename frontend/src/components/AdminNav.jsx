@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Users, UserPlus, RefreshCw, Link2, ShieldAlert, Flag, Ban, EyeOff, Youtube,
-  BookOpen, SlidersHorizontal, Gauge, Mail, Download, ShoppingBag,
+  BookOpen, SlidersHorizontal, Gauge, Mail, Download, ShoppingBag, Eye,
 } from "lucide-react";
 
 export const ADMIN_TABS = [
@@ -26,6 +26,7 @@ export const ADMIN_TABS = [
   { group: "System", items: [
     { key: "credits", label: "Audio budget", icon: Gauge },
     { key: "kit", label: "Kit (email)", icon: Mail },
+    { key: "emails", label: "Email previews", icon: Eye },
     { key: "export", label: "Export data", icon: Download },
   ] },
 ];

@@ -31,7 +31,7 @@ from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, EmailStr
 
-from auth import require_admin
+from auth import require_admin, APP_PUBLIC_URL, FROM_HEADER
 from phonetics import (
     PREFERRED_ARPA, arpabet_to_ipa, classify_word, cmu_variants, transcribe_word,
     validate_arpabet,
@@ -386,6 +386,17 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         if r.matched_count == 0:
             raise HTTPException(status_code=404, detail="user_not_found")
         return {"ok": True, "email": email, "unlinked": r.modified_count == 1}
+
+    @router.get("/email-preview")
+    async def email_preview(request: Request, kind: str = "welcome", first_name: str = "Kate"):
+        """Render the transactional emails exactly as sent, for proofreading."""
+        await require_admin(request, db)
+        import password_links
+        kinds = ("welcome", "member", "nudge", "reset", "no_account")
+        if kind not in kinds:
+            raise HTTPException(status_code=400, detail="unknown kind")
+        subject, html = password_links._email(kind, "#set-password-link", first_name.strip(), APP_PUBLIC_URL)
+        return {"kind": kind, "subject": subject, "from": FROM_HEADER, "html": html, "kinds": list(kinds)}
 
     @router.get("/buyers")
     async def recent_buyers(request: Request, days: int = 1):

@@ -16,6 +16,7 @@ import { BlockedWords } from "./BlockedWords";
 import { TrialDevices } from "./TrialDevices";
 import { KajabiStatus } from "./KajabiStatus";
 import NewBuyers from "./NewBuyers";
+import EmailPreviews from "./EmailPreviews";
 import AdminNav, { ALL_TAB_KEYS, tabLabel } from "./AdminNav";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -657,6 +658,7 @@ export default function AdminPage() {
         {tab === "credits" ? (<><CreditMeter /><LineCheckHealth /></>) : null}
 
         {tab === "kit" ? <KitStatus /> : null}
+        {tab === "emails" ? <EmailPreviews /> : null}
 
         {/* Data export */}
         {tab === "export" ? (
