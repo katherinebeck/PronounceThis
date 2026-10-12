@@ -23,6 +23,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -30,7 +31,7 @@ import stripe
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from pymongo.errors import DuplicateKeyError
 
 from auth import (canonical_email, client_ip, optional_login, rate_limit,
@@ -79,6 +80,13 @@ class PortalRequest(BaseModel):
 class CheckoutPasswordRequest(BaseModel):
     session_id: str = Field(..., pattern=r"^cs_[A-Za-z0-9_]+$")
     password: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("password")
+    @classmethod
+    def _letter_and_digit(cls, v: str) -> str:
+        if not (re.search(r"[A-Za-z]", v) and re.search(r"\d", v)):
+            raise ValueError("password needs a letter and a number")
+        return v
 
 
 def create_stripe_router(db: AsyncIOMotorDatabase) -> APIRouter:

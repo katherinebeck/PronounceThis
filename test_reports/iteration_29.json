@@ -1,0 +1,20 @@
+{
+  "summary": "Verified the two owner-facing bug fixes end-to-end on preview: (1) new POST /api/payments/set-password lets a guest buyer sign in after Stripe checkout and the /payment/success page uses CheckoutPasswordForm, (2) the first-login 'New free trial' notification + Kit PT Trial tag are correctly suppressed when the user already has an active membership. Backend validation, 404/409 branches, Mongo persistence (memberships+users), log signals, and the existing-account 409→Sign-in flip all behave as spec'd. Regression: a brand-new signup still gets a trial user row (last_login_at set, no membership) and lands in the app.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_sales_e2e.py", "/app/backend/tests/test_sales_flow.py"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "stripe_payments._grant_from_session is now called twice per success (from /payments/status/{sid} and again during /payments/set-password); harmless because 'last_event: checkout_completed' idempotency check prevents duplicate notify_owner/kit.tag/member-welcome emails, but worth being aware of.",
+    "In supabase_auth.resolve_user, the first-login notification gate relies on auth._membership_status; for the paid-guest flow this is only safe because /payment/success polls /payments/status (which runs _grant_from_session) BEFORE the client calls supabase.signInWithPassword / refresh(). If that ordering ever changes (e.g. direct Supabase signUp from the form before the poll completes), the fix would regress — consider calling _grant_from_session unconditionally inside set_password_after_checkout (already done) and leaving a comment on the ordering invariant.",
+    "CheckoutPasswordRequest password Field(min_length=8) is enforced server-side, but the frontend passwordProblem additionally requires a letter+digit; backend currently accepts e.g. '12345678' (digits only). Minor hardening opportunity (match frontend policy or add a regex)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "Buyer (paid Monthly): ptbuyer114077@gmail.com / Buyer2026pass (Stripe sub_1UPWznE3YhPWHalziPeSTRT8, membership active). Trial user: pttrial997949@gmail.com / Trial2026pass (no membership, last_login_at set).",
+  "seed_data_creation": "Two new users created on preview: ptbuyer114077@gmail.com (member) and pttrial997949@gmail.com (trial). Left in place as requested; also a stray earlier email ptbuyer243025@gmail.com was entered on Stripe but never completed (no DB row).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "E2E Stripe checkout works when you fill ALL required fields on the hosted page: email, cardNumber, cardExpiry, cardCvc, billingName, billingPostalCode, AND phone (input[name='phoneNumber']). The in-app landing modal is sign-in only; brand-new trial accounts are created via supabase.auth.signUp (not an in-app form). All six acceptance criteria for this iteration verified. Preview APP_PUBLIC_URL is wrong (app.katherinebeck.com) so always drive checkout via POST /api/payments/checkout with origin_url set to the preview URL — the GET /api/payments/checkout?plan= link would redirect to prod.",
+  "rca of the issue": "Original bugs: (a) /payment/success rendered the Supabase sign-up form, but the webhook had already created the user → signup collided with 'user exists'. Fix adds POST /api/payments/set-password that uses the paid Checkout Session as proof-of-ownership, calls supabase_auth.admin_set_password, and the frontend immediately signs the user in with Supabase. (b) resolve_user used to always fire notify_owner('New free trial') + kit.tag(PT Trial) on first login, so paying buyers who hit /app for the first time triggered both. Fix gates that block on _membership_status(email).status != 'active' in both supabase_auth.resolve_user and the legacy magic-link auth path. Reproduction/verification steps are in the summary and test credentials above."
+}
