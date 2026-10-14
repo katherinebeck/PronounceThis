@@ -59,11 +59,59 @@ def _now_iso() -> str:
 
 
 def _clean_word(w: str) -> str:
-    return re.sub(r"[^a-z']", "", (w or "").lower().strip())
+    """Lower-case letters/apostrophes; a single space is kept so place names
+    like "baton rouge" can carry their own pronunciation."""
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z' ]", "", (w or "").lower())).strip()
 
 
 class WordBody(BaseModel):
     word: str
+
+
+# American place names whose local pronunciation differs from the dictionary
+# reading of the same spelling (toponyms). Phrases carry one IPA piece per
+# word so scene tokens can be corrected individually.
+TOPONYMS = {
+    "baton rouge": "ˌbæt·ən ˈɹuʒ",
+    "houston street": "ˈhaʊ·stən stɹit",
+    "louisville": "ˈlu·ə·vəl",
+    "cairo illinois": "ˈkeɪ·ɹoʊ ˌɪl·əˈnɔɪ",
+    "nevada": "nəˈvæd·ə",
+    "versailles kentucky": "vɚˈseɪlz kənˈtʌk·i",
+    "des moines": "də ˈmɔɪn",
+    "reading pennsylvania": "ˈɹɛd·ɪŋ ˌpɛn·səlˈveɪn·jə",
+    "new orleans": "nu ˈɔɹ·lənz",
+    "appalachia": "ˌæp·əˈlætʃ·ə",
+    "boise": "ˈbɔɪ·si",
+    "lima ohio": "ˈlaɪ·mə oʊˈhaɪ·oʊ",
+}
+
+
+async def seed_toponyms(db: AsyncIOMotorDatabase) -> int:
+    """One-time: add the toponym list as coach dictionary entries, never
+    overwriting a word the coach has already entered herself."""
+    if await db.app_migrations.find_one({"_id": "toponyms_v1"}):
+        return 0
+    added = 0
+    for w, ipa in TOPONYMS.items():
+        if await db.dictionary_entries.find_one({"word": w}, {"_id": 1}):
+            continue
+        phones = ipa_to_arpabet(ipa) or []
+        doc = {"word": w, "ipa": ipa, "cmu_ipa": cmu_ipa(w), "ipa_custom": True,
+               "categories": classify_ipa(ipa), "status": "done", "source": "toponyms_v1",
+               "arpabet": " ".join(phones), "updated_at": _now_iso()}
+        await db.dictionary_entries.update_one({"word": w}, {"$set": doc}, upsert=True)
+        CUSTOM_IPA[w] = ipa
+        if " " not in w and phones:
+            await db.pronunciation_prefs.update_one(
+                {"word": w}, {"$set": {"word": w, "arpabet": doc["arpabet"], "ipa": ipa,
+                                       "categories": doc["categories"], "source": "dictionary",
+                                       "updated_at": _now_iso()}}, upsert=True)
+            PREFERRED_ARPA[w] = doc["arpabet"]
+        await db.audio_cache.delete_many({"word": {"$in": [w, f"{w}#ph"]}, "manual_override": {"$ne": True}})
+        added += 1
+    await db.app_migrations.insert_one({"_id": "toponyms_v1", "added": added, "at": _now_iso()})
+    return added
 
 
 async def load_custom_ipa(db: AsyncIOMotorDatabase) -> None:

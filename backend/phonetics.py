@@ -629,6 +629,21 @@ def transcribe_word(word: str) -> Tuple[Optional[str], List[str], List[str]]:
 # builder. Wins over CMU for display + categories; loaded at startup.
 CUSTOM_IPA: dict = {}
 
+
+def phrase_ipa_parts(key: str) -> Optional[List[str]]:
+    """For a multi-word CUSTOM_IPA key ("baton rouge") return the per-word
+    IPA pieces when the coach's IPA has one piece per word, else None."""
+    ipa = CUSTOM_IPA.get(key)
+    if not ipa or " " not in key:
+        return None
+    parts = ipa.split()
+    return parts if len(parts) == len(key.split()) else None
+
+
+def custom_phrases() -> List[str]:
+    """Multi-word dictionary keys, longest first (greedy matching)."""
+    return sorted((k for k in CUSTOM_IPA if " " in k), key=lambda k: -len(k.split()))
+
 _CMU_WORDS: List[str] = []
 
 

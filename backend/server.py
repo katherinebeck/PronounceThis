@@ -43,9 +43,11 @@ from phonetics import (
     arpabet_to_respelling,
     classify_ipa,
     classify_word,
+    custom_phrases,
     get_arpabet,
     heteronym_variants,
     ipa_to_arpabet,
+    phrase_ipa_parts,
     respell_arpabet,
     transcribe_word,
     validate_arpabet,
@@ -73,7 +75,7 @@ from auth import (
 )
 from kajabi import create_kajabi_router
 from admin import create_admin_router
-from dictionary import create_dictionary_router, load_custom_ipa, revoice_recording
+from dictionary import create_dictionary_router, load_custom_ipa, revoice_recording, seed_toponyms
 from stripe_payments import create_stripe_router
 
 # --- DB ---------------------------------------------------------------------
@@ -806,8 +808,15 @@ async def pronounce(word: str, request: Request):
     actor = await require_access(request, db, kind="word", word=norm)
     await consume_trial(db, actor)
 
-    # Multi-word: try per-word CMU lookup and stitch. Fast path — no LLM.
+    # Multi-word: a coach entry for the whole phrase ("baton rouge") wins;
+    # otherwise per-word CMU lookup and stitch. Fast path — no LLM.
     if len(parts) > 1:
+        phrase = CUSTOM_IPA.get(norm)
+        if phrase:
+            return PronounceResponse(
+                word=raw, normalized=norm, ipa=phrase,
+                arpabet=ipa_to_arpabet(phrase) or [], categories=classify_ipa(phrase), source="custom",
+            )
         ipa_pieces: List[str] = []
         arpa_pieces: List[str] = []
         cats_set: List[str] = []
@@ -1033,11 +1042,40 @@ async def list_scenes(request: Request):
     return out
 
 
+def _apply_phrase_overrides(tokens: List[Dict]) -> set:
+    """Place names the coach entered as phrases ("baton rouge") override the
+    per-word IPA of consecutive tokens. Returns the token ids handled."""
+    done: set = set()
+    phrases = custom_phrases()
+    if not phrases:
+        return done
+    words = [(i, normalize_word(t["text"])) for i, t in enumerate(tokens) if t.get("is_word")]
+    for p in phrases:
+        pieces = phrase_ipa_parts(p)
+        if not pieces:
+            continue
+        keys = p.split()
+        n = len(keys)
+        for s in range(len(words) - n + 1):
+            if any(words[s + j][0] in done for j in range(n)):
+                continue
+            if [words[s + j][1] for j in range(n)] == keys:
+                for j in range(n):
+                    idx = words[s + j][0]
+                    tokens[idx]["ipa"] = pieces[j]
+                    tokens[idx]["categories"] = classify_ipa(pieces[j])
+                    tokens[idx]["source"] = "custom"
+                    done.add(idx)
+    return done
+
+
 def _refresh_categories(doc: Dict) -> Dict:
     """Recompute sound categories so scenes saved under an older category
     scheme pick up the current laundry-list definitions."""
-    for t in doc.get("tokens", []):
-        if not t.get("is_word"):
+    tokens = doc.get("tokens", [])
+    handled = _apply_phrase_overrides(tokens)
+    for i, t in enumerate(tokens):
+        if not t.get("is_word") or i in handled:
             continue
         key = normalize_word(t["text"])
         if t.get("variant_label") and t.get("arpabet"):
@@ -1138,6 +1176,11 @@ WORD_CONTEXT_AFTER = "Now you try."
 DEFAULT_VOICE_ID = "ZSNL4hPqCnqoMPaI4jGX"
 
 
+def _tts_ipa(ipa: str) -> str:
+    """IPA as ElevenLabs expects it: no display-only syllable dots or slashes."""
+    return re.sub(r"[·.]", "", ipa).strip("/ ").strip()
+
+
 def _phoneme_markup(text: str) -> str:
     """Wrap each dictionary word in a CMU-Arpabet <phoneme> tag."""
     def _wrap(m: re.Match) -> str:
@@ -1195,23 +1238,25 @@ async def tts(req: TTSRequest, request: Request):
         )
 
     voice_id = DEFAULT_VOICE_ID
-    dict_ipa = CUSTOM_IPA.get(word.lower()) or (arpabet_to_ipa(get_arpabet(word)) if get_arpabet(word) else None)
+    coach_ipa = CUSTOM_IPA.get(re.sub(r"\s+", " ", word.lower().strip()))
+    dict_ipa = coach_ipa or (arpabet_to_ipa(get_arpabet(word)) if get_arpabet(word) else None)
 
     def _generate(take: int) -> tuple[bytes, Optional[str]]:
         client = _eleven_client()
         # Eleven v4 guesses the language of a bare word (and read "I" as a
         # numeral), so every word is voiced as the tail of an unspoken
         # English sentence (previous/next text are context only, not audio).
-        # Take 1: coach overrides as inline IPA, everything else plain
+        # Take 1: coach entries (My Dictionary, incl. phrases like "Baton
+        # Rouge") and overrides as inline IPA, everything else plain
         # spelling. Take 2 (after a failed listen-back) flips the strategy.
         ipa = None
         if variant_phones:
             ipa = arpabet_to_ipa(variant_phones)
-        elif req.phonetic:
+        elif coach_ipa or req.phonetic:
             ipa = dict_ipa
-        if take > 1 and not variant_phones:
+        if take > 1 and not variant_phones and not coach_ipa:
             ipa = None if ipa else dict_ipa
-        spoken = f" /{ipa.strip('/')}/." if ipa else f" {word}."
+        spoken = f" /{_tts_ipa(ipa)}/." if ipa else f" {word}."
         stream = client.text_to_speech.convert(
             text=spoken,
             voice_id=voice_id,
@@ -1241,10 +1286,21 @@ async def tts(req: TTSRequest, request: Request):
     # then the word is flagged for the coach's Recording Queue.
     verdict = await judge_word(audio_bytes, word, used_ipa or dict_ipa)
     takes = 1
+
+    def _heard_ok(v: Optional[dict]) -> bool:
+        # A coach-entered pronunciation is deliberate: if the listener heard
+        # the right word, don't second-guess her accent/stress choice.
+        return bool(v and coach_ipa and re.sub(r"[^a-z]", "", (v.get("heard") or "").lower())
+                    == re.sub(r"[^a-z]", "", word.lower()))
+
+    if verdict and not verdict["ok"] and _heard_ok(verdict):
+        verdict = {**verdict, "ok": True, "note": "Coach pronunciation; listener heard the word. " + (verdict.get("note") or "")}
     if verdict and not verdict["ok"]:
         try:
             audio2, ipa2 = await asyncio.to_thread(_generate, 2)
             verdict2 = await judge_word(audio2, word, ipa2 or dict_ipa)
+            if verdict2 and not verdict2["ok"] and _heard_ok(verdict2):
+                verdict2 = {**verdict2, "ok": True, "note": "Coach pronunciation; listener heard the word."}
             takes = 2
             if audio2 and (verdict2 is None or verdict2["ok"] or verdict2["natural"] >= verdict["natural"]):
                 audio_bytes, verdict = audio2, (verdict2 or verdict)
@@ -1309,6 +1365,32 @@ def _preferred_markup(text: str, mode: str = "tags") -> tuple:
     if mode == "plain":
         return text, False
 
+    # Phrase entries ("baton rouge") first, protected from the word pass.
+    held: list = []
+
+    def _hold(repl: str) -> str:
+        held.append(repl)
+        return f"\x00{len(held) - 1}\x00"
+
+    for p in custom_phrases():
+        pat = r"\b" + r"\s+".join(re.escape(k) for k in p.split()) + r"\b"
+
+        def _phrase(m: re.Match, p=p) -> str:
+            nonlocal changed
+            changed = True
+            ipa = CUSTOM_IPA[p]
+            if mode == "ipa":
+                return _hold(f"/{_tts_ipa(ipa)}/")
+            phones = ipa_to_arpabet(ipa)
+            if not phones:
+                return m.group(0)
+            if mode == "respell":
+                r = " ".join(respell_arpabet(ipa_to_arpabet(piece) or []) or k
+                             for piece, k in zip(ipa.split(), p.split()))
+                return _hold(r.title() if m.group(0)[0].isupper() else r)
+            return _hold(f'<phoneme alphabet="cmu-arpabet" ph="{" ".join(phones)}">{m.group(0)}</phoneme>')
+        text = re.sub(pat, _phrase, text, flags=re.IGNORECASE)
+
     def _wrap(m: re.Match) -> str:
         nonlocal changed
         w = m.group(0)
@@ -1337,9 +1419,10 @@ def _preferred_markup(text: str, mode: str = "tags") -> tuple:
             return (r.capitalize() if w[0].isupper() else r) or w
         if mode == "ipa":                       # Eleven v4 inline IPA
             ipa = custom or arpabet_to_ipa(arp.split())
-            return f"/{ipa.strip('/')}/" if ipa else w
+            return f"/{_tts_ipa(ipa)}/" if ipa else w
         return f'<phoneme alphabet="cmu-arpabet" ph="{arp}">{w}</phoneme>'
     spoken = re.sub(r"[A-Za-z]+(?:'[A-Za-z]+)?", _wrap, text)
+    spoken = re.sub(r"\x00(\d+)\x00", lambda m: held[int(m.group(1))], spoken)
     return spoken, (changed and mode == "tags")
 
 
@@ -1830,6 +1913,12 @@ async def _startup_indexes():
         if pref.get("source") != "dictionary":
             _ALWAYS_PREFERRED.add(pref["word"])
     await load_custom_ipa(db)
+    try:
+        added = await seed_toponyms(db)
+        if added:
+            logger.info("seeded %d toponym dictionary entries", added)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("toponym seed failed: %s", exc)
     # Drop cached scene-line takes the listen-back had flagged as bad so they
     # re-render with the current logic on next play. Idempotent.
     purged = await db.turn_audio_cache.delete_many(
