@@ -65,20 +65,42 @@ export function DictionaryBuilder() {
     });
   };
 
+  const [preview, setPreview] = useState(null); // {blob, audio_b64, qa}
+  const [previewing, setPreviewing] = useState(false);
+
+  const previewRevoice = async () => {
+    if (!current || !rec.blob || previewing) return;
+    setPreviewing(true);
+    try {
+      const fd = new FormData();
+      fd.append("word", current.word);
+      fd.append("file", rec.blob, `${current.word}.wav`);
+      const { data } = await api.post("/admin/dictionary/revoice-preview", fd, { headers: { "Content-Type": "multipart/form-data" } });
+      setPreview({ blob: rec.blob, audio_b64: data.audio_b64, qa: data.qa });
+      new Audio(`data:audio/mpeg;base64,${data.audio_b64}`).play();
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Couldn't convert that take");
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
   const save = async () => {
     if (!current || saving || rec.recording || rec.processing) return;
     if (!ipa.trim() && !rec.blob) { toast.error("Type the IPA or record a take first"); return; }
+    if (rec.blob && (!preview || preview.blob !== rec.blob)) { toast.error("Hear the Hannah version first — tap “Hear Hannah version”, then save if it sounds right"); return; }
     setSaving(true);
     try {
       const fd = new FormData();
       fd.append("word", current.word);
       fd.append("ipa", ipa.trim());
       if (!ipa.trim() && !rec.blob) return;
-      if (rec.blob) fd.append("file", rec.blob, `${current.word}.wav`);
+      if (rec.blob) { fd.append("file", rec.blob, `${current.word}.wav`); fd.append("revoiced_b64", preview.audio_b64); }
       await api.post("/admin/dictionary/entry", fd, { headers: { "Content-Type": "multipart/form-data" } });
       toast.success(rec.blob
-        ? `Saved “${current.word}” — your take is now re-voiced by ElevenLabs for members`
+        ? `Saved “${current.word}” — members now hear the Hannah version you approved`
         : `Saved “${current.word}”`);
+      setPreview(null);
       setRefreshKey((k) => k + 1);
       advance();
     } catch (e) {
@@ -260,9 +282,12 @@ export function DictionaryBuilder() {
             {rec.blobUrl ? (
               <>
                 <button type="button" onClick={() => new Audio(rec.blobUrl).play()} className="font-mono text-[11px] uppercase tracking-[0.2em] px-3 py-2 border thin-rule hover:bg-ink hover:text-surface inline-flex items-center gap-2" data-testid="dictionary-preview">
-                  <Play size={12} /> Listen
+                  <Play size={12} /> My take
                 </button>
-                <button type="button" onClick={rec.reset} className="text-muted2 hover:text-ink p-2" title="Discard take" data-testid="dictionary-discard"><RotateCcw size={14} /></button>
+                <button type="button" onClick={previewRevoice} disabled={previewing} className="font-mono text-[11px] uppercase tracking-[0.2em] px-3 py-2 border thin-rule hover:bg-ink hover:text-surface inline-flex items-center gap-2 disabled:opacity-60" title="Hear exactly what members will hear before saving" data-testid="dictionary-hear-revoiced">
+                  {previewing ? <Loader2 size={12} className="animate-spin" /> : <Volume2 size={12} />} {preview?.blob === rec.blob ? "Hannah version again" : "Hear Hannah version"}
+                </button>
+                <button type="button" onClick={() => { rec.reset(); setPreview(null); }} className="text-muted2 hover:text-ink p-2" title="Discard take" data-testid="dictionary-discard"><RotateCcw size={14} /></button>
               </>
             ) : null}
             <button type="button" disabled={saving || rec.recording || rec.processing} onClick={save} className="btn-primary justify-center" data-testid="dictionary-save">
@@ -275,6 +300,13 @@ export function DictionaryBuilder() {
               Skip <SkipForward size={12} />
             </button>
           </div>
+          {preview && preview.blob === rec.blob ? (
+            <p className={"mt-3 font-serif text-sm " + (preview.qa && !preview.qa.ok ? "text-crimson" : "text-muted2")} data-testid="dictionary-revoice-verdict">
+              {preview.qa
+                ? <>Listener heard “{preview.qa.heard}” · {preview.qa.natural}/10{preview.qa.ok ? " — sounds like native American English." : " — doubtful: " + preview.qa.note + " Consider re-recording or using Audition takes instead."}</>
+                : "Listener unavailable — trust your ear: save only if the Hannah version sounded right."}
+            </p>
+          ) : null}
         </div>
       )}
 

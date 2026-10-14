@@ -27,18 +27,22 @@ from phonetics import (CUSTOM_IPA, PREFERRED_ARPA, classify_ipa, cmu_ipa, cmu_wo
 WORD_VOICE_ID = "lxYfHSkYm1EzQzGhdbfc"
 
 
-def revoice_recording(raw: bytes, voice_id: str = WORD_VOICE_ID) -> bytes:
-    """Blocking ElevenLabs speech-to-speech: the coach's take, in the app voice,
-    pronunciation and stress preserved."""
+def revoice_recording(raw: bytes, voice_id: Optional[str] = None) -> bytes:
+    """Blocking ElevenLabs speech-to-speech: the coach's take, in the app's
+    current word voice, pronunciation and stress preserved. English-only STS
+    model: it can't drift into another language on a short clip."""
     from elevenlabs.client import ElevenLabs
     api_key = os.environ.get("ELEVENLABS_API_KEY")
     if not api_key:
         raise RuntimeError("ELEVENLABS_API_KEY not configured")
+    if not voice_id:
+        import server
+        voice_id = server.DEFAULT_VOICE_ID
     client = ElevenLabs(api_key=api_key)
     out = b"".join(client.speech_to_speech.convert(
         voice_id=voice_id,
         audio=io.BytesIO(raw),
-        model_id="eleven_multilingual_sts_v2",
+        model_id="eleven_english_sts_v2",
         output_format="mp3_44100_128",
         remove_background_noise=True,
     ))
@@ -280,9 +284,28 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=400, detail="word_required")
         return await _entry(w)
 
+    @router.post("/revoice-preview")
+    async def revoice_preview(request: Request, word: str = Form(...), file: UploadFile = File(...)):
+        """Convert the coach's take to the app voice and let her hear it (and
+        the listener's verdict) BEFORE anything is saved."""
+        await require_admin(request, db)
+        w = _clean_word(word)
+        raw = await file.read()
+        if not raw:
+            raise HTTPException(status_code=400, detail="empty_file")
+        if len(raw) > MAX_AUDIO_BYTES:
+            raise HTTPException(status_code=413, detail="file_too_large_max_2mb")
+        try:
+            revoiced = await asyncio.to_thread(revoice_recording, raw)
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=f"elevenlabs_revoice_failed: {e}")
+        from word_check import judge_word
+        verdict = await judge_word(revoiced, w, CUSTOM_IPA.get(w) or cmu_ipa(w))
+        return {"word": w, "audio_b64": base64.b64encode(revoiced).decode("ascii"), "qa": verdict}
+
     @router.post("/entry")
     async def save_entry(request: Request, word: str = Form(...), ipa: str = Form(""),
-                         file: Optional[UploadFile] = File(None)):
+                         file: Optional[UploadFile] = File(None), revoiced_b64: str = Form("")):
         await require_admin(request, db)
         w = _clean_word(word)
         ipa_clean = (ipa or "").strip()
@@ -334,9 +357,11 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 upsert=True)
             # Re-voice the coach's take with the ElevenLabs voice (speech-to-
             # speech keeps her exact pronunciation). This becomes what members
-            # hear for the word everywhere.
+            # hear for the word everywhere. If she already previewed and
+            # approved a conversion, reuse it instead of converting again.
             try:
-                revoiced = await asyncio.to_thread(revoice_recording, raw)
+                revoiced = base64.b64decode(revoiced_b64) if revoiced_b64 else \
+                    await asyncio.to_thread(revoice_recording, raw)
             except Exception as e:
                 raise HTTPException(status_code=502, detail=f"elevenlabs_revoice_failed: {e}")
             await db.audio_cache.update_one(
