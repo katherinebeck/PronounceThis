@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Loader2, ShieldCheck, ShieldAlert, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
+import WordAudioInspector from "./WordAudioInspector";
 
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : "—");
@@ -17,7 +18,15 @@ export default function WordQaDashboard() {
     <section className="bg-surface border thin-rule p-6" data-testid="admin-word-qa">
       <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">Pronunciation · audio check</div>
       <h2 className="font-display text-2xl text-ink mb-1">Word audio QA</h2>
-      <p className="font-serif text-sm text-muted2 italic mb-5">Every first-time word render is heard by the AI listener. Flagged words go to the top of your Recording queue.</p>
+      <p className="font-serif text-sm text-muted2 italic mb-2">Every first-time word render is heard by the AI listener. Flagged words go to the top of your Recording queue.</p>
+      {d?.judge ? (
+        <p className={"font-mono text-[10px] uppercase tracking-[0.2em] mb-5 " + (d.judge.configured && d.judge.ok !== false ? "text-muted2" : "text-crimson")} data-testid="admin-word-qa-judge">
+          Listener: {!d.judge.configured ? "not configured (EMERGENT_LLM_KEY missing) — words play unchecked"
+            : d.judge.ok === null ? "ready, no checks yet since restart"
+            : d.judge.ok ? `ok · last check ${new Date(d.judge.at).toLocaleTimeString()}`
+            : `unavailable — ${d.judge.error}`}
+        </p>
+      ) : null}
       {err ? <p className="font-serif text-sm text-crimson">{err}</p>
         : !d ? <p className="font-serif text-sm text-muted2 italic inline-flex items-center gap-2"><Loader2 size={14} className="animate-spin" /> Loading…</p>
         : (
@@ -73,6 +82,7 @@ export default function WordQaDashboard() {
                 </li>
               ))}
             </ul>
+            <WordAudioInspector />
           </>
         )}
     </section>

@@ -52,6 +52,16 @@ ALLOWED_AUDIO_TYPES = {"audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav",
 MAX_AUDIO_BYTES = 2 * 1024 * 1024   # 2 MB is plenty for a single word
 
 
+class WordAudioResetBody(BaseModel):
+    word: str
+    drop_recording: bool = False
+
+
+def _current_tts() -> dict:
+    import server
+    return {"voice_id": server.DEFAULT_VOICE_ID, "model": server.TTS_MODEL, "tts_version": server.TTS_VERSION}
+
+
 class EmailPreviewSendBody(BaseModel):
     kind: str
     first_name: str = "Kate"
@@ -807,6 +817,46 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return {"ok": True, "scene_id": body.scene_id, "owner_email": email}
 
     # --- Recording queue --------------------------------------------------
+    @router.get("/word-audio")
+    async def word_audio_inspect(request: Request, word: str):
+        """What members actually hear for a word: every cached clip with
+        its origin, plus the dictionary state behind it."""
+        await require_admin(request, db)
+        import word_check
+        from phonetics import CUSTOM_IPA, PREFERRED_ARPA, transcribe_word
+        w = re.sub(r"\s+", " ", (word or "").strip().lower())
+        if not w:
+            raise HTTPException(status_code=400, detail="word_required")
+        rows = await db.audio_cache.find(
+            {"$or": [{"word": w}, {"word": {"$regex": f"^{re.escape(w)}#"}}]},
+            {"_id": 0, "audio_b64": 0}).to_list(50)
+        sizes = {}
+        async for r in db.audio_cache.find({"word": {"$in": [x["word"] for x in rows]}}, {"_id": 0, "word": 1, "audio_b64": 1}):
+            sizes[r["word"]] = len(r.get("audio_b64") or "") * 3 // 4
+        for r in rows:
+            r["bytes"] = sizes.get(r["word"], 0)
+            r["origin"] = ("recording" if r.get("manual_override") else "coach_take" if r["word"].endswith("#human") else "generated")
+        cmu_ipa, _, _ = transcribe_word(w) if " " not in w else (None, [], [])
+        log = await db.tts_log.find_one({"word": w}, {"_id": 0})
+        return {"word": w, "clips": rows, "custom_ipa": CUSTOM_IPA.get(w), "preferred_arpabet": PREFERRED_ARPA.get(w),
+                "dictionary_ipa": cmu_ipa, "current": _current_tts(), "play_log": log,
+                "judge": word_check.LAST_STATUS}
+
+    @router.post("/word-audio/reset")
+    async def word_audio_reset(body: WordAudioResetBody, request: Request):
+        """Drop cached clips for a word so the next play re-renders (and is
+        re-checked). Recordings are kept unless drop_recording is set."""
+        await require_admin(request, db)
+        w = re.sub(r"\s+", " ", (body.word or "").strip().lower())
+        if not w:
+            raise HTTPException(status_code=400, detail="word_required")
+        keys = {"$or": [{"word": w}, {"word": {"$regex": f"^{re.escape(w)}#"}}]}
+        q = keys if body.drop_recording else {"$and": [
+            keys, {"manual_override": {"$ne": True}}, {"word": {"$not": re.compile(r"#human$")}}]}
+        res = await db.audio_cache.delete_many(q)
+        await db.tts_log.update_one({"word": w}, {"$set": {"qa_flag": False}, "$unset": {"qa_heard": "", "qa_note": ""}})
+        return {"ok": True, "deleted": res.deleted_count}
+
     @router.get("/word-qa")
     async def word_qa_stats(request: Request, weeks: int = 8):
         """Word Audio QA: pass/flag counts per ISO week + recent verdicts."""
@@ -835,7 +885,8 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         total = {"checked": len(docs), "passed": sum(1 for d in docs if d["qa"].get("ok")),
                  "retakes": sum(1 for d in docs if (d.get("takes") or 1) > 1)}
         total["flagged"] = total["checked"] - total["passed"]
-        return {"weeks": weeks, "total": total, "weekly": weekly, "recent": recent}
+        import word_check
+        return {"weeks": weeks, "total": total, "weekly": weekly, "recent": recent, "judge": word_check.LAST_STATUS}
 
     @router.get("/recording-queue")
     async def recording_queue(request: Request, limit: int = 100):

@@ -13,6 +13,13 @@ logger = logging.getLogger(__name__)
 JUDGE_MODEL = ("gemini", "gemini-2.5-flash")
 JUDGE_TIMEOUT_SECONDS = 15
 MIN_NATURAL = 6
+LAST_STATUS: dict = {"at": None, "ok": None, "error": None, "configured": bool(os.environ.get("EMERGENT_LLM_KEY"))}
+
+
+def _status(ok: bool, error: Optional[str] = None) -> None:
+    from datetime import datetime, timezone
+    LAST_STATUS.update({"at": datetime.now(timezone.utc).isoformat(), "ok": ok, "error": error,
+                        "configured": bool(os.environ.get("EMERGENT_LLM_KEY"))})
 
 _PROMPT = (
     "You are a strict American-accent coach. This clip is supposed to be the single English word "
@@ -29,6 +36,7 @@ async def judge_word(audio_bytes: bytes, word: str, ipa: Optional[str] = None) -
     the judge is unavailable (callers fail open)."""
     key = os.environ.get("EMERGENT_LLM_KEY")
     if not key or not audio_bytes:
+        _status(False, "EMERGENT_LLM_KEY not configured" if not key else "empty audio")
         return None
     path = None
     try:
@@ -44,14 +52,17 @@ async def judge_word(audio_bytes: bytes, word: str, ipa: Optional[str] = None) -
         raw = await asyncio.wait_for(chat.send_message(msg), timeout=JUDGE_TIMEOUT_SECONDS)
         m = re.search(r"\{.*\}", str(raw), re.S)
         if not m:
+            _status(False, "judge returned no JSON")
             return None
         d = json.loads(m.group(0))
+        _status(True)
         natural = int(d.get("natural") or 0)
         ok = bool(d.get("english")) and bool(d.get("matches")) and natural >= MIN_NATURAL
         return {"ok": ok, "heard": str(d.get("heard") or "")[:60], "english": bool(d.get("english")),
                 "matches": bool(d.get("matches")), "natural": natural, "note": str(d.get("note") or "")[:120]}
     except Exception as exc:  # noqa: BLE001
         logger.warning("word QA judge unavailable for %s: %s", word, str(exc)[:160])
+        _status(False, f"{type(exc).__name__}: {str(exc)[:200]}")
         return None
     finally:
         if path:
