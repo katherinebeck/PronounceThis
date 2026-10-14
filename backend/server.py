@@ -52,6 +52,7 @@ from phonetics import (
 )
 from caption_search import CaptionSearchService
 from notify import notify_owner
+import notify
 import line_check
 from word_check import judge_word
 import page_allowance
@@ -79,6 +80,7 @@ from stripe_payments import create_stripe_router
 mongo_url = os.environ["MONGO_URL"]
 mongo_client = AsyncIOMotorClient(mongo_url)
 db = mongo_client[os.environ["DB_NAME"]]
+notify.set_db(db)
 
 # --- App --------------------------------------------------------------------
 app = FastAPI(title="Pronounce This")

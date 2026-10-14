@@ -1,9 +1,13 @@
 """Owner notifications: a short email to the coach when someone starts a
-trial, joins, or cancels. Fire-and-forget; never blocks or fails a request."""
+trial, joins, or cancels. Fire-and-forget; never blocks or fails a request.
+Every send is logged to `owner_notifications`; an optional `key` makes a
+notification one-shot (e.g. one "New member" per Stripe subscription, no
+matter which webhook or sync path fires first)."""
 import asyncio
 import logging
 import os
-from typing import Iterable
+from datetime import datetime, timezone
+from typing import Iterable, Optional
 
 import resend
 
@@ -12,6 +16,12 @@ from auth import FROM_HEADER
 logger = logging.getLogger(__name__)
 
 NOTIFY_EMAIL = os.environ.get("ADMIN_NOTIFY_EMAIL", "info@katherinebeck.com")
+_db = None
+
+
+def set_db(db) -> None:
+    global _db
+    _db = db
 
 
 def _html(title: str, lines: Iterable[str]) -> str:
@@ -29,20 +39,43 @@ def _html(title: str, lines: Iterable[str]) -> str:
 </div>""".strip()
 
 
-def notify_owner(subject: str, title: str, lines: Iterable[str]) -> None:
+async def claim(key: str) -> bool:
+    """Reserve a one-shot key. True if this caller owns it (first), False if
+    it was already claimed. Without a DB we can't dedupe, so allow."""
+    if _db is None or not key:
+        return True
+    now = datetime.now(timezone.utc).isoformat()
+    r = await _db.owner_notifications.update_one(
+        {"key": key}, {"$setOnInsert": {"key": key, "claimed_at": now, "status": "claimed"}}, upsert=True)
+    return r.upserted_id is not None
+
+
+def notify_owner(subject: str, title: str, lines: Iterable[str], key: Optional[str] = None) -> None:
     """Schedule the email; safe to call from any request handler."""
     lines = list(lines)
 
     async def _send() -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        record = {"subject": subject, "title": title, "lines": lines, "to": NOTIFY_EMAIL, "sent_at": now}
         try:
-            await asyncio.to_thread(resend.Emails.send, {
+            r = await asyncio.to_thread(resend.Emails.send, {
                 "from": FROM_HEADER,
                 "to": [NOTIFY_EMAIL],
                 "subject": f"[Pronounce This] {subject}",
                 "html": _html(title, lines),
             })
+            record.update({"status": "sent", "resend_id": (r or {}).get("id") if isinstance(r, dict) else getattr(r, "id", None)})
         except Exception as e:
             logger.warning("owner notification failed (%s): %s", subject, e)
+            record.update({"status": "failed", "error": str(e)[:300]})
+        if _db is not None:
+            try:
+                if key:
+                    await _db.owner_notifications.update_one({"key": key}, {"$set": record})
+                else:
+                    await _db.owner_notifications.insert_one(record)
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("owner_notifications log failed: %s", exc)
 
     try:
         asyncio.get_running_loop().create_task(_send())

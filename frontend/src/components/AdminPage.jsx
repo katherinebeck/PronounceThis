@@ -19,6 +19,7 @@ import NewBuyers from "./NewBuyers";
 import EmailPreviews from "./EmailPreviews";
 import { RecordingQueue } from "./RecordingQueue";
 import WordQaDashboard from "./WordQaDashboard";
+import OwnerNotifications from "./OwnerNotifications";
 import AdminNav, { ALL_TAB_KEYS, tabLabel } from "./AdminNav";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -661,6 +662,7 @@ export default function AdminPage() {
 
         {tab === "kit" ? <KitStatus /> : null}
         {tab === "emails" ? <EmailPreviews /> : null}
+        {tab === "notifications" ? <OwnerNotifications /> : null}
 
         {/* Data export */}
         {tab === "export" ? (

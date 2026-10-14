@@ -450,16 +450,28 @@ async def _grant_from_session(db: AsyncIOMotorDatabase, session) -> None:
     await _supersede_stripe_rows(db, email, f"stripe:{lookup_key}")
     logger.info(f"stripe → active: {email} / {lookup_key}")
     if not already:
-        notify_owner("New member 💳", "A new member just joined",
-                     [f"<b>{email}</b> subscribed to <b>{offer_title}</b>.",
-                      "Their access is active now."])
-        kit.tag_subscriber(email, kit.member_tag(lookup_key))
-        try:
-            import password_links
-            kind = await password_links.send_member_welcome(db, email)
-            logger.info(f"member welcome email ({kind}) → {email}")
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(f"member welcome email for {email} failed: {exc}")
+        await _on_new_member(db, email, lookup_key, sub_id, offer_title)
+
+
+async def _on_new_member(db: AsyncIOMotorDatabase, email: str, lookup_key: str,
+                         sub_id: Optional[str], offer_title: str) -> None:
+    """Owner notification + Kit tag + welcome email, exactly once per
+    subscription regardless of which path (checkout webhook, subscription
+    webhook, status poll, admin sync) activates it first."""
+    import notify
+    if not await notify.claim(f"new-member:{sub_id or email + ':' + lookup_key}"):
+        return
+    notify_owner("New member 💳", "A new member just joined",
+                 [f"<b>{email}</b> subscribed to <b>{offer_title}</b>.",
+                  "Their access is active now."],
+                 key=f"new-member:{sub_id or email + ':' + lookup_key}")
+    kit.tag_subscriber(email, kit.member_tag(lookup_key))
+    try:
+        import password_links
+        kind = await password_links.send_member_welcome(db, email)
+        logger.info(f"member welcome email ({kind}) → {email}")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"member welcome email for {email} failed: {exc}")
 
 
 async def _sync_subscription(
@@ -506,6 +518,8 @@ async def _sync_subscription(
     # past_due = Stripe is still retrying the card (dunning). Keep access
     # until the subscription is actually deleted/unpaid/canceled.
     is_active = status in ("active", "trialing", "past_due")
+    prev_row = await db.memberships.find_one(
+        {"user_email": email, "offer_id": f"stripe:{lookup_key}"}, {"_id": 0, "status": 1})
     await db.memberships.update_one(
         {"user_email": email, "offer_id": f"stripe:{lookup_key}"},
         {"$set": {
@@ -522,6 +536,8 @@ async def _sync_subscription(
     )
     if is_active:
         await _supersede_stripe_rows(db, email, f"stripe:{lookup_key}")
+        if prev_row is None or prev_row.get("status") != "active":
+            await _on_new_member(db, email, lookup_key, sub.get("id"), _lookup_key_to_title(lookup_key))
     logger.info(f"stripe sub sync: {email} status={status} end={subscription_end_at}")
 
 

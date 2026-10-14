@@ -391,6 +391,14 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=404, detail="user_not_found")
         return {"ok": True, "email": email, "unlinked": r.modified_count == 1}
 
+    @router.get("/notifications")
+    async def owner_notifications(request: Request, limit: int = 60):
+        """Log of owner notification emails (trial / member / cancel / QA)."""
+        await require_admin(request, db)
+        import notify
+        docs = await db.owner_notifications.find({}, {"_id": 0}).sort([("sent_at", -1), ("claimed_at", -1)]).to_list(max(1, min(limit, 200)))
+        return {"to": notify.NOTIFY_EMAIL, "count": len(docs), "notifications": docs}
+
     @router.get("/email-preview")
     async def email_preview(request: Request, kind: str = "welcome", first_name: str = "Kate"):
         """Render the transactional emails exactly as sent, for proofreading."""
