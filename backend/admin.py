@@ -31,7 +31,7 @@ from fastapi.responses import Response
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, EmailStr
 
-from auth import require_admin, APP_PUBLIC_URL, FROM_HEADER
+from auth import require_admin, APP_PUBLIC_URL, FROM_HEADER, pick_membership
 from phonetics import (
     PREFERRED_ARPA, arpabet_to_ipa, classify_word, cmu_variants, transcribe_word,
     validate_arpabet,
@@ -304,20 +304,19 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             {"user_email": {"$in": emails}}, {"_id": 0}
         ).to_list(1000)
         by_email: dict[str, dict] = {}
-        now = _now_iso()
+        grouped: dict[str, list] = {}
         for m in memberships:
-            e = m["user_email"]
-            ends = m.get("subscription_end_at")
-            is_active = m.get("status") == "active" and (
-                not ends or ends > now
-            )
-            prev = by_email.get(e)
-            if not prev or (is_active and not prev.get("is_active")):
-                by_email[e] = {
-                    "offer_title": m.get("offer_title"),
-                    "is_active": is_active,
-                    "subscription_end_at": ends,
-                }
+            grouped.setdefault(m["user_email"], []).append(m)
+        for e, rows in grouped.items():
+            best = pick_membership(rows)
+            if best:
+                by_email[e] = {"offer_title": best.get("offer_title"), "is_active": True,
+                               "subscription_end_at": best.get("subscription_end_at"),
+                               "also": [r.get("offer_title") for r in rows if r is not best and r.get("status") == "active"]}
+            else:
+                last = max(rows, key=lambda r: r.get("updated_at") or "")
+                by_email[e] = {"offer_title": last.get("offer_title"), "is_active": False,
+                               "subscription_end_at": last.get("subscription_end_at")}
         for u in users:
             u["membership"] = by_email.get(u["email"])
             if (u["membership"] or {}).get("is_active"):

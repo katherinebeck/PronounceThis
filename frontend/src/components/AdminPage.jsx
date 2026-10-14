@@ -896,9 +896,16 @@ export default function AdminPage() {
                         <td className="px-4 py-3 whitespace-nowrap">{u.email}</td>
                         <td className="px-4 py-3">
                           {active ? (
-                            <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] px-2 py-1 border thin-rule bg-ink text-surface">
-                              <ShieldCheck size={11} />
-                              {m?.offer_title || "Member"}
+                            <span className="inline-flex flex-col items-start gap-1">
+                              <span className="inline-flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.2em] px-2 py-1 border thin-rule bg-ink text-surface">
+                                <ShieldCheck size={11} />
+                                {m?.offer_title || "Member"}
+                              </span>
+                              {m?.also?.length ? (
+                                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-muted2" data-testid={`admin-user-also-${u.email}`}>
+                                  also: {m.also.join(", ")}
+                                </span>
+                              ) : null}
                             </span>
                           ) : (
                             <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted2">

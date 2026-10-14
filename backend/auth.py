@@ -302,30 +302,40 @@ async def _send_magic_link_email(email: str, login_url: str) -> None:
 
 
 # --- Membership status helper ----------------------------------------------
-async def _membership_status(db: AsyncIOMotorDatabase, email: str) -> dict:
-    """Return {status, offer_title, subscription_end_at} for the given email.
+def _membership_rank(m: dict) -> tuple:
+    """Higher wins. Paid Stripe subscription > Kajabi > manual grant; then
+    the later (or open-ended) expiry."""
+    oid = m.get("offer_id") or ""
+    source = 2 if oid.startswith("stripe:") else 1 if m.get("kajabi_customer_id") else 0
+    return (source, m.get("subscription_end_at") is None, m.get("subscription_end_at") or "")
 
-    Status precedence:
-        active   - there's at least one membership row with status=active AND
-                   (subscription_end_at is null OR in the future)
-        none     - otherwise
-    """
-    now = _now()
-    docs = await db.memberships.find({"user_email": email}).to_list(50)
-    best = None
+
+def pick_membership(docs: list, now: Optional[datetime] = None) -> Optional[dict]:
+    """The membership row that should represent this user right now."""
+    now = now or _now()
+    live = []
     for m in docs:
         if m.get("status") != "active":
             continue
         end = m.get("subscription_end_at")
         if end:
             try:
-                end_dt = datetime.fromisoformat(end.replace("Z", "+00:00"))
-                if end_dt <= now:
+                if datetime.fromisoformat(end.replace("Z", "+00:00")) <= now:
                     continue
             except Exception:
                 pass
-        best = m
-        break
+        live.append(m)
+    return max(live, key=_membership_rank) if live else None
+
+
+async def _membership_status(db: AsyncIOMotorDatabase, email: str) -> dict:
+    """Return {status, offer_title, subscription_end_at} for the given email.
+
+    active if any membership row is active and unexpired; when several are
+    (e.g. a manual 30-day grant plus a later Stripe purchase) the paid
+    subscription represents the user."""
+    docs = await db.memberships.find({"user_email": email}).to_list(50)
+    best = pick_membership(docs)
     if best:
         return {
             "status": "active",
