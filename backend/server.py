@@ -758,7 +758,7 @@ async def root():
 
 @api_router.get("/health")
 async def health():
-    return {"ok": True}
+    return {"ok": True, "tts_version": TTS_VERSION, "tts_model": TTS_MODEL, "voice": DEFAULT_VOICE_ID}
 
 
 @api_router.get("/sound-categories")
