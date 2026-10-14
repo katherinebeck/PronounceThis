@@ -1126,9 +1126,12 @@ def _eleven_client():
 ELEVEN_REQUEST_OPTIONS = {"max_retries": 3, "timeout_in_seconds": 60}
 
 
-TTS_VERSION = 4  # bump when synthesis settings change so cached audio regenerates
-# Default ElevenLabs voice for single words + untargeted lines (Jessica Anne Bogart).
-DEFAULT_VOICE_ID = "lxYfHSkYm1EzQzGhdbfc"
+TTS_VERSION = 5  # bump when synthesis settings change so cached audio regenerates
+# Unspoken context around a single word so v4 reads it as American English.
+WORD_CONTEXT_BEFORE = "Listen and repeat after me. The word is"
+WORD_CONTEXT_AFTER = "Now you try."
+# Default ElevenLabs voice for single words + untargeted lines (Hannah).
+DEFAULT_VOICE_ID = "ZSNL4hPqCnqoMPaI4jGX"
 
 
 def _phoneme_markup(text: str) -> str:
@@ -1191,20 +1194,24 @@ async def tts(req: TTSRequest, request: Request):
 
     def _generate() -> bytes:
         client = _eleven_client()
-        # Eleven v4: a bare single word is ambiguous ("I" → Roman numeral,
-        # "this" → auto-detected as another language), so every word goes
-        # out as inline IPA, English-locked. Trailing period = falling pitch.
-        phones = variant_phones or get_arpabet(word)
-        ipa = CUSTOM_IPA.get(word.lower()) if not variant_phones else None
-        ipa = ipa or (arpabet_to_ipa(phones) if phones else None)
-        spoken = f"/{ipa.strip('/')}/" if ipa else word
-        if not spoken.endswith((".", "!", "?")):
-            spoken += "."
+        # Eleven v4 guesses the language of a bare word (and read "I" as a
+        # numeral), so every word is voiced as the tail of an unspoken
+        # English sentence (previous/next text are context only, not audio).
+        # Coach overrides go out as inline IPA; everything else as plain
+        # spelling, which keeps the native delivery.
+        ipa = None
+        if variant_phones:
+            ipa = arpabet_to_ipa(variant_phones)
+        elif req.phonetic:
+            ipa = CUSTOM_IPA.get(word.lower()) or (arpabet_to_ipa(get_arpabet(word)) if get_arpabet(word) else None)
+        spoken = f" /{ipa.strip('/')}/." if ipa else f" {word}."
         stream = client.text_to_speech.convert(
             text=spoken,
             voice_id=voice_id,
             model_id=TTS_MODEL,
             language_code="en",
+            previous_text=WORD_CONTEXT_BEFORE,
+            next_text=WORD_CONTEXT_AFTER,
             output_format="mp3_44100_128",
             request_options=ELEVEN_REQUEST_OPTIONS,
         )
@@ -1679,7 +1686,7 @@ async def download_my_lines(
 # server in charge of which voices are permissible (never trust an arbitrary
 # id from the client) and gives us stable IDs the frontend can display.
 READER_VOICES = {
-    "jessica": DEFAULT_VOICE_ID,          # Jessica Anne Bogart — female US
+    "jessica": DEFAULT_VOICE_ID,          # Hannah — female US (v4)
     "david":   "c6SfcYrb2t09NHXiT80T",    # Jarnathon — male US (v4-recommended)
 }
 
