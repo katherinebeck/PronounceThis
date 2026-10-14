@@ -898,6 +898,20 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         await db.dictionary_entries.update_one({"word": w}, {"$set": {"has_audio": True}})
         return {"ok": True, "word": w}
 
+    @router.get("/word-audio/recordings")
+    async def word_audio_recordings(request: Request):
+        """Every word members hear from a recording / chosen take rather than
+        the generated voice — so the coach can audit them in one pass."""
+        await require_admin(request, db)
+        rows = await db.audio_cache.find(
+            {"manual_override": True, "word": {"$not": re.compile(r"#")}},
+            {"_id": 0, "word": 1, "source": 1, "created_at": 1, "updated_at": 1}).sort("created_at", -1).to_list(2000)
+        plays = {d["word"]: d.get("count", 0) async for d in db.tts_log.find({"word": {"$in": [r["word"] for r in rows]}}, {"_id": 0, "word": 1, "count": 1})}
+        for r in rows:
+            r["plays"] = plays.get(r["word"], 0)
+            r["kind"] = "chosen take" if (r.get("source") or "").startswith("audition:") else "recording"
+        return {"count": len(rows), "recordings": rows}
+
     @router.get("/word-qa")
     async def word_qa_stats(request: Request, weeks: int = 8):
         """Word Audio QA: pass/flag counts per ISO week + recent verdicts."""

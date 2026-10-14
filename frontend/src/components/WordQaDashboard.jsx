@@ -3,6 +3,7 @@ import { Loader2, ShieldCheck, ShieldAlert, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
 import WordAudioInspector from "./WordAudioInspector";
 import NeedsAttention from "./NeedsAttention";
+import YourRecordings from "./YourRecordings";
 
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
 const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : "—");
@@ -21,7 +22,7 @@ export default function WordQaDashboard() {
     <section className="bg-surface border thin-rule p-6" data-testid="admin-word-qa">
       <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">Pronunciation · audio check</div>
       <h2 className="font-display text-2xl text-ink mb-1">Audio check</h2>
-      <p className="font-serif text-sm text-muted2 italic mb-2">Every first-time word render is heard by the AI listener. Flagged words go to the top of your Recording queue.</p>
+      <p className="font-serif text-sm text-muted2 italic mb-2">Every first-time word render is heard by the AI listener. Flagged words appear under Needs attention.</p>
       {d?.judge ? (
         <p className={"font-mono text-[10px] uppercase tracking-[0.2em] mb-5 " + (d.judge.configured && d.judge.ok !== false ? "text-muted2" : "text-crimson")} data-testid="admin-word-qa-judge">
           Listener: {!d.judge.configured ? "not configured (EMERGENT_LLM_KEY missing) — words play unchecked"
@@ -31,6 +32,7 @@ export default function WordQaDashboard() {
         </p>
       ) : null}
       <NeedsAttention onInspect={(w) => { setInspectWord(w); document.querySelector('[data-testid="admin-word-inspector"]')?.scrollIntoView({ behavior: "smooth", block: "start" }); }} refreshKey={attentionKey} />
+      <YourRecordings onInspect={(w) => { setInspectWord(w); document.querySelector('[data-testid="admin-word-inspector"]')?.scrollIntoView({ behavior: "smooth", block: "start" }); }} refreshKey={attentionKey} />
       <WordAudioInspector initialWord={inspectWord} onChanged={() => setAttentionKey((k) => k + 1)} />
       <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-8 mb-2">How the listener is doing</div>
       {err ? <p className="font-serif text-sm text-crimson">{err}</p>
