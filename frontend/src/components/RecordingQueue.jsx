@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Loader2, Mic, Square, Play, Check, SkipForward, RotateCcw } from "lucide-react";
+import { Loader2, Mic, Square, Play, Check, SkipForward, RotateCcw, AlertTriangle } from "lucide-react";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import { useRecorder } from "@/lib/useRecorder";
@@ -12,6 +12,7 @@ export function RecordingQueue() {
   const [saving, setSaving] = useState(false);
   const { recording, processing, blob, blobUrl, start, stop, reset } = useRecorder();
   const current = words[0];
+  const flaggedCount = words.filter((w) => w.qa_flag).length;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -66,8 +67,9 @@ export function RecordingQueue() {
         Record the words students actually hear
       </h2>
       <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">
-        Every word a student played as synthetic audio lands here, most-played first.
-        Record it once from your mic and your voice replaces the computer voice for everyone.
+        Every word a student played as synthetic audio lands here — words the audio check
+        flagged come first, then most-played. Record it once from your mic and your voice
+        replaces the computer voice for everyone.
       </p>
 
       {loading ? (
@@ -78,13 +80,22 @@ export function RecordingQueue() {
         </div>
       ) : (
         <div className="border thin-rule bg-paper p-5" data-testid="recording-queue-current">
+          {current.qa_flag ? (
+            <div className="mb-4 flex items-start gap-2 border border-crimson/40 bg-crimson/5 px-3 py-2" data-testid="recording-queue-flag">
+              <AlertTriangle size={14} className="text-crimson mt-0.5 shrink-0" />
+              <div className="font-serif text-sm text-ink">
+                <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-crimson mr-2">Flagged by audio check</span>
+                {current.qa_heard ? <>Heard “{current.qa_heard}”. </> : null}{current.qa_note}
+              </div>
+            </div>
+          ) : null}
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
             <div>
               <div className="font-display text-4xl text-ink leading-none" data-testid="recording-queue-word">{current.word}</div>
               <div className="font-mono text-lg text-rust mt-2">{current.ipa || "—"}</div>
             </div>
             <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 text-right">
-              Played {current.count}× · {words.length} in queue
+              Played {current.count}× · {words.length} in queue{flaggedCount ? ` · ${flaggedCount} flagged` : ""}
             </div>
           </div>
 

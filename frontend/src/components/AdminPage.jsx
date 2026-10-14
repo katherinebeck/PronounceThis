@@ -17,6 +17,7 @@ import { TrialDevices } from "./TrialDevices";
 import { KajabiStatus } from "./KajabiStatus";
 import NewBuyers from "./NewBuyers";
 import EmailPreviews from "./EmailPreviews";
+import { RecordingQueue } from "./RecordingQueue";
 import AdminNav, { ALL_TAB_KEYS, tabLabel } from "./AdminNav";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -1118,6 +1119,7 @@ export default function AdminPage() {
 
 
         {tab === "dictionary" ? <DictionaryBuilder /> : null}
+        {tab === "recording" ? <RecordingQueue /> : null}
 
         {tab === "prefs" ? <PronunciationPrefs /> : null}
 

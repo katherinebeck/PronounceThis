@@ -809,7 +809,7 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             {"manual_override": True}, {"_id": 0, "word": 1}).to_list(10000)}
         docs = await db.tts_log.find(
             {"dismissed": {"$ne": True}}, {"_id": 0}
-        ).sort([("count", -1), ("last_at", -1)]).to_list(limit * 3)
+        ).sort([("qa_flag", -1), ("count", -1), ("last_at", -1)]).to_list(limit * 3)
         out = []
         for d in docs:
             w = d["word"]
@@ -818,10 +818,12 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
             ipa, _, _ = transcribe_word(w.replace(" ", ""))
             out.append({"word": w, "count": d.get("count", 0),
                         "last_at": d.get("last_at"), "ipa": ipa,
-                        "phonetic": bool(d.get("phonetic"))})
+                        "phonetic": bool(d.get("phonetic")),
+                        "qa_flag": bool(d.get("qa_flag")),
+                        "qa_heard": d.get("qa_heard"), "qa_note": d.get("qa_note")})
             if len(out) >= limit:
                 break
-        return {"count": len(out), "words": out}
+        return {"count": len(out), "flagged": sum(1 for o in out if o["qa_flag"]), "words": out}
 
     @router.post("/recording-queue/dismiss")
     async def dismiss_recording(body: DismissWordBody, request: Request):

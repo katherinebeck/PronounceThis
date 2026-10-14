@@ -53,6 +53,7 @@ from phonetics import (
 from caption_search import CaptionSearchService
 from notify import notify_owner
 import line_check
+from word_check import judge_word
 import page_allowance
 from wiktionary import WiktionaryIPA
 import llm
@@ -1129,6 +1130,7 @@ ELEVEN_REQUEST_OPTIONS = {"max_retries": 3, "timeout_in_seconds": 60}
 TTS_VERSION = 5  # bump when synthesis settings change so cached audio regenerates
 # Unspoken context around a single word so v4 reads it as American English.
 WORD_CONTEXT_BEFORE = "Listen and repeat after me. The word is"
+WORD_CONTEXT_BEFORE_STRONG = "Listen and repeat after me, slowly and clearly, in American English. The English word is"
 WORD_CONTEXT_AFTER = "Now you try."
 # Default ElevenLabs voice for single words + untargeted lines (Hannah).
 DEFAULT_VOICE_ID = "ZSNL4hPqCnqoMPaI4jGX"
@@ -1191,26 +1193,29 @@ async def tts(req: TTSRequest, request: Request):
         )
 
     voice_id = DEFAULT_VOICE_ID
+    dict_ipa = CUSTOM_IPA.get(word.lower()) or (arpabet_to_ipa(get_arpabet(word)) if get_arpabet(word) else None)
 
-    def _generate() -> bytes:
+    def _generate(take: int) -> tuple[bytes, Optional[str]]:
         client = _eleven_client()
         # Eleven v4 guesses the language of a bare word (and read "I" as a
         # numeral), so every word is voiced as the tail of an unspoken
         # English sentence (previous/next text are context only, not audio).
-        # Coach overrides go out as inline IPA; everything else as plain
-        # spelling, which keeps the native delivery.
+        # Take 1: coach overrides as inline IPA, everything else plain
+        # spelling. Take 2 (after a failed listen-back) flips the strategy.
         ipa = None
         if variant_phones:
             ipa = arpabet_to_ipa(variant_phones)
         elif req.phonetic:
-            ipa = CUSTOM_IPA.get(word.lower()) or (arpabet_to_ipa(get_arpabet(word)) if get_arpabet(word) else None)
+            ipa = dict_ipa
+        if take > 1 and not variant_phones:
+            ipa = None if ipa else dict_ipa
         spoken = f" /{ipa.strip('/')}/." if ipa else f" {word}."
         stream = client.text_to_speech.convert(
             text=spoken,
             voice_id=voice_id,
             model_id=TTS_MODEL,
             language_code="en",
-            previous_text=WORD_CONTEXT_BEFORE,
+            previous_text=WORD_CONTEXT_BEFORE if take == 1 else WORD_CONTEXT_BEFORE_STRONG,
             next_text=WORD_CONTEXT_AFTER,
             output_format="mp3_44100_128",
             request_options=ELEVEN_REQUEST_OPTIONS,
@@ -1219,16 +1224,33 @@ async def tts(req: TTSRequest, request: Request):
         for chunk in stream:
             if chunk:
                 buf.extend(chunk)
-        return bytes(buf)
+        return bytes(buf), ipa
 
     try:
-        audio_bytes = await asyncio.to_thread(_generate)
+        audio_bytes, used_ipa = await asyncio.to_thread(_generate, 1)
     except Exception as e:
         logger.exception("ElevenLabs TTS error")
         raise HTTPException(status_code=502, detail=f"TTS failed: {e}")
 
     if not audio_bytes:
         raise HTTPException(status_code=502, detail="TTS returned empty audio")
+
+    # Word Audio QA: an AI listener checks the clip; one retake on failure,
+    # then the word is flagged for the coach's Recording Queue.
+    verdict = await judge_word(audio_bytes, word, used_ipa or dict_ipa)
+    takes = 1
+    if verdict and not verdict["ok"]:
+        try:
+            audio2, ipa2 = await asyncio.to_thread(_generate, 2)
+            verdict2 = await judge_word(audio2, word, ipa2 or dict_ipa)
+            takes = 2
+            if audio2 and (verdict2 is None or verdict2["ok"] or verdict2["natural"] >= verdict["natural"]):
+                audio_bytes, verdict = audio2, (verdict2 or verdict)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("word QA retake failed for %s: %s", word, exc)
+    flagged = bool(verdict and not verdict["ok"])
+    if flagged:
+        logger.info("word QA flagged %r: heard %r — %s", word, verdict["heard"], verdict["note"])
 
     audio_b64 = base64.b64encode(audio_bytes).decode("ascii")
     async with _tts_lock:
@@ -1238,25 +1260,28 @@ async def tts(req: TTSRequest, request: Request):
                       "tts_version": TTS_VERSION,
                       "voice_id": DEFAULT_VOICE_ID,
                       "model": TTS_MODEL,
+                      "qa": verdict, "takes": takes,
                       "created_at": datetime.now(timezone.utc).isoformat()}},
             upsert=True,
         )
     await consume_trial(db, actor)
-    await _log_tts_play(base_key, req.phonetic)
+    await _log_tts_play(base_key, req.phonetic, qa=verdict)
     return TTSResponse(word=word, audio_b64=audio_b64, cached=False)
 
 
-async def _log_tts_play(word: str, phonetic: bool) -> None:
+async def _log_tts_play(word: str, phonetic: bool, qa: Optional[dict] = None) -> None:
     """Track synthetic plays so the coach's Recording Queue knows which
     words students actually hear without a human recording."""
     try:
-        await db.tts_log.update_one(
-            {"word": word},
-            {"$inc": {"count": 1},
-             "$set": {"last_at": datetime.now(timezone.utc).isoformat(),
-                      "phonetic": phonetic}},
-            upsert=True,
-        )
+        update = {"$inc": {"count": 1},
+                  "$set": {"last_at": datetime.now(timezone.utc).isoformat(),
+                           "phonetic": phonetic}}
+        if qa is not None:
+            update["$set"].update({"qa_flag": not qa["ok"], "qa_heard": qa["heard"],
+                                   "qa_note": qa["note"], "qa_natural": qa["natural"]})
+            if not qa["ok"]:
+                update["$set"]["dismissed"] = False
+        await db.tts_log.update_one({"word": word}, update, upsert=True)
     except Exception as exc:  # noqa: BLE001
         logger.debug("tts_log write failed: %s", exc)
 
