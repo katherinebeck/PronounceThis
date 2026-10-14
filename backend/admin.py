@@ -800,6 +800,36 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         return {"ok": True, "scene_id": body.scene_id, "owner_email": email}
 
     # --- Recording queue --------------------------------------------------
+    @router.get("/word-qa")
+    async def word_qa_stats(request: Request, weeks: int = 8):
+        """Word Audio QA: pass/flag counts per ISO week + recent verdicts."""
+        await require_admin(request, db)
+        weeks = max(1, min(weeks, 26))
+        since = (datetime.now(timezone.utc) - timedelta(weeks=weeks)).isoformat()
+        docs = await db.audio_cache.find(
+            {"qa": {"$ne": None}, "created_at": {"$gte": since}},
+            {"_id": 0, "word": 1, "qa": 1, "takes": 1, "created_at": 1},
+        ).sort("created_at", -1).to_list(5000)
+        by_week: dict[str, dict] = {}
+        for d in docs:
+            wk = datetime.fromisoformat(d["created_at"]).strftime("%G-W%V")
+            row = by_week.setdefault(wk, {"week": wk, "checked": 0, "passed": 0, "flagged": 0, "retakes": 0, "natural_sum": 0})
+            row["checked"] += 1
+            row["passed" if d["qa"].get("ok") else "flagged"] += 1
+            row["retakes"] += 1 if (d.get("takes") or 1) > 1 else 0
+            row["natural_sum"] += int(d["qa"].get("natural") or 0)
+        weekly = []
+        for row in sorted(by_week.values(), key=lambda r: r["week"], reverse=True):
+            row["avg_natural"] = round(row.pop("natural_sum") / row["checked"], 1) if row["checked"] else None
+            weekly.append(row)
+        recent = [{"word": d["word"], "ok": bool(d["qa"].get("ok")), "heard": d["qa"].get("heard"),
+                   "natural": d["qa"].get("natural"), "note": d["qa"].get("note"),
+                   "takes": d.get("takes") or 1, "at": d["created_at"]} for d in docs[:40]]
+        total = {"checked": len(docs), "passed": sum(1 for d in docs if d["qa"].get("ok")),
+                 "retakes": sum(1 for d in docs if (d.get("takes") or 1) > 1)}
+        total["flagged"] = total["checked"] - total["passed"]
+        return {"weeks": weeks, "total": total, "weekly": weekly, "recent": recent}
+
     @router.get("/recording-queue")
     async def recording_queue(request: Request, limit: int = 100):
         """Words students have played as synthetic audio (no human
