@@ -1169,11 +1169,50 @@ ELEVEN_REQUEST_OPTIONS = {"max_retries": 3, "timeout_in_seconds": 60}
 
 TTS_VERSION = 5  # bump when synthesis settings change so cached audio regenerates
 # Unspoken context around a single word so v4 reads it as American English.
-WORD_CONTEXT_BEFORE = "Listen and repeat after me. The word is"
-WORD_CONTEXT_BEFORE_STRONG = "Listen and repeat after me, slowly and clearly, in American English. The English word is"
-WORD_CONTEXT_AFTER = "Now you try."
+WORD_CONTEXT_BEFORE = "You're an American English coach from the Midwest speaking in your natural General American accent. Listen and repeat after me. The word is"
+WORD_CONTEXT_BEFORE_STRONG = "You're an American English coach from the Midwest speaking in your natural General American accent. Listen and repeat after me, slowly and clearly. The English word is"
+WORD_CONTEXT_AFTER = "That's how we say it in American English. Now you try."
 # Default ElevenLabs voice for single words + untargeted lines (Hannah).
 DEFAULT_VOICE_ID = "ZSNL4hPqCnqoMPaI4jGX"
+
+
+def _render_word_text(spoken: str, prev: str = WORD_CONTEXT_BEFORE, nxt: str = WORD_CONTEXT_AFTER) -> bytes:
+    """Blocking single-word render on the current voice/model."""
+    stream = _eleven_client().text_to_speech.convert(
+        text=spoken, voice_id=DEFAULT_VOICE_ID, model_id=TTS_MODEL, language_code="en",
+        previous_text=prev, next_text=nxt, output_format="mp3_44100_128",
+        request_options=ELEVEN_REQUEST_OPTIONS)
+    return b"".join(c for c in stream if c)
+
+
+def word_auditions(word: str) -> list:
+    """Several candidate renders of a word so the coach can pick by ear."""
+    key = re.sub(r"\s+", " ", word.lower().strip())
+    coach = CUSTOM_IPA.get(key)
+    cmu = " ".join(filter(None, (arpabet_to_ipa(get_arpabet(p)) if get_arpabet(p) else "" for p in key.split()))) or None
+    ipa = coach or cmu
+    phones = ipa_to_arpabet(ipa) if ipa else None
+    respelled = None
+    if ipa:
+        parts = [respell_arpabet(ipa_to_arpabet(piece) or []) for piece in ipa.split()]
+        respelled = " ".join(p for p in parts if p) or None
+    cands = [("plain", "Plain spelling", f" {word.strip()}.")]
+    if ipa:
+        cands.append(("ipa", f"{'Your' if coach else 'Dictionary'} IPA /{_tts_ipa(ipa)}/", f" /{_tts_ipa(ipa)}/."))
+    if respelled and respelled.lower() != key:
+        cands.append(("respell", f"Respelled “{respelled}”", f" {respelled}."))
+    cands.append(("plain_slow", "Plain spelling, slow and clear", f" {word.strip()}."))
+    out = []
+    for cid, label, spoken in cands:
+        prev = WORD_CONTEXT_BEFORE_STRONG if cid == "plain_slow" else WORD_CONTEXT_BEFORE
+        try:
+            audio = _render_word_text(spoken, prev)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("audition %s for %r failed: %s", cid, word, exc)
+            continue
+        out.append({"id": cid, "label": label, "spoken": spoken.strip(), "audio_b64": base64.b64encode(audio).decode("ascii"),
+                    "phones": phones})
+    return out
 
 
 def _tts_ipa(ipa: str) -> str:

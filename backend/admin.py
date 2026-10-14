@@ -57,6 +57,12 @@ class WordAudioResetBody(BaseModel):
     drop_recording: bool = False
 
 
+class WordAudioPickBody(BaseModel):
+    word: str
+    audio_b64: str
+    label: Optional[str] = None
+
+
 def _current_tts() -> dict:
     import server
     return {"voice_id": server.DEFAULT_VOICE_ID, "model": server.TTS_MODEL, "tts_version": server.TTS_VERSION}
@@ -856,6 +862,41 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         res = await db.audio_cache.delete_many(q)
         await db.tts_log.update_one({"word": w}, {"$set": {"qa_flag": False}, "$unset": {"qa_heard": "", "qa_note": ""}})
         return {"ok": True, "deleted": res.deleted_count}
+
+    @router.post("/word-audio/auditions")
+    async def word_audio_auditions(body: WordAudioResetBody, request: Request):
+        """Render a few candidate takes so the coach can choose by ear."""
+        await require_admin(request, db)
+        import server
+        w = (body.word or "").strip()
+        if not w:
+            raise HTTPException(status_code=400, detail="word_required")
+        takes = await asyncio.to_thread(server.word_auditions, w)
+        if not takes:
+            raise HTTPException(status_code=502, detail="render_failed")
+        return {"word": w, "takes": takes}
+
+    @router.post("/word-audio/pick")
+    async def word_audio_pick(body: WordAudioPickBody, request: Request):
+        """Save a chosen take as what members hear for the word (an override,
+        like a recording). Undoable with Discard recording & re-generate."""
+        await require_admin(request, db)
+        w = re.sub(r"\s+", " ", (body.word or "").strip().lower())
+        if not w or not body.audio_b64:
+            raise HTTPException(status_code=400, detail="word_and_audio_required")
+        raw = base64.b64decode(body.audio_b64)
+        if not (500 < len(raw) < 2_000_000):
+            raise HTTPException(status_code=400, detail="bad_audio")
+        await db.audio_cache.delete_many({"word": {"$regex": f"^{re.escape(w)}#(?!human)"}})
+        await db.audio_cache.update_one(
+            {"word": w},
+            {"$set": {"word": w, "audio_b64": body.audio_b64, "manual_override": True,
+                      "source": f"audition:{body.label or 'picked'}", "content_type": "audio/mpeg",
+                      "byte_size": len(raw), "created_at": datetime.now(timezone.utc).isoformat()}},
+            upsert=True)
+        await db.tts_log.update_one({"word": w}, {"$set": {"qa_flag": False}, "$unset": {"qa_heard": "", "qa_note": ""}})
+        await db.dictionary_entries.update_one({"word": w}, {"$set": {"has_audio": True}})
+        return {"ok": True, "word": w}
 
     @router.get("/word-qa")
     async def word_qa_stats(request: Request, weeks: int = 8):

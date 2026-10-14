@@ -1,11 +1,11 @@
 import React, { useState } from "react";
-import { Loader2, Search, RefreshCw, Trash2, Play, Undo2 } from "lucide-react";
+import { Loader2, Search, RefreshCw, Trash2, Play, Undo2, Ear } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { playWord } from "@/lib/audio";
 
 const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
-const ORIGIN = { recording: "Your recording (always wins)", coach_take: "Your raw take (archived)", generated: "Generated" };
+const ORIGIN = { recording: "Chosen take / recording (always wins)", coach_take: "Your raw take (archived)", generated: "Generated" };
 const btn = "font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 border thin-rule hover:bg-ink hover:text-surface hover:border-ink transition-colors inline-flex items-center gap-1.5 disabled:opacity-60";
 
 // Admin → Audio check → Inspect a word: what members actually hear and why.
@@ -43,6 +43,27 @@ export default function WordAudioInspector() {
       await playWord(d.word, {});
       await inspect(d.word);
     } catch { toast.error("Revert failed."); }
+    finally { setBusy(false); }
+  };
+
+  const [takes, setTakes] = useState(null);
+  const [auditioning, setAuditioning] = useState(false);
+  const playB64 = (b64) => new Audio(`data:audio/mpeg;base64,${b64}`).play();
+
+  const audition = async () => {
+    setAuditioning(true); setTakes(null);
+    try { setTakes((await api.post("/admin/word-audio/auditions", { word: d.word })).data.takes); }
+    catch { toast.error("Couldn't render takes."); }
+    finally { setAuditioning(false); }
+  };
+  const pick = async (t) => {
+    setBusy(true);
+    try {
+      await api.post("/admin/word-audio/pick", { word: d.word, audio_b64: t.audio_b64, label: t.label });
+      toast.success(`Saved — members now hear this take for “${d.word}”`);
+      setTakes(null);
+      await inspect(d.word);
+    } catch { toast.error("Couldn't save that take."); }
     finally { setBusy(false); }
   };
 
@@ -94,7 +115,28 @@ export default function WordAudioInspector() {
             {d.clips.some((c) => c.origin === "recording") ? (
               <button type="button" onClick={() => reset(true)} disabled={busy} className={btn + " text-crimson"} data-testid="admin-word-inspector-drop"><Trash2 size={11} /> Discard recording & re-generate</button>
             ) : null}
+            <button type="button" onClick={audition} disabled={busy || auditioning} className={btn} data-testid="admin-word-inspector-audition">
+              {auditioning ? <Loader2 size={11} className="animate-spin" /> : <Ear size={11} />} Audition takes
+            </button>
           </div>
+          {auditioning ? <p className="font-serif text-xs text-muted2 italic">Rendering a few different takes — about 10 seconds…</p> : null}
+          {takes ? (
+            <div className="border thin-rule bg-surface p-3" data-testid="admin-word-auditions">
+              <div className="font-mono text-[10px] uppercase tracking-[0.2em] text-muted2 mb-2">Pick the take that sounds right — it becomes what members hear</div>
+              <ul className="divide-y thin-rule">
+                {takes.map((t) => (
+                  <li key={t.id} className="py-2 flex items-center gap-3" data-testid={`admin-word-take-${t.id}`}>
+                    <button type="button" onClick={() => playB64(t.audio_b64)} className={btn} data-testid={`admin-word-take-play-${t.id}`}><Play size={11} /> Play</button>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-serif text-sm text-ink">{t.label}</div>
+                      <div className="font-mono text-[10px] text-muted2 truncate">sent as: {t.spoken}</div>
+                    </div>
+                    <button type="button" onClick={() => pick(t)} disabled={busy} className="btn-primary !py-1.5 !px-3 text-xs" data-testid={`admin-word-take-use-${t.id}`}>Use this</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </div>
