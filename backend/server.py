@@ -1126,7 +1126,7 @@ def _eleven_client():
 ELEVEN_REQUEST_OPTIONS = {"max_retries": 3, "timeout_in_seconds": 60}
 
 
-TTS_VERSION = 2  # bump when synthesis settings change so cached audio regenerates
+TTS_VERSION = 4  # bump when synthesis settings change so cached audio regenerates
 # Default ElevenLabs voice for single words + untargeted lines (Jessica Anne Bogart).
 DEFAULT_VOICE_ID = "lxYfHSkYm1EzQzGhdbfc"
 
@@ -1170,14 +1170,11 @@ async def tts(req: TTSRequest, request: Request):
     else:
         cache_key = f"{base_key}#ph" if req.phonetic else base_key
     cached = override or await db.audio_cache.find_one({"word": cache_key}, {"_id": 0})
-    # Plain entries: accept legacy (no version) or current; reject the
-    # short-lived v2 turbo renders that sounded off on common words.
-    ok_version = (cached or {}).get("tts_version") != 2
+    # Only renders made with the current word pipeline are reused.
     same_voice = (cached or {}).get("voice_id") == DEFAULT_VOICE_ID and \
-        ((cached or {}).get("model") or "eleven_multilingual_v2") == TTS_MODEL
+        (cached or {}).get("model") == TTS_MODEL
     if cached and cached.get("audio_b64") and (
-        cached.get("manual_override") or (same_voice and (
-            ok_version if not req.phonetic else cached.get("tts_version") == TTS_VERSION))
+        cached.get("manual_override") or (same_voice and cached.get("tts_version") == TTS_VERSION)
     ):
         await consume_trial(db, actor)
         if not cached.get("manual_override"):
@@ -1194,10 +1191,11 @@ async def tts(req: TTSRequest, request: Request):
 
     def _generate() -> bytes:
         client = _eleven_client()
-        # Eleven v4: same natural voice, pronunciation forced via inline IPA.
-        # A trailing period cues a declarative (falling-pitch) reading.
-        phones = variant_phones or (get_arpabet(word) if req.phonetic else None)
-        ipa = CUSTOM_IPA.get(word.lower()) if (req.phonetic and not variant_phones) else None
+        # Eleven v4: a bare single word is ambiguous ("I" → Roman numeral,
+        # "this" → auto-detected as another language), so every word goes
+        # out as inline IPA, English-locked. Trailing period = falling pitch.
+        phones = variant_phones or get_arpabet(word)
+        ipa = CUSTOM_IPA.get(word.lower()) if not variant_phones else None
         ipa = ipa or (arpabet_to_ipa(phones) if phones else None)
         spoken = f"/{ipa.strip('/')}/" if ipa else word
         if not spoken.endswith((".", "!", "?")):
@@ -1206,6 +1204,7 @@ async def tts(req: TTSRequest, request: Request):
             text=spoken,
             voice_id=voice_id,
             model_id=TTS_MODEL,
+            language_code="en",
             output_format="mp3_44100_128",
             request_options=ELEVEN_REQUEST_OPTIONS,
         )
@@ -1229,7 +1228,7 @@ async def tts(req: TTSRequest, request: Request):
         await db.audio_cache.update_one(
             {"word": cache_key},
             {"$set": {"word": cache_key, "audio_b64": audio_b64,
-                      "tts_version": TTS_VERSION if req.phonetic else 3,
+                      "tts_version": TTS_VERSION,
                       "voice_id": DEFAULT_VOICE_ID,
                       "model": TTS_MODEL,
                       "created_at": datetime.now(timezone.utc).isoformat()}},
@@ -1355,6 +1354,7 @@ def _synthesize(text: str, voice_id: Optional[str] = None, mode: str = "respell"
         text=spoken,
         voice_id=vid,
         model_id=TTS_MODEL,
+        language_code="en",
         output_format="mp3_44100_128",
         request_options=ELEVEN_REQUEST_OPTIONS,
     )
