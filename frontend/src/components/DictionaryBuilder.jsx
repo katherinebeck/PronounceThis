@@ -98,6 +98,19 @@ export function DictionaryBuilder() {
     }
   };
 
+  const revert = async () => {
+    if (!current) return;
+    const drop = window.confirm(`Revert “${current.word}” to the stock dictionary pronunciation?\n\nOK = also discard any recording of yours · Cancel = keep the recording, only remove IPA/stress changes`);
+    try {
+      const r = await api.post("/admin/dictionary/revert", { word: current.word, drop_recording: drop });
+      toast.success(`“${current.word}” reverted${r.data.ipa ? ` to ${r.data.ipa}` : ""} — the next play re-renders it`);
+      setIpa(r.data.ipa || "");
+      setRefreshKey((k) => k + 1);
+    } catch {
+      toast.error("Could not revert");
+    }
+  };
+
   const doJump = (e) => {
     e.preventDefault();
     const w = jump.trim().toLowerCase();
@@ -254,6 +267,9 @@ export function DictionaryBuilder() {
             ) : null}
             <button type="button" disabled={saving || rec.recording || rec.processing} onClick={save} className="btn-primary justify-center" data-testid="dictionary-save">
               {saving ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />} Save &amp; next
+            </button>
+            <button type="button" onClick={revert} className="font-mono text-[11px] uppercase tracking-[0.2em] px-3 py-2 text-muted2 hover:text-ink inline-flex items-center gap-2" title="Remove your IPA/stress changes for this word" data-testid="dictionary-revert">
+              <Undo2 size={12} /> Revert to dictionary
             </button>
             <button type="button" onClick={skip} className="ml-auto font-mono text-[11px] uppercase tracking-[0.2em] px-3 py-2 text-muted2 hover:text-ink inline-flex items-center gap-2" data-testid="dictionary-skip">
               Skip <SkipForward size={12} />

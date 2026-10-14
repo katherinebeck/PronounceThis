@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Loader2, Search, RefreshCw, Trash2, Play } from "lucide-react";
+import { Loader2, Search, RefreshCw, Trash2, Play, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { playWord } from "@/lib/audio";
@@ -33,6 +33,19 @@ export default function WordAudioInspector() {
     finally { setBusy(false); }
   };
 
+  const revert = async () => {
+    const hasRec = d.clips.some((c) => c.origin === "recording");
+    const drop = hasRec && window.confirm(`“${d.word}” has your recording. Discard it too and go fully back to the dictionary pronunciation?\n\nOK = discard recording as well · Cancel = keep the recording, only remove your IPA/stress changes`);
+    setBusy(true);
+    try {
+      const r = await api.post("/admin/dictionary/revert", { word: d.word, drop_recording: drop });
+      toast.success(`“${d.word}” reverted to the dictionary pronunciation${r.data.ipa ? ` (${r.data.ipa})` : ""} — re-rendering…`);
+      await playWord(d.word, {});
+      await inspect(d.word);
+    } catch { toast.error("Revert failed."); }
+    finally { setBusy(false); }
+  };
+
   return (
     <div className="border thin-rule bg-paper p-4 mt-6" data-testid="admin-word-inspector">
       <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mb-2">Inspect a word</div>
@@ -48,6 +61,7 @@ export default function WordAudioInspector() {
           <div className="font-serif text-sm text-ink flex flex-wrap gap-x-4 gap-y-1">
             <span>Dictionary: <span className="font-mono text-rust">{d.dictionary_ipa || "—"}</span></span>
             <span>Your IPA: <span className="font-mono text-rust">{d.custom_ipa || "none"}</span></span>
+            {d.preferred_arpabet && !d.custom_ipa ? <span>Forced pronunciation: <span className="font-mono text-rust">{d.preferred_arpabet}</span></span> : null}
             <span>Plays: {d.play_log?.count ?? 0}{d.play_log?.qa_flag ? <span className="text-crimson"> · flagged</span> : null}</span>
           </div>
           {d.clips.length === 0 ? (
@@ -74,6 +88,9 @@ export default function WordAudioInspector() {
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => playWord(d.word, {})} className={btn} data-testid="admin-word-inspector-play"><Play size={11} /> Play what members hear</button>
             <button type="button" onClick={() => reset(false)} disabled={busy} className={btn} data-testid="admin-word-inspector-regenerate"><RefreshCw size={11} /> Re-generate (keep recording)</button>
+            {(d.custom_ipa || d.preferred_arpabet) ? (
+              <button type="button" onClick={revert} disabled={busy} className={btn} data-testid="admin-word-inspector-revert"><Undo2 size={11} /> Revert to dictionary pronunciation</button>
+            ) : null}
             {d.clips.some((c) => c.origin === "recording") ? (
               <button type="button" onClick={() => reset(true)} disabled={busy} className={btn + " text-crimson"} data-testid="admin-word-inspector-drop"><Trash2 size={11} /> Discard recording & re-generate</button>
             ) : null}

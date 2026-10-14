@@ -68,6 +68,11 @@ class WordBody(BaseModel):
     word: str
 
 
+class RevertBody(BaseModel):
+    word: str
+    drop_recording: bool = False
+
+
 # American place names whose local pronunciation differs from the dictionary
 # reading of the same spelling (toponyms). Phrases carry one IPA piece per
 # word so scene tokens can be corrected individually.
@@ -384,6 +389,28 @@ def create_dictionary_router(db: AsyncIOMotorDatabase) -> APIRouter:
         PREFERRED_ARPA.pop(w, None)
         CUSTOM_IPA.pop(w, None)
         return {"ok": True}
+
+    @router.post("/revert")
+    async def revert_word(body: RevertBody, request: Request):
+        """Back to the stock dictionary pronunciation: removes the coach's IPA,
+        preference and generated clips (and her recording if asked); scene
+        lines with the word re-render. Undoable via /undo."""
+        await require_admin(request, db)
+        w = _clean_word(body.word)
+        if not w:
+            raise HTTPException(status_code=400, detail="word_required")
+        await _snapshot(w)
+        await db.dictionary_entries.delete_one({"word": w})
+        await db.pronunciation_prefs.delete_one({"word": w})
+        PREFERRED_ARPA.pop(w, None)
+        CUSTOM_IPA.pop(w, None)
+        keys = {"$or": [{"word": w}, {"word": {"$regex": f"^{re.escape(w)}#"}}]}
+        q = keys if body.drop_recording else {"$and": [
+            keys, {"manual_override": {"$ne": True}}, {"word": {"$not": re.compile(r"#human$")}}]}
+        res = await db.audio_cache.delete_many(q)
+        await db.tts_log.update_one({"word": w}, {"$set": {"qa_flag": False}, "$unset": {"qa_heard": "", "qa_note": ""}})
+        await db.turn_audio_cache.delete_many({"text": {"$regex": rf"\b{re.escape(w)}\b", "$options": "i"}})
+        return {"ok": True, "word": w, "deleted_clips": res.deleted_count, "ipa": cmu_ipa(w)}
 
     @router.get("/audio")
     async def audio(request: Request, word: str, which: str = "human"):

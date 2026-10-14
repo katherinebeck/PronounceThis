@@ -586,3 +586,4 @@
 ## Backlog (user-requested, deferred)
 - **Audio-library export (P2)**: Admin → Export data → zip of all `audio_cache` clips (recordings + generated library) as MP3 with a word/IPA index CSV, plus `turn_audio_cache` lines; for migrating off ElevenLabs or archiving. User: "add to the to-do list for later when we need it".
 - Voice-clone option (ElevenLabs professional clone of the coach) discussed as the natural scale step; not requested yet.
+- **Revert to dictionary pronunciation**: `POST /api/admin/dictionary/revert {word, drop_recording}` — snapshots for undo, removes coach IPA entry + pronunciation_pref + generated clips (+ recording if asked) + scene-line cache containing the word → stock CMU reading. Buttons: Audio check → Inspect a word → "Revert to dictionary pronunciation" (shown when custom IPA/forced pref exists) and My Dictionary word card → "Revert to dictionary". Verified: custom → revert → stock → undo restores.
