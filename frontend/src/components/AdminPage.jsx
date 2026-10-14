@@ -3,7 +3,6 @@ import { Loader2, UserCheck, UserX, Search, ShieldCheck, ShieldOff, Mic, Trash2,
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
-import { PronunciationPrefs } from "./PronunciationPrefs";
 import CreditMeter from "./CreditMeter";
 import LineCheckHealth from "./LineCheckHealth";
 import StripePrices from "./StripePrices";
@@ -17,7 +16,6 @@ import { TrialDevices } from "./TrialDevices";
 import { KajabiStatus } from "./KajabiStatus";
 import NewBuyers from "./NewBuyers";
 import EmailPreviews from "./EmailPreviews";
-import { RecordingQueue } from "./RecordingQueue";
 import WordQaDashboard from "./WordQaDashboard";
 import OwnerNotifications from "./OwnerNotifications";
 import AdminNav, { ALL_TAB_KEYS, tabLabel } from "./AdminNav";
@@ -37,6 +35,11 @@ export default function AdminPage() {
     return ALL_TAB_KEYS.includes(h) ? h : "users";
   });
   const setTab = (k) => { setTabState(k); window.history.replaceState(null, "", `#${k}`); };
+  useEffect(() => {
+    const onHash = () => { const h = window.location.hash.replace("#", ""); if (ALL_TAB_KEYS.includes(h)) setTabState(h); };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [users, setUsers] = useState([]);
   const [query, setQuery] = useState("");
   const [searchDraft, setSearchDraft] = useState("");
@@ -1129,10 +1132,8 @@ export default function AdminPage() {
 
 
         {tab === "dictionary" ? <DictionaryBuilder /> : null}
-        {tab === "recording" ? <RecordingQueue /> : null}
         {tab === "wordqa" ? <WordQaDashboard /> : null}
 
-        {tab === "prefs" ? <PronunciationPrefs /> : null}
 
       </main>
       </div>

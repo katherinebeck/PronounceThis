@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Loader2, Search, RefreshCw, Trash2, Play, Undo2, Ear } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -9,7 +9,7 @@ const ORIGIN = { recording: "Chosen take / recording (always wins)", coach_take:
 const btn = "font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-1.5 border thin-rule hover:bg-ink hover:text-surface hover:border-ink transition-colors inline-flex items-center gap-1.5 disabled:opacity-60";
 
 // Admin → Audio check → Inspect a word: what members actually hear and why.
-export default function WordAudioInspector() {
+export default function WordAudioInspector({ initialWord = "", onChanged }) {
   const [word, setWord] = useState("");
   const [d, setD] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -17,10 +17,11 @@ export default function WordAudioInspector() {
   const inspect = async (w = word) => {
     if (!w.trim()) return;
     setBusy(true);
-    try { setD((await api.get(`/admin/word-audio?word=${encodeURIComponent(w.trim())}`)).data); }
+    try { setD((await api.get(`/admin/word-audio?word=${encodeURIComponent(w.trim())}`)).data); setTakes(null); onChanged?.(); }
     catch { toast.error("Couldn't inspect that word."); }
     finally { setBusy(false); }
   };
+  useEffect(() => { if (initialWord) { setWord(initialWord); inspect(initialWord); } }, [initialWord]); // eslint-disable-line react-hooks/exhaustive-deps
   const reset = async (drop) => {
     if (drop && !window.confirm(`Discard your recording for “${d.word}” too? Members will hear the generated voice.`)) return;
     setBusy(true);
@@ -68,7 +69,7 @@ export default function WordAudioInspector() {
   };
 
   return (
-    <div className="border thin-rule bg-paper p-4 mt-6" data-testid="admin-word-inspector">
+    <div className="border thin-rule bg-paper p-4" data-testid="admin-word-inspector">
       <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mb-2">Inspect a word</div>
       <form onSubmit={(e) => { e.preventDefault(); inspect(); }} className="flex gap-2 mb-3">
         <input value={word} onChange={(e) => setWord(e.target.value)} placeholder="e.g. baton"

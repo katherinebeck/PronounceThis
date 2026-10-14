@@ -937,7 +937,7 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         overrides = {d["word"] for d in await db.audio_cache.find(
             {"manual_override": True}, {"_id": 0, "word": 1}).to_list(10000)}
         docs = await db.tts_log.find(
-            {"dismissed": {"$ne": True}}, {"_id": 0}
+            {"dismissed": {"$ne": True}, "$or": [{"qa_flag": True}, {"count": {"$gte": 5}}]}, {"_id": 0}
         ).sort([("qa_flag", -1), ("count", -1), ("last_at", -1)]).to_list(limit * 3)
         out = []
         for d in docs:

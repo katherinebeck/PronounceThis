@@ -51,7 +51,9 @@ export function DictionaryBuilder() {
 
   useEffect(() => {
     localStorage.setItem("dict_list", list);
-    load(localStorage.getItem(`dict_cursor_${list}`) || undefined);
+    const open = localStorage.getItem("dict_open_word");
+    if (open) { localStorage.removeItem("dict_open_word"); load(open, true); }
+    else load(localStorage.getItem(`dict_cursor_${list}`) || undefined);
   }, [load, list]);
   useEffect(() => { setIpa(current?.ipa || ""); rec.reset(); }, [current?.word]); // eslint-disable-line react-hooks/exhaustive-deps
 
