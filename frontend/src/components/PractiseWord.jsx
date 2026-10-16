@@ -25,7 +25,8 @@ export default function PractiseWord({ word, onHearReference, referencePlaying, 
   const [result, setResult] = useState(null);
   const [analysing, setAnalysing] = useState(false);
   const onMicError = useCallback((err) => setError(micMessage(err)), []);
-  const rec = useRecorder({ onError: onMicError });
+  // Raw take (no trim): the Admin trimmer's 120 ms head-cut can slice off a quiet initial /p/ or /t/.
+  const rec = useRecorder({ onError: onMicError, trim: false });
 
   // New word → clear the previous take and verdict; ask whether a trial user already used this word.
   useEffect(() => {

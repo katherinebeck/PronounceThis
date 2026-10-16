@@ -1,0 +1,37 @@
+{
+  "summary": "Tested hybrid scoring (Azure + phoneme ear). BACKEND check_ear.py (direct mp3 upload, 11 Azure calls) matches the expected results exactly: george_party, lily_party → flagged ['ɑɹ*'] 7.5/10 Good; george_word, lily_word → ['ɝ*'] 7.5/10 Good; hannah_party, story, need, ctl_whole, ctl_tour → 10/10 Excellent with flagged=[]; ctl_father 9.8/10 []. ctl_george is flagged ɔɹ* at 7.5/10 (known, not a blocker). Admin response shape is correct: score10, azure_score, band, needs_work[].confirmed/note, phonemes[].ear, and ear{model,status:'ready',heard,checks}. For the member and trial users, ear is null and no practise-ear block is shown. FRONTEND: practise-score shows 'X/10' (never /100). Confirmed misses show the 'not heard' badge (practise-confirmed) with a crimson border, plus the R note and the tip. The admin practise-ear block appears with 'SOUNDS HEARD (ADMIN ONLY) · READY', the heard string and ✓/✗ chips with percentages. Trial lock regression passes: first analyse returns 200 with trial_locked:true, then practise-join appears and opens the paywall. Hear Word (tts 200), Real Speakers, the result card and the Scene upload panel all work. /api/health returns 200. Worker RSS is about 870 MB (< 1.5 GB). Cleanup done (practice_words unset). HIGH-PRIORITY BUG: when the take goes through the real browser path (MediaRecorder → audioTrim.js trimRecording → WAV), the ear marks the word-initial /p/ of 'party' as 'missing'. This happened on all 4 browser takes: clean American hannah_party gave 7.5/10 Good instead of 10/10 Excellent, with '/p/ NOT HEARD sounded closer to /h/'. lily_party gave 5.8/10 'Getting there' instead of the expected 7.5 Good, because /p/ and /ɑɹ/ were both penalised. The admin readout showed heard='ɑ t i' and /p/ ✗ → b 0%. check_ear.py does not catch this because it uploads the raw mp3 and skips the frontend trim. Azure calls this session: about 15.",
+  "backend_issues": {
+    "critical": [
+      {"endpoint": "POST /api/practice/assess (phoneme_ear._check_window + frontend audioTrim)", "issue": "False 'missing' for word-initial plosives on browser takes. A clean American 'party' drops to 7.5/10 Good with /p/ 'not heard'. In the browser (fake-mic) runs the ear did not decode /p/ at all (heard='ɑ t i'). Offline, the /p/ CTC spike lands at frame 0-1 of the trimmed audio (0-40 ms), which can fall before Azure's /p/ window (start − 60 ms). The 'b'/'h'/'n' posteriors are ≥0.6, so the verdict becomes 'missing'. That costs −20 points, and with the 75 cap the clip can never reach Excellent.", "priority": "HIGH"}
+    ],
+    "minor": [
+      {"endpoint": "backend.err.log", "issue": "There are earlier 'phoneme ear failed: index 45 is out of bounds for axis 1 with size 45' warnings at 05:45. These were already fixed by the id2tok < probs.shape[1] filter, and none were seen in this run."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Record → audioTrim → assess", "issue": "trimRecording keeps only 70 ms padMs before onset, with an 8 ms fade-in, so the stop closure and burst of an initial plosive sit at the very edge of the audio. Together with the ear's window logic this produces false /p/ misses (see backend critical).", "affected_selectors": ["practise-confirmed", "practise-score", "practise-band"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/check_ear.py", "/app/backend/tests/repro_ear_trim.py", "/app/backend/tests/repro_ear_initial_plosive_azure.py", "/app/backend/tests/fake_mic_init.js"],
+  "action_items": [
+    "HIGH: Stop the false 'not heard' for word-initial and word-final consonants. Options (pick one or combine): (a) in listen(), widen the first window's start to frame 0 and the last window's end to the end of the audio; (b) apply the 'missing' verdict only to the R-family sounds the ear was built for (ɑɹ, ɔɹ, ɛɹ, ɪɹ, ʊɹ, ɝ, ɚ, ɹ) and return 'unsure' for other sounds, or require a much stronger competing sound for stops (p/t/k/b/d/g); (c) raise audioTrim padMs to about 150-200 ms so the closure and burst are not at the file edge.",
+    "Add a regression check that sends the clips through the same trim the browser uses (see repro_ear_trim.py, which mirrors the JS bounds()) before calling assess. Expect hannah_party to be 10/10 with flagged=[] and lily_party 7.5/10 with ['ɑɹ*'] only.",
+    "Optional: a confirmed /p/ miss shows 'sounded closer to /h/' with no note. If non-R misses are kept, consider a gentler label than 'not heard'."
+  ],
+  "critical_code_review_comments": [
+    "phoneme_ear._check_window: in the missing branch, 'vowel_ok' (the vowel part of an R-vowel is present) lets an R-vowel be marked missing without strong 'other' evidence. That is intended, but CTC spikes are peaky, so a single 20 ms frame outside the ±60 ms padded window decides the verdict for short consonants.",
+    "practice.apply_ear: the penalty counts distinct expected phonemes, so two false misses (p + ɑɹ) take a near-perfect 98 down to 58 ('Getting there'). That is harsh when one of them is a false positive.",
+    "practice.assess: ear.listen runs in to_thread and exceptions are caught. ear is admin-only via is_admin_email. Members and trial users get ear=null (verified).",
+    "PractiseFeedback.jsx: score10 falls back correctly. EarReadout is null-safe. data-testids are present (practise-score, practise-band, practise-confirmed, practise-ear)."
+  ],
+  "updated_files": ["/app/backend/tests/repro_ear_trim.py", "/app/backend/tests/repro_ear_initial_plosive_azure.py", "/app/backend/tests/fake_mic_init.js"],
+  "success_rate": {"backend": "100% of check_ear.py expectations (direct upload)", "frontend": "about 70%: rendering, admin gating and trial lock pass; the scores shown for browser takes are wrong because of the false /p/ miss"},
+  "seed_data_creation": "None. Trial user practice_words unset after the test.",
+  "test_credentials": "From /app/memory/test_credentials.md: member ptbuyer114077@gmail.com/Buyer2026pass, trial pttrial997949@gmail.com/Trial2026pass, admin via accent_session legacy JWT.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Fake mic: page.add_init_script(path='/app/backend/tests/fake_mic_init.js'), then page.evaluate to set window.__fakeB64 to the base64 of the mp3 (the browser_automation script can read local files, e.g. open('/tmp/l.b64')). Record, wait 3.2 s, Stop, Analyse. Offline repro without the UI: /root/.venv/bin/python /app/backend/tests/repro_ear_trim.py loads the ear and simulates the JS trim. The Azure variant (2 calls) shows that the trim250 version flags /p/ missing while trim70 confirms it. In the browser, even the 70 ms trim lost /p/ entirely (heard 'ɑ t i'), probably from Opus encoding plus the fade. After any fix, re-run the browser flow with hannah_party and expect 10/10 Excellent."
+}

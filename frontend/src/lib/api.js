@@ -102,7 +102,7 @@ export async function fetchPracticeStatus(word) {
 export async function assessPronunciation(word, blob) {
   const fd = new FormData();
   fd.append("word", word);
-  fd.append("audio", blob, "take.wav");
+  fd.append("audio", blob, blob.type.includes("mp4") ? "take.mp4" : blob.type.includes("webm") ? "take.webm" : "take.wav");
   const { data } = await api.post("/practice/assess", fd, {
     headers: { "Content-Type": "multipart/form-data" },
     timeout: 60000,
