@@ -152,6 +152,7 @@ export default function LandingPage() {
       <section className="testimonial" data-testid="landing-testimonials">
         <div className="wrap">
           <blockquote>"…this is actually incredible! What a game changer!"</blockquote>
+          <div className="testimonial-by" data-testid="testimonial-andy">— Andy</div>
           <div className="testimonial-grid">
             {TESTIMONIALS.map(([quote, name]) => (
               <figure className="testimonial-card" key={name} data-testid={`testimonial-${name.toLowerCase()}`}>

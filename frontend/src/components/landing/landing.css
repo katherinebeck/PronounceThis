@@ -138,6 +138,7 @@
 /* testimonial */
 .landing .testimonial{padding:44px 0;background:var(--cream);border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
 .landing .testimonial blockquote{margin:0 auto;max-width:56ch;font-family:var(--font-head);font-style:italic;font-weight:700;font-size:clamp(1.3rem, 2.6vw, 1.75rem);color:var(--ink);line-height:1.45;}
+.landing .testimonial-by{margin-top:12px;font-family:var(--font-body);font-size:.85rem;letter-spacing:.14em;text-transform:uppercase;color:#6b6b6b;}
 .landing .testimonial-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:34px;text-align:left;}
 .landing .testimonial-card{margin:0;padding:22px 24px;background:var(--paper, #fff);border:1px solid var(--line);display:flex;flex-direction:column;gap:12px;}
 .landing .testimonial-card blockquote{margin:0;max-width:none;font-weight:600;font-size:clamp(1rem, 1.6vw, 1.15rem);line-height:1.5;}
