@@ -13,7 +13,9 @@ from typing import List, Optional
 
 logger = logging.getLogger("ear")
 
-MODEL_ID = os.environ.get("PHONEME_EAR_MODEL", "bookbot/wav2vec2-ljspeech-gruut")
+MODEL_ID = os.environ.get("PHONEME_EAR_MODEL", "vitouphy/wav2vec2-xls-r-300m-timit-phoneme")
+INT8 = False
+DTYPE = os.environ.get("PHONEME_EAR_DTYPE", "bfloat16")  # bf16 halves RAM (~600 MB) with identical readouts
 FRAME_S = 0.02          # wav2vec2 CTC frame stride
 PAD_S = 0.06            # widen each Azure window by this on both sides
 CONFIRM_P = 0.5
@@ -21,21 +23,25 @@ MISSING_P = 0.10
 OTHER_P = 0.60
 
 # Azure en-US IPA symbol → list of requirements; each requirement is a set of
-# model tokens any of which satisfies it. Near-merged pairs are allowed.
-_R = {"ɹ", "ɚ"}
+# model tokens (TIMIT 39-phone set) any of which satisfies it. TIMIT folds
+# ɔ→ɑ, ʌ→ə, ɚ→ɝ, ʒ→ʃ, so those merges are built in.
+_R = {"ɹ", "ɝ"}
+_FLAP = {"ɾ", "d"}
 EXPECTED = {
-    "ɑɹ": [{"ɑ", "ɔ", "ʌ"}, _R], "ɔɹ": [{"ɔ", "oʊ", "ɑ"}, _R], "ɛɹ": [{"ɛ", "eɪ", "æ"}, _R],
-    "ɪɹ": [{"ɪ", "i"}, _R], "ʊɹ": [{"ʊ", "u", "ɔ"}, _R], "ɝ": [_R], "ɚ": [_R], "ɹ": [_R], "r": [_R],
-    "ɑ": [{"ɑ", "ɔ"}], "ɔ": [{"ɔ", "ɑ"}], "ʌ": [{"ʌ", "ə"}], "ə": [{"ə", "ʌ", "ɪ"}],
+    "ɑɹ": [{"ɑ"}, _R], "ɔɹ": [{"ɑ", "oʊ"}, _R], "ɛɹ": [{"ɛ", "eɪ", "æ"}, _R],
+    "ɪɹ": [{"ɪ", "i"}, _R], "ʊɹ": [{"ʊ", "u", "ɑ"}, _R], "ɝ": [_R], "ɚ": [_R], "ɹ": [_R], "r": [_R],
+    "ɑ": [{"ɑ"}], "ɔ": [{"ɑ"}], "ʌ": [{"ə"}], "ə": [{"ə", "ɪ"}],
     "æ": [{"æ"}], "ɛ": [{"ɛ"}], "ɪ": [{"ɪ"}], "i": [{"i"}], "ʊ": [{"ʊ"}], "u": [{"u"}],
     "eɪ": [{"eɪ"}], "aɪ": [{"aɪ"}], "oʊ": [{"oʊ"}], "aʊ": [{"aʊ"}], "ɔɪ": [{"ɔɪ"}],
-    "t": [{"t", "d"}], "d": [{"d", "t"}], "p": [{"p"}], "b": [{"b"}], "k": [{"k"}], "ɡ": [{"ɡ"}], "g": [{"ɡ"}],
-    "f": [{"f"}], "v": [{"v"}], "θ": [{"θ"}], "ð": [{"ð"}], "s": [{"s"}], "z": [{"z"}], "ʃ": [{"ʃ"}], "ʒ": [{"ʒ"}],
-    "tʃ": [{"t͡ʃ"}], "dʒ": [{"d͡ʒ"}], "h": [{"h"}], "m": [{"m"}], "n": [{"n"}], "ŋ": [{"ŋ"}],
+    "t": [{"t"}], "d": [{"d", "ɾ"}], "p": [{"p"}], "b": [{"b"}], "k": [{"k"}], "ɡ": [{"g"}], "g": [{"g"}],
+    "f": [{"f"}], "v": [{"v"}], "θ": [{"θ"}], "ð": [{"ð"}], "s": [{"s"}], "z": [{"z"}], "ʃ": [{"ʃ"}], "ʒ": [{"ʃ", "z"}],
+    "tʃ": [{"ʧ"}], "dʒ": [{"ʤ"}], "h": [{"h"}], "m": [{"m", "n"}], "n": [{"n", "m"}], "ŋ": [{"ŋ", "n"}],
     "l": [{"l"}], "w": [{"w"}], "j": [{"j"}],
 }
+FLAP_REQ = [_FLAP]  # an American flapped T: heard as a quick D / tap
+DISPLAY = {"ʧ": "tʃ", "ʤ": "dʒ", "ɾ": "flap t", "g": "ɡ"}
 # Tokens that are never reported as a competing sound.
-_IGNORE = {"|", "[UNK]", "[PAD]", "<s>", "</s>"}
+_IGNORE = {"|", " ", "[UNK]", "[PAD]", "<s>", "</s>"}
 
 _state = {"model": None, "proc": None, "status": "idle", "error": None}
 
@@ -51,12 +57,13 @@ def available() -> bool:
 def _load() -> None:
     try:
         _state["status"] = "loading"
-        import torch  # noqa: F401
+        import torch
         from transformers import AutoModelForCTC, AutoProcessor
+        torch.set_num_threads(2)
         proc = AutoProcessor.from_pretrained(MODEL_ID)
-        model = AutoModelForCTC.from_pretrained(MODEL_ID).eval()
+        model = AutoModelForCTC.from_pretrained(MODEL_ID, dtype=DTYPE).eval()
         _state.update(proc=proc, model=model, status="ready", error=None)
-        logger.info("phoneme ear ready (%s)", MODEL_ID)
+        logger.info("phoneme ear ready (%s, %s)", MODEL_ID, DTYPE)
     except Exception as exc:  # noqa: BLE001
         _state.update(status="error", error=str(exc)[:300])
         logger.warning("phoneme ear unavailable: %s", exc)
@@ -77,8 +84,10 @@ def _posteriors(wav_bytes: bytes):
         audio = audio.mean(axis=1)
     proc, model = _state["proc"], _state["model"]
     inputs = proc(audio, sampling_rate=sr, return_tensors="pt")
-    with torch.no_grad():
-        logits = model(**inputs).logits[0]
+    dtype = next(model.parameters()).dtype
+    inputs = {k: (v.to(dtype) if v.is_floating_point() else v) for k, v in inputs.items()}
+    with torch.inference_mode():
+        logits = model(**inputs).logits[0].float()
     probs = torch.softmax(logits, dim=-1).numpy()
     ids = probs.argmax(axis=-1)
     heard = proc.batch_decode(ids[None, :])[0]
@@ -87,8 +96,8 @@ def _posteriors(wav_bytes: bytes):
     return probs, id2tok, heard
 
 
-def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, exclude: set) -> dict:
-    reqs = EXPECTED.get(expected)
+def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, exclude: set, flap: bool = False) -> dict:
+    reqs = FLAP_REQ if (flap and expected == "t") else EXPECTED.get(expected)
     if not reqs:
         return {"expected": expected, "verdict": "unsure", "p_expected": None, "heard": None}
     a = max(0, int((start_s - PAD_S) / FRAME_S))
@@ -113,6 +122,11 @@ def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, ex
         if p > other_p:
             other_tok, other_p = t, p
     vowel_ok = len(reqs) > 1 and req_p[0] >= CONFIRM_P
+    is_flap = flap and expected == "t"
+    if is_flap:
+        # Only a clearly hard T counts as the error; anything else stays unsure.
+        p_hard_t = max((float(seg[:, i].max()) for i, t in id2tok.items() if t == "t"), default=0.0)
+        other_tok, other_p, any_other_p = "t", p_hard_t, p_hard_t
     if p_exp >= CONFIRM_P:
         verdict = "confirmed"
     elif p_exp < MISSING_P and (any_other_p >= OTHER_P or vowel_ok):
@@ -120,15 +134,17 @@ def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, ex
     else:
         verdict = "unsure"
     note = None
-    if verdict == "missing" and failing is _R and len(reqs) > 1:
+    if verdict == "missing" and is_flap:
+        note = "In American English this T is a soft flap — it sounds like a quick D. You said a hard T."
+    elif verdict == "missing" and failing is _R and len(reqs) > 1:
         note = "The R wasn't heard — the vowel was there but not the American R after it."
         vowel = max(((float(seg[:, i].max()), t) for i, t in id2tok.items() if t in reqs[0]), default=(0.0, None))
         other_tok = vowel[1] or other_tok
     elif verdict == "missing" and failing is _R:
         note = "The R wasn't heard."
     return {"expected": expected, "verdict": verdict, "p_expected": round(p_exp, 2),
-            "heard": other_tok.replace("͡", "") if other_tok and verdict != "confirmed" else None,
-            "p_heard": round(other_p, 2), "note": note}
+            "heard": DISPLAY.get(other_tok, other_tok) if other_tok and verdict != "confirmed" else None,
+            "p_heard": round(other_p, 2), "note": note, "flap": bool(flap and expected == "t")}
 
 
 def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
@@ -142,5 +158,8 @@ def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
         for j in (i - 1, i + 1):
             if 0 <= j < len(windows):
                 neighbours |= set().union(*EXPECTED.get(windows[j]["expected"], []))
-        checks.append(_check_window(probs, id2tok, w["start_s"], w["end_s"], w["expected"], neighbours))
+        # For a flap slot, a hard T is exactly the error we want to name, so don't exclude it.
+        if w.get("flap"):
+            neighbours.discard("t")
+        checks.append(_check_window(probs, id2tok, w["start_s"], w["end_s"], w["expected"], neighbours, flap=w.get("flap", False)))
     return {"heard": heard, "checks": checks}

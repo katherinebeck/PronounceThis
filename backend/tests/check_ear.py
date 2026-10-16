@@ -20,6 +20,10 @@ CLIPS = [  # (file, reference word, expectation)
     ("george_word.mp3", "word", "R missing"), ("lily_word.mp3", "word", "R missing"),
     ("ctl_father.mp3", "father", "clean"), ("ctl_george.mp3", "george", "clean"), ("ctl_whole.mp3", "whole", "clean"),
     ("ctl_tour.mp3", "tour", "clean"), ("hannah_story.mp3", "story", "clean"), ("hannah_need.mp3", "need", "clean"),
+    ("flap_city.mp3", "city", "clean"), ("flap_butter.mp3", "butter", "clean"), ("flap_water.mp3", "water", "clean"),
+    ("flap_better.mp3", "better", "clean"), ("flap_pretty.mp3", "pretty", "clean"), ("flap_little.mp3", "little", "clean"),
+    ("hardT_city.mp3", "city", "hard T"), ("hardT_butter.mp3", "butter", "hard T"), ("hardT_water.mp3", "water", "hard T+R"),
+    ("hardT_better.mp3", "better", "hard T+R"), ("hardT_pretty.mp3", "pretty", "hard T"), ("hardT_little.mp3", "little", "hard T"),
 ]
 
 
@@ -29,6 +33,9 @@ async def main():
             audio = open(f"/tmp/pt_rhotic/{f}", "rb").read()
             r = await c.post(f"{API}/practice/assess", data={"word": word}, files={"audio": (f, io.BytesIO(audio), "audio/mpeg")}, cookies=COOKIE)
             b = r.json()
+            if r.status_code != 200:
+                print(f"{f:>18} HTTP {r.status_code} {b.get('detail')}")
+                continue
             ear = b.get("ear") or {}
             checks = " ".join(f"{k['expected']}:{k['verdict'][0]}{'' if k['verdict']=='confirmed' else '('+str(k.get('heard'))+')'}" for k in (ear.get("checks") or []))
             flagged = [f"{n['phoneme']}{'*' if n.get('confirmed') else ''}" for n in b.get("needs_work", [])]

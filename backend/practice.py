@@ -19,6 +19,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 
 from auth import _membership_status, consume_trial, is_admin_email, optional_login, rate_limit, require_access
+from phonetics import get_arpabet
 import phoneme_ear as ear
 
 logger = logging.getLogger("practice")
@@ -91,6 +92,7 @@ class PhonemeScore(BaseModel):
     end_s: Optional[float] = None
     ear: Optional[str] = None  # confirmed | missing | unsure
     note: Optional[str] = None
+    flap: bool = False  # American flapped T expected in this slot
 
 
 class NeedsWork(BaseModel):
@@ -195,13 +197,19 @@ async def _call_azure(wav: bytes, reference: str) -> dict:
         "Pronunciation-Assessment": _assessment_header(reference),
     }
     params = {"language": "en-US", "format": "detailed"}
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            r = await client.post(url, params=params, headers=headers, content=wav)
-    except httpx.TimeoutException:
-        raise HTTPException(status_code=504, detail="The pronunciation checker took too long. Please try again.")
-    except httpx.HTTPError:
-        raise HTTPException(status_code=503, detail="The pronunciation checker is unreachable right now. Please try again shortly.")
+    r = None
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=30) as client:
+                r = await client.post(url, params=params, headers=headers, content=wav)
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="The pronunciation checker took too long. Please try again.")
+        except httpx.HTTPError:
+            raise HTTPException(status_code=503, detail="The pronunciation checker is unreachable right now. Please try again shortly.")
+        if r.status_code == 200 or attempt == 1:
+            break
+        logger.warning("Azure speech %s on attempt 1: %s — retrying", r.status_code, r.text[:200])
+        await asyncio.sleep(1.5)
     if r.status_code in (401, 403):
         logger.error("Azure speech auth failed (%s)", r.status_code)
         raise HTTPException(status_code=503, detail="The pronunciation checker isn't configured correctly. Please contact support.")
@@ -217,13 +225,42 @@ async def _call_azure(wav: bytes, reference: str) -> dict:
 
 
 def _band(score: float) -> tuple[str, str]:
-    if score >= 85:
+    if score >= 95:
         return "Excellent", "Very close to a native American pronunciation."
+    if score >= 85:
+        return "Good", "Clearly American — one or two sounds could be sharper."
     if score >= 70:
-        return "Good", "Clearly understandable — a couple of sounds could be sharper."
+        return "Okay — still needs practice", "Understandable, but at least one sound isn't American yet. Work on the sounds below."
     if score >= 50:
-        return "Getting there", "The word is recognisable, but several sounds need work."
+        return "Needs work", "The word is recognisable, but several sounds need work."
     return "Keep working", "Listen to the American version again and focus on the sounds below."
+
+
+_ARPA_VOWELS = {"AA", "AE", "AH", "AO", "AW", "AY", "EH", "ER", "EY", "IH", "IY", "OW", "OY", "UH", "UW"}
+
+
+def flap_flags(word: str, azure_phonemes: List[str]) -> List[bool]:
+    """Which Azure 't' slots are American flaps (T between a vowel/R and an unstressed vowel or syllabic L).
+
+    Uses CMU stress marks; falls back to all-False when the T counts don't line up.
+    """
+    phones = get_arpabet(word) or []
+    flags_cmu: List[bool] = []
+    for i, ph in enumerate(phones):
+        if ph != "T":
+            continue
+        prev = phones[i - 1] if i > 0 else ""
+        nxt = phones[i + 1] if i + 1 < len(phones) else ""
+        prev_ok = prev[:2] in _ARPA_VOWELS or prev == "R"
+        nxt_ok = (nxt[:2] in _ARPA_VOWELS and nxt.endswith("0")) or nxt == "L"
+        flags_cmu.append(prev_ok and nxt_ok)
+    t_slots = [i for i, p in enumerate(azure_phonemes) if p == "t"]
+    out = [False] * len(azure_phonemes)
+    if len(t_slots) != len(flags_cmu):
+        return out
+    for slot, f in zip(t_slots, flags_cmu):
+        out[slot] = f
+    return out
 
 
 def _pa(item: dict) -> dict:
@@ -248,6 +285,8 @@ def _interpret(word: str, result: dict) -> AssessResponse:
 
     phonemes: List[PhonemeScore] = []
     for w in words:
+        word_text = w.get("Word") or ""
+        w_phonemes: List[PhonemeScore] = []
         for p in w.get("Phonemes", []):
             p = _pa(p)
             exp = p.get("Phoneme") or ""
@@ -264,11 +303,14 @@ def _interpret(word: str, result: dict) -> AssessResponse:
                 st = "close"
             else:
                 st = "needs_work"
-            phonemes.append(PhonemeScore(
+            w_phonemes.append(PhonemeScore(
                 expected=exp, score=sc, heard=heard, status=st,
                 start_s=(p.get("Offset") or 0) / 1e7 if p.get("Offset") is not None else None,
                 end_s=((p.get("Offset") or 0) + (p.get("Duration") or 0)) / 1e7 if p.get("Offset") is not None else None,
             ))
+        for ps, is_flap in zip(w_phonemes, flap_flags(word_text, [ps.expected for ps in w_phonemes])):
+            ps.flap = is_flap
+        phonemes.extend(w_phonemes)
 
     score = nbest.get("PronScore")
     accuracy = nbest.get("AccuracyScore")
@@ -345,7 +387,7 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
         out = _interpret(reference, result)
         heard = None
         if out.assessable and ear.available():
-            windows = [{"expected": p.expected, "start_s": p.start_s or 0.0, "end_s": p.end_s or 0.0} for p in out.phonemes]
+            windows = [{"expected": p.expected, "start_s": p.start_s or 0.0, "end_s": p.end_s or 0.0, "flap": p.flap} for p in out.phonemes]
             try:
                 heard = await asyncio.to_thread(ear.listen, wav_bytes, windows)
             except Exception as exc:  # noqa: BLE001

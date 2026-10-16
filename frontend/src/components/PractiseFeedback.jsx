@@ -1,7 +1,7 @@
 import React from "react";
 import { Check, Target, Ear } from "lucide-react";
 
-const BAND_COLOR = { Excellent: "text-sage", Good: "text-sage", "Getting there": "text-rust", "Keep working": "text-crimson" };
+const BAND_COLOR = { Excellent: "text-sage", Good: "text-sage", "Okay — still needs practice": "text-rust", "Needs work": "text-crimson", "Keep working": "text-crimson" };
 const VERDICT = { confirmed: ["✓", "text-sage"], missing: ["✗", "text-crimson"], unsure: ["?", "text-muted2"] };
 
 // Admin-only: raw readout from the phoneme recogniser so the coach can tune it on real voices.
