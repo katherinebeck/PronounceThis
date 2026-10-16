@@ -1,0 +1,17 @@
+{
+  "summary": "Retest of the iteration_32 HIGH bug: practice takes are now sent untrimmed (useRecorder({trim:false})). Frontend only, using the fake mic (fake_mic_init.js with hannah_party/lily_party mp3 converted to 48 kHz wav, Record, 2.6 s, Stop, Analyse). 3 Azure calls. All 5 checks PASS. MEMBER ptbuyer114077: hannah_party scored 10/10 Excellent, with 0 practise-confirmed badges and 'Every sound scored well' (no /p/ item). lily_party scored 7.5/10 Good, with exactly one confirmed item /ɑɹ/ ('NOT HEARD' plus the R note 'The R wasn't heard — the vowel was there but not the American R after it.'); /p/ was not flagged. The member sees no practise-ear block. ADMIN (legacy accent_session cookie): hannah_party scored 10/10 Excellent, with ear status=ready and heard='p ɑ ɹ t i'. All 4 chips (/p/, /ɑɹ/, /t/, /i/) show ✓ at 100%, and needs_work=[]. NETWORK: FormData audio part filename='take.webm', blob type 'audio/webm;codecs=opus' (11.9 KB, not a wav). Request content-type is multipart/form-data. REGRESSION: Admin → My Dictionary loads. dictionary-record → dictionary-stop shows 'Take ready' plus dictionary-preview. The blob is audio/wav (trim path unchanged). No page errors. Nothing was saved.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/fake_mic_init.js"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "api.js assessPronunciation: the filename is picked by blob.type ('audio/webm;codecs=opus' → take.webm, mp4 → take.mp4, else take.wav). This is correct, and the backend's ffmpeg normalises the audio to 16 kHz mono.",
+    "Untrimmed takes include leading and trailing silence, plus any noise before speech. Azure and the ear handled this fine in the fake-mic runs. Real-mic noise was not tested."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (frontend only)", "frontend": "100% (5/5 checks)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fake mic: add_init_script(fake_mic_init.js), then set window.__fakeB64 to the base64 of /tmp/{hannah,lily}_party.wav (/tmp/*.b64, made with ffmpeg -ar 48000 -ac 1). Playwright's post_data_buffer does not capture blob multipart bodies. Instead, wrap FormData.prototype.append in an init script to log the filename and type. Admin dictionary tab: admin-nav-dictionary."
+}
