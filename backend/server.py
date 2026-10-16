@@ -77,7 +77,7 @@ from auth import (
 from kajabi import create_kajabi_router
 from admin import create_admin_router
 from dictionary import create_dictionary_router, load_custom_ipa, revoice_recording, seed_toponyms
-from practice import create_practice_router
+from practice import create_practice_router, enabled as practice_enabled
 import accent_guard
 import phoneme_ear
 from stripe_payments import create_stripe_router
@@ -1956,7 +1956,8 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def _startup_indexes():
-    phoneme_ear.warm()
+    if practice_enabled():
+        phoneme_ear.warm()  # Practise This Word only; dormant (no model, no RAM) unless PRACTICE_MODE=on + Azure key
     await ensure_auth_indexes(db)
     async for pref in db.pronunciation_prefs.find({}, {"_id": 0}):
         PREFERRED_ARPA[pref["word"]] = pref["arpabet"]

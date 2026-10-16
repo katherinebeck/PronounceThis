@@ -275,7 +275,9 @@ def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
 
 
 def enabled() -> bool:
-    return bool(os.environ.get("AZURE_SPEECH_KEY") and os.environ.get("AZURE_SPEECH_REGION"))
+    """Opt-in: PRACTICE_MODE=on plus the Azure key. Production stays dark until the switch is set."""
+    return (os.environ.get("PRACTICE_MODE", "").lower() == "on"
+            and bool(os.environ.get("AZURE_SPEECH_KEY") and os.environ.get("AZURE_SPEECH_REGION")))
 
 
 def _to_wav(src: Path, dst: Path) -> float:
