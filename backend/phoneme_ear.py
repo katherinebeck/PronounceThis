@@ -93,7 +93,16 @@ def _posteriors(wav_bytes: bytes):
     heard = proc.batch_decode(ids[None, :])[0]
     vocab = proc.tokenizer.get_vocab()
     id2tok = {i: t for t, i in vocab.items() if isinstance(i, int) and i < probs.shape[1]}
-    return probs, id2tok, heard
+    pad = proc.tokenizer.pad_token_id
+    tokens, prev = [], None
+    for i in ids.tolist():
+        if i != prev and i != pad and id2tok.get(i) not in _IGNORE:
+            tokens.append(id2tok[i])
+        prev = i
+    return probs, id2tok, heard, tokens
+
+
+VOWELS = {"ɑ", "æ", "ə", "aʊ", "aɪ", "ɛ", "ɝ", "eɪ", "ɪ", "i", "oʊ", "ɔɪ", "ʊ", "u"}
 
 
 def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, exclude: set, flap: bool = False) -> dict:
@@ -151,7 +160,7 @@ def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
     """windows: [{expected, start_s, end_s}] from Azure phoneme timings (16 kHz mono PCM wav)."""
     if not available():
         return None
-    probs, id2tok, heard = _posteriors(wav_bytes)
+    probs, id2tok, heard, tokens = _posteriors(wav_bytes)
     checks = []
     for i, w in enumerate(windows):
         neighbours = set()
@@ -162,4 +171,5 @@ def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
         if w.get("flap"):
             neighbours.discard("t")
         checks.append(_check_window(probs, id2tok, w["start_s"], w["end_s"], w["expected"], neighbours, flap=w.get("flap", False)))
-    return {"heard": heard, "checks": checks}
+    nuclei = sum(1 for i, t in enumerate(tokens) if t in VOWELS and not (t == "ɝ" and i > 0 and tokens[i - 1] in VOWELS))
+    return {"heard": heard, "checks": checks, "tokens": tokens, "heard_vowels": nuclei}

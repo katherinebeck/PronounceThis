@@ -19,8 +19,9 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 
 from auth import _membership_status, consume_trial, is_admin_email, optional_login, rate_limit, require_access
-from phonetics import get_arpabet
+from phonetics import ARPA_TO_IPA, CUSTOM_IPA, get_arpabet, ipa_to_arpabet
 import phoneme_ear as ear
+import difflib
 
 logger = logging.getLogger("practice")
 
@@ -93,6 +94,7 @@ class PhonemeScore(BaseModel):
     ear: Optional[str] = None  # confirmed | missing | unsure
     note: Optional[str] = None
     flap: bool = False  # American flapped T expected in this slot
+    azure_expected: Optional[str] = None  # set when Azure picked a non-American variant
 
 
 class NeedsWork(BaseModel):
@@ -132,6 +134,34 @@ class AssessResponse(BaseModel):
     ear: Optional[dict] = None  # admin-only readout: {heard, checks, status}
     stress: Optional[StressCheck] = None
     syllables: List[dict] = []  # [{text, start_s, end_s}] from Azure, single-word lookups only
+    expected_vowels: int = 0
+    extra_syllables: int = 0
+
+
+EXTRA_SYLLABLE_PENALTY = 15
+
+
+def check_extra_syllables(out: "AssessResponse", heard: Optional[dict]) -> None:
+    """More vowel nuclei heard than the American word has → an added syllable (alu-MIN-i-um)."""
+    if not heard or not out.expected_vowels:
+        return
+    extra = int(heard.get("heard_vowels") or 0) - out.expected_vowels
+    if extra < 1:
+        return
+    out.extra_syllables = extra
+    pattern = None
+    if out.syllables:
+        phones = our_phones(out.word.lower())
+        stresses = [ph[-1] for ph in phones if ph[-1].isdigit()]
+        idx = stresses.index("1") if "1" in stresses else -1
+        pattern = _display_pattern([s["text"] for s in out.syllables], idx)
+    note = f"We heard {out.expected_vowels + extra} syllables — the American word has {out.expected_vowels}"
+    note += f": {pattern}." if pattern else "."
+    out.needs_work.insert(0, NeedsWork(phoneme="extra syllable", note=note, confirmed=True,
+                                       tip="Say it the American way, with no added vowel. Listen to the reference and match the syllable count."))
+    out.score = max(0.0, min(float(out.score or 0) - EXTRA_SYLLABLE_PENALTY * extra, MISS_CAP))
+    out.band, out.summary = _band(out.score)
+    out.score10 = round(out.score / 10, 1)
 
 
 STRESS_PENALTY = 10
@@ -323,6 +353,42 @@ def _band(score: float) -> tuple[str, str]:
 
 
 _ARPA_VOWELS = {"AA", "AE", "AH", "AO", "AW", "AY", "EH", "ER", "EY", "IH", "IY", "OW", "OY", "UH", "UW"}
+_R_COMBO = {"ɑ": "ɑɹ", "ɔ": "ɔɹ", "ɛ": "ɛɹ", "ɪ": "ɪɹ", "ʊ": "ʊɹ", "ə": "ɚ", "ʌ": "ɝ"}
+
+
+def our_phones(word: str) -> List[str]:
+    """The app's own American pronunciation (coach IPA wins over CMU) as ARPABET phones."""
+    if word in CUSTOM_IPA:
+        return ipa_to_arpabet(CUSTOM_IPA[word]) or []
+    return get_arpabet(word) or []
+
+
+def expected_sequence(phones: List[str]) -> List[str]:
+    """ARPABET → Azure-style IPA symbols (vowel+R merged into r-coloured combos)."""
+    seq: List[str] = []
+    for ph in phones:
+        base, stress = ph.rstrip("012"), ph[-1] if ph[-1].isdigit() else ""
+        sym = ARPA_TO_IPA.get(base, "")
+        if base == "AH" and stress == "0":
+            sym = "ə"
+        if base == "ER" and stress == "0":
+            sym = "ɚ"
+        if sym == "ɹ" and seq and seq[-1] in _R_COMBO:
+            seq[-1] = _R_COMBO[seq[-1]]
+            continue
+        seq.append(sym)
+    return seq
+
+
+def align_expected(ours: List[str], azure: List[str]) -> List[Optional[str]]:
+    """Per Azure slot: our symbol when Azure chose a different variant, else None."""
+    out: List[Optional[str]] = [None] * len(azure)
+    sm = difflib.SequenceMatcher(a=azure, b=ours, autojunk=False)
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "replace" and (i2 - i1) == (j2 - j1):
+            for k in range(i2 - i1):
+                out[i1 + k] = ours[j1 + k]
+    return out
 
 
 def flap_flags(word: str, azure_phonemes: List[str]) -> List[bool]:
@@ -371,6 +437,7 @@ def _interpret(word: str, result: dict) -> AssessResponse:
 
     phonemes: List[PhonemeScore] = []
     syllables: List[dict] = []
+    expected_vowels = 0
     for w in words:
         word_text = w.get("Word") or ""
         if len(words) == 1:
@@ -400,6 +467,12 @@ def _interpret(word: str, result: dict) -> AssessResponse:
             ))
         for ps, is_flap in zip(w_phonemes, flap_flags(word_text, [ps.expected for ps in w_phonemes])):
             ps.flap = is_flap
+        # Azure accepts any dictionary variant (PROH-cess); we insist on the app's American one.
+        phones = our_phones(word_text.lower())
+        expected_vowels += sum(1 for ph in phones if ph.rstrip("012") in _ARPA_VOWELS)
+        for ps, ours in zip(w_phonemes, align_expected(expected_sequence(phones), [p.expected for p in w_phonemes])):
+            if ours and ours in ear.EXPECTED:
+                ps.azure_expected, ps.expected = ps.expected, ours
         phonemes.extend(w_phonemes)
 
     score = nbest.get("PronScore")
@@ -421,6 +494,7 @@ def _interpret(word: str, result: dict) -> AssessResponse:
         score=round(float(score)), score10=round(float(score) / 10, 1), azure_score=round(float(score)),
         accuracy=round(float(accuracy)) if accuracy is not None else None,
         band=band, summary=summary, phonemes=phonemes, accurate=accurate, needs_work=needs, syllables=syllables,
+        expected_vowels=expected_vowels,
     )
 
 
@@ -483,6 +557,7 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("phoneme ear failed: %s", exc)
             apply_ear(out, heard)
+            check_extra_syllables(out, heard)
         if out.assessable:
             check_held_r(out)
         if out.assessable and out.syllables:

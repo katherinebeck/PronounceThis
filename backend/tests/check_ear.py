@@ -24,6 +24,8 @@ CLIPS = [  # (file, reference word, expectation)
     ("flap_better.mp3", "better", "clean"), ("flap_pretty.mp3", "pretty", "clean"), ("flap_little.mp3", "little", "clean"),
     ("hardT_city.mp3", "city", "hard T"), ("hardT_butter.mp3", "butter", "hard T"), ("hardT_water.mp3", "water", "hard T+R"),
     ("hardT_better.mp3", "better", "hard T+R"), ("hardT_pretty.mp3", "pretty", "hard T"), ("hardT_little.mp3", "little", "hard T"),
+    ("hannah_process.mp3", "process", "clean"), ("hannah_aluminum.mp3", "aluminum", "clean"), ("hannah_banana.mp3", "banana", "clean"),
+    ("george_process.mp3", "process", "Brit o"), ("george_aluminium.mp3", "aluminum", "+syllable"), ("lily_aluminium.mp3", "aluminum", "+syllable"),
 ]
 
 
