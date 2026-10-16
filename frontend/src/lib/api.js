@@ -94,6 +94,22 @@ export async function fetchTTS(word, phonetic = false, arpabet = null) {
   return data; // { word, audio_b64, mime, cached }
 }
 
+export async function fetchPracticeStatus() {
+  const { data } = await api.get("/practice/status");
+  return data;
+}
+
+export async function assessPronunciation(word, blob) {
+  const fd = new FormData();
+  fd.append("word", word);
+  fd.append("audio", blob, "take.wav");
+  const { data } = await api.post("/practice/assess", fd, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 60000,
+  });
+  return data;
+}
+
 export async function pronounceWord(word) {
   const { data } = await api.get("/pronounce", { params: { word } });
   return data; // { word, normalized, ipa, arpabet, categories, source }

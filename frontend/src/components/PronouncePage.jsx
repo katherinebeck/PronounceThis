@@ -4,6 +4,7 @@ import { pronounceWord, fetchSoundCategories } from "@/lib/api";
 import { playWord } from "@/lib/audio";
 import YouglishModal from "./CaptionSearchModal";
 import HeteronymVariants from "./HeteronymVariants";
+import PractiseWord from "./PractiseWord";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
@@ -193,6 +194,10 @@ export default function PronouncePage({ onGoToScenes }) {
               </div>
             ) : null}
           </div>
+        ) : null}
+
+        {result?.word && result?.ipa ? (
+          <PractiseWord word={result.word} onHearReference={play} referencePlaying={playingHint} canHearReference={!hasVariants} />
         ) : null}
 
         {result?.word ? (

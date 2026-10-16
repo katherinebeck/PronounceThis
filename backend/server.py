@@ -77,6 +77,7 @@ from auth import (
 from kajabi import create_kajabi_router
 from admin import create_admin_router
 from dictionary import create_dictionary_router, load_custom_ipa, revoice_recording, seed_toponyms
+from practice import create_practice_router
 from stripe_payments import create_stripe_router
 
 # --- DB ---------------------------------------------------------------------
@@ -1934,6 +1935,7 @@ api_router.include_router(create_auth_router(db))
 api_router.include_router(create_kajabi_router(db))
 api_router.include_router(create_admin_router(db))
 api_router.include_router(create_dictionary_router(db))
+api_router.include_router(create_practice_router(db))
 api_router.include_router(create_stripe_router(db))
 app.include_router(api_router)
 

@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { trimRecording } from "./audioTrim";
 
 // Mic capture → auto-trimmed WAV blob + preview URL.
-export function useRecorder() {
+export function useRecorder({ onError } = {}) {
   const [recording, setRecording] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [blob, setBlob] = useState(null);
@@ -40,10 +40,11 @@ export function useRecorder() {
       recRef.current = rec;
       rec.start();
       setRecording(true);
-    } catch {
-      toast.error("Microphone access was blocked. Allow the mic in your browser and try again.");
+    } catch (err) {
+      if (onError) onError(err);
+      else toast.error("Microphone access was blocked. Allow the mic in your browser and try again.");
     }
-  }, [reset]);
+  }, [reset, onError]);
 
   const stop = useCallback(() => {
     recRef.current?.stop();
