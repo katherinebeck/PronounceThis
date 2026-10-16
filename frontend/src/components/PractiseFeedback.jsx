@@ -75,7 +75,7 @@ export default function PractiseFeedback({ result }) {
               {result.needs_work.map((n) => (
                 <li key={n.phoneme} className={`border-l-2 pl-3 ${n.confirmed ? "border-crimson" : "border-rust"}`}>
                   <div className="flex items-baseline gap-3 flex-wrap">
-                    <span className="font-mono text-base text-ink">/{n.phoneme}/</span>
+                    <span className="font-mono text-base text-ink">{n.phoneme.includes(" ") ? n.phoneme : `/${n.phoneme}/`}</span>
                     {n.confirmed ? <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-crimson" data-testid="practise-confirmed">not heard</span>
                       : n.overdone ? <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-rust" data-testid="practise-overdone">held too long</span>
                       : <span className="font-mono text-xs text-muted2">{n.score != null ? `${Math.round(n.score)}/100` : ""}</span>}

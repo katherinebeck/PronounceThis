@@ -1,0 +1,30 @@
+{
+  "summary": "Frontend-only test of Practise This Word as a member (ptbuyer114077), using the fake mic from iteration_35. Used 4 Azure calls. (1) process + george_process: 7.5/10, 'Okay — still needs practice'. Sounds to work on lists /ɑ/ with a NOT HEARD badge and 'sounded closer to /oʊ/'. Stress is ok: PRO-cess. PASS. (2) aluminum + george_aluminium: 4.2/10, 'Keep working'. The first needs_work item is phoneme 'extra syllable' with the note 'We heard 5 syllables — the American word has 4: a-LU-mi-num.' The practise-stress block has the crimson border and reads 'The stress landed on “mi” — Americans say a-LU-mi-num.' The backend part PASSES. The UI part FAILS the 'no slashes' requirement: the label shows as '/extra syllable/' and also carries a 'NOT HEARD' badge. (3) process + hannah_process: 9.9/10 Excellent, with 0 confirmed badges, 0 overdone and no ear block. Stress is ok: PRO-cess (border-sage). PASS. (4) REGRESSION party + hannah_party: 10/10 Excellent. Stress is ok: PAR-ty (border-sage), with no badges. PASS. No page errors and no API 4xx/5xx in any run.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "PractiseFeedback.jsx needs_work item (line 78)", "issue": "The label is always wrapped as `/{n.phoneme}/`, so the extra-syllable item shows as '/extra syllable/' instead of 'extra syllable' (no slashes). Only add the slashes for real phonemes, e.g. when n.phoneme !== 'extra syllable', or when a backend kind/label field is not set.", "selector": "[data-testid='practise-needs-work'] li:first-child span.font-mono.text-base", "priority": "MEDIUM"},
+      {"component": "PractiseFeedback.jsx extra-syllable item", "issue": "The backend sets confirmed=True for the extra-syllable item, so the UI shows the 'NOT HEARD' badge beside it. That is semantically wrong: the problem is that something extra was heard. Show a different badge (e.g. 'added') or none.", "selector": "[data-testid='practise-confirmed']", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Practise result (aluminum)", "issues": ["/m/ appears both under 'Sounds you nailed' (final m, 100) and under 'Sounds to work on' (medial m, 51). This is confusing because the lists are keyed by phoneme rather than by position."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/fake_mic_init.js"],
+  "action_items": [
+    "PractiseFeedback.jsx: render the 'extra syllable' needs_work label without the /…/ slashes (use a non-phoneme flag or kind from the backend).",
+    "Optional: give the extra-syllable item its own badge (e.g. 'added') instead of 'not heard'. Today confirmed=True is reused for it."
+  ],
+  "critical_code_review_comments": [
+    "check_extra_syllables reuses NeedsWork.confirmed=True to force the crimson styling. The UI can't tell it apart from a missed phoneme except by the magic string 'extra syllable'. Add an explicit field, e.g. kind='syllable'.",
+    "flap_flags still uses get_arpabet (CMU) while the new checks use our_phones (coach IPA first). For a word with coach IPA that differs from CMU, the flap detection can disagree with the expected sequence.",
+    "Keying the needs_work list by phoneme (React key={n.phoneme}) means two instances of the same phoneme in one word, such as two /ə/, collide as duplicate React keys if both are listed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (frontend only)", "frontend": "~88% (3.5/4 scenarios; aluminium fails only on the label slashes)"},
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "48 kHz mono wav and b64 files are in /tmp/i36_{george_process,george_aluminium,hannah_process,hannah_party}.b64. The flow: add the init scripts (window.__fakeB64 plus fake_mic_init.js), log in at /login (auth-email, auth-password, auth-submit), which lands on /app. Then pronounce-input, pronounce-submit, practise-record, wait 2.6 s, practise-stop, practise-analyse, practise-score. Doing a second word in the same session via goto('/app') did not show practise-record within 20 s. Use a fresh session for each word."
+}
