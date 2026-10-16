@@ -56,6 +56,7 @@ from caption_search import CaptionSearchService
 from notify import notify_owner
 import notify
 import line_check
+import ocr
 from word_check import judge_word
 import page_allowance
 from wiktionary import WiktionaryIPA
@@ -903,6 +904,9 @@ async def upload_scene(
             allowance = await page_allowance.usage(db, actor.email)
             if len(pages) > allowance["remaining"]:
                 raise HTTPException(status_code=429, detail=page_allowance.limit_message(allowance, len(pages)))
+        if any(not t.strip() for t in pages):
+            # Scanned / photographed script: read the page images instead.
+            pages = await ocr.ocr_pages(reader, pages)
     except HTTPException:
         raise
     except Exception as e:
@@ -913,7 +917,9 @@ async def upload_scene(
     if not text:
         raise HTTPException(
             status_code=400,
-            detail="No text was found in this PDF. Only text-based PDFs are supported.",
+            detail=("We couldn't read any text from this PDF — the scan may be too blurry or low-contrast. "
+                    "Try a clearer scan or a text PDF." if ocr.available() else
+                    "No text was found in this PDF. Only text-based PDFs are supported."),
         )
 
     # Dialogue-only pipeline: LLM extracts spoken lines + proper nouns, then

@@ -18,7 +18,7 @@ export default function UploadDropzone({ onUploaded }) {
     }
     if (!file) return;
     if (!file.name.toLowerCase().endsWith(".pdf")) {
-      toast.error("Only text-based PDF files are supported.");
+      toast.error("Please upload a PDF (typed or scanned)."); 
       return;
     }
     setBusy(true);
@@ -77,7 +77,7 @@ export default function UploadDropzone({ onUploaded }) {
             {busy ? (
               <>
                 <Loader2 size={14} className="animate-spin" />
-                Transcribing
+                Reading your script… (scans take up to a minute)
               </>
             ) : (
               <>
@@ -87,7 +87,7 @@ export default function UploadDropzone({ onUploaded }) {
             )}
           </button>
           <span className="font-mono text-xs text-muted2">
-            or drag a file anywhere in this panel
+            or drag a file anywhere in this panel — typed or scanned scripts
           </span>
         </div>
       </div>
