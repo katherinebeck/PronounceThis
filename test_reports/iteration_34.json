@@ -1,0 +1,26 @@
+{
+  "summary": "Frontend-only test of the TIMIT bf16 ear, flap-T detection and the renamed score bands. Ran with the fake mic (fake_mic_init.js, 48 kHz wav made from the /tmp/pt_rhotic mp3s; Record, 2.6 s, Stop, Analyse). Used 5 Azure calls. The backend log shows 'phoneme ear ready (vitouphy/wav2vec2-xls-r-300m-timit-phoneme, bfloat16)'. ALL 5 CHECKS PASS. (1) Member, city + hardT_city: score 7.5/10, band 'Okay — still needs practice' (class text-rust, rgb(239,89,115)). One practise-confirmed item: /t/ with the 'NOT HEARD' badge and the note 'In American English this T is a soft flap — it sounds like a quick D. You said a hard T.' Nailed: /i/ /s/ /ɪ/. (2) Member, city + flap_city: 9.9/10 Excellent (text-sage), 0 confirmed, 'Every sound scored well', /t/ listed as nailed. (3) Member, party + lily_party: 6/10 'Needs work' (text-crimson). 2 confirmed items: /ɑɹ/ with the R note, then /t/ with the flap note. Nailed: /i/ /p/. The member sees no practise-ear block in any of these runs. (4) Admin via legacy accent_session cookie, party + hannah_party: 10/10 Excellent, 0 confirmed. practise-ear shows status READY, heard 'pɑɝɾi', and chips /p/ ✓99%, /ɑɹ/ ✓56%, /t/ ✓88%, /i/ ✓98%. (5) Trial pttrial997949, city + flap_city: practise-analyse is shown first, scores 9.9/10 Excellent, then the button becomes practise-join and stays practise-join after Record again ('Free trial includes one pronunciation check per word.'). Cleanup: practice_words was unset; verified empty afterwards. No page errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "PractiseFeedback /t/ flap item", "issues": ["The generic /t/ tip ('Crisp /t/ with a puff of air at word starts; …') appears right under the flap note. It mostly repeats the note and begins with advice that doesn't apply to a flap. A flap-specific tip would read better."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/fake_mic_init.js"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "The admin ear readout shows heard 'pɑɝɾi' rather than the 'pɑɹɾi' quoted in the review request. The TIMIT 'er' token is shown as ɝ. The ear treats _R = {ɹ, ɝ} as equivalent, so the verdict is still correct (✓). Only the displayed string differs.",
+    "The /ɑɹ/ chip passed with p_expected at only 56% on a native rhotic clip, which is a thin margin. Accented-but-rhotic voices may come out 'unsure' rather than confirmed. This is acceptable, because 'unsure' is never shown to students.",
+    "The phoneme_ear.py module docstring still describes the old model ('wav2vec2, LJSpeech/gruut IPA'). Update it to TIMIT.",
+    "flap_flags falls back to all-False when the CMU T count and the Azure 't' slot count differ, for example with multi-word phrases or OOV words. That fallback is safe, but flaps are silently not detected in those cases.",
+    "The rust band colour (rgb(239,89,115)) reads as pink/coral rather than amber. It is the theme's rust token and is clearly different from sage and crimson, so it is fine as long as that is intended."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (frontend only)", "frontend": "100% (5/5 checks)"},
+  "seed_data_creation": "None. The trial user's practice_words was unset after the test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "48 kHz wav and base64 files are at /tmp/r_{hardT_city,flap_city,lily_party,hannah_party}.{wav,b64}. Set window.__fakeB64 via page.evaluate before clicking practise-record. Member login: go to /login, fill auth-email and auth-password, click auth-submit, which lands on /app. Search with pronounce-input and pronounce-submit. Admin: add the accent_session cookie (JWT from auth._issue_jwt), then go to /app. Trial: one analyse per word, after which practise-join appears. Unset practice_words afterwards."
+}
