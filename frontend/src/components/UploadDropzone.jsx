@@ -86,8 +86,9 @@ export default function UploadDropzone({ onUploaded }) {
               </>
             )}
           </button>
-          <span className="font-mono text-xs text-muted2">
-            or drag a PDF anywhere in this panel (scanned pages may take up to a minute)
+          <span className="font-mono text-xs text-muted2 flex flex-col gap-0.5" data-testid="upload-hint">
+            <span>or drag a PDF anywhere in this panel</span>
+            <span className="text-muted2/70">(scanned pages may take up to a minute)</span>
           </span>
         </div>
       </div>
