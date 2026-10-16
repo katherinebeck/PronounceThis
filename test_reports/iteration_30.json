@@ -1,0 +1,36 @@
+{
+  "summary": "Tested the new 'Practise This Word' feature end to end (backend and frontend) and checked existing features for regressions. Backend: check_practice.py passes against the public URL, and the new pytest file passes 5/5 (status, 401, 400, 422, rate-limit 429). Frontend: the Record → Stop → Play → Analyse flow was driven with an injected fake microphone that plays the cached 'party' clip. Paid member got 100/100 Excellent with the sounds listed under 'Sounds you nailed' and the 'Heard as' line. Saying 'party' against the word 'whole' showed practise-unassessable with a clear reason. Microphone denied showed practise-error with no toast. Nothing was sent to /api/practice/assess until Analyse was pressed. Searching a new word reset the panel. The heteronym 'record' showed the panel without the Hear-reference button. The trial user flow worked, and practising did NOT use up a second trial word. Regressions all pass: logged-out visitors get no panel and see the trial popup; the Scene upload panel renders for a logged-in user; Admin My Dictionary loads and its denied-mic toast is unchanged; the panel looks right on mobile. About 10 Azure assess calls were made in total.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/practice/assess", "issue": "The rate limit is counted before the audio is checked, so empty, too-short or unreadable takes (400/415) count toward the 20-per-hour limit. A user with a flaky mic could hit 429 without a single real assessment. Consider counting only after the audio passes checks."},
+      {"endpoint": "POST /api/practice/assess", "issue": "rate_limit is an in-process memory store: it resets when the backend reloads and is per-worker (seen during the test: a reload cleared the admin's earlier calls). Fine for MVP."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Word tab, Practise panel after a take (desktop 1920)", "issues": ["Once 'Record again' and 'Play my take' are shown, 'Hear the American version' wraps onto its own line in the narrow ~535px column. Fine, but slightly uneven."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_practice_api.py", "/app/backend/tests/check_practice.py", "/app/test_reports/pytest/practice_results.xml"],
+  "action_items": [
+    "Optional: in practice.py, call rate_limit only after the audio-size and ffmpeg checks pass, so rejected takes don't use up a user's hourly allowance",
+    "Optional: GET /api/practice/status is fetched again on every PractiseWord mount (seen twice per search). Could be cached at module level."
+  ],
+  "critical_code_review_comments": [
+    "practice.py: _to_wav runs ffmpeg via asyncio.to_thread (good, not blocking). The temp dir is cleaned up; no pt-practice-* dirs were left in /tmp after any call.",
+    "practice.py: consume_trial runs after a successful Azure call even when the result is unassessable. For a trial user on a word they already unlocked, it does not count again (checked in the DB: trial_word_used stayed at 1).",
+    "PractiseWord.jsx: 401/402 are left to the global interceptor in App.js (paywall/login), so no practise-error appears for them. Correct.",
+    "useRecorder.js: the onError option is backward compatible; DictionaryBuilder still shows the default toast.",
+    "Small point: if a re-record fails because the mic is denied, the previous take and its Analyse button stay visible. That is acceptable."
+  ],
+  "updated_files": ["/app/backend/tests/test_practice_api.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None kept. The trial user pttrial997949 used 1 trial word ('party') during the test; it was reset to trial_word_used:0 and trial_words:[] afterwards. The trial_devices counter for the automation browser's device may have gone up by 1.",
+  "test_credentials": "Taken from /app/memory/test_credentials.md: buyer ptbuyer114077@gmail.com/Buyer2026pass, trial pttrial997949@gmail.com/Trial2026pass, admin via legacy accent_session JWT cookie (also works in the browser for /admin).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Fake-mic technique: add_init_script that overrides navigator.mediaDevices.getUserMedia to return an AudioContext MediaStreamDestination playing window.__fakeB64. Fill it from the /api/tts POST response captured when clicking pronounce-play or practise-hear-reference. Set window.__denyMic=true to simulate NotAllowedError. The browser automation tool can read /tmp files, e.g. /tmp/jwt.txt with the admin JWT. Trial login shows a WelcomeModal: close it with data-testid=welcome-close. tab-scenes/tab-word appear twice (desktop and a hidden mobile tab bar), so use the ':visible' selector. Running test_practice_api.py rate-limits the admin user (key practice:katherine@...) for 1 hour unless the backend restarts."
+}
