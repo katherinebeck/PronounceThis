@@ -1,0 +1,31 @@
+{
+  "summary": "Tested Accent guard (backend + admin UI), the Practise word-stress line and held-R badge, and regressions. Used 2 Azure calls. ALL CHECKS PASS. BACKEND: the new pytest file tests/test_accent_guard.py passed 7/7. It covered: 401/403 without admin; 72 seeded entries, sorted, with strewth=/stɹuθ/; adding with IPA normalises whitespace and case, then delete is verified by GET; an unknown word with no IPA returns 400 'isn't in the dictionary'; an empty word returns 400; a CMU word with no IPA resolves its IPA; GET /api/pronounce?word=strewth returns ipa 'stɹuθ'. ADMIN UI (/admin#accent via legacy cookie): the header reads 'Accent guard · 72 words' and there are 72 chips, with accent-guard-chip-strewth showing /stɹuθ/. Searching 'cr' shows only craic and crikey; 'qqqq' shows 'No words match.' Adding 'yeah nah' with /jæ næ/ shows a success toast, adds the chip and clears the inputs. Adding 'zzqx' shows the error toast 'That word isn't in the dictionary — please type its American IPA.' and no chip. Adding 'reckon' gives the chip /ˈɹɛk·ən/ (CMU). Removing yeah nah and reckon clears both chips; GET and a page reload confirm they are gone. reckon is a seeded default, so I added it back through the API afterwards (count is 72 again). MEMBER (ptbuyer114077): party + hannah_party scored 10/10 Excellent. practise-stress has the class border-sage and reads 'Stress in the right place: PAR-ty'. There is no practise-overdone badge and no practise-ear block. word + lily_word scored 7.5/10 'Okay — still needs practice' with /ɝ/ NOT HEARD 'The R wasn't heard.'; there is no practise-stress block and no overdone badge. REGRESSION: the Admin My Dictionary and Audio check tabs load; the nav to Accent guard updates the hash. The Word tab result card for strewth shows stɹuθ and Hear Word plays. No page errors and no API 4xx/5xx.",
+  "backend_issues": {"critical": [], "minor": [
+    {"endpoint": "accent_guard.load (seed)", "issue": "DEFAULTS has 73 words but only 72 were seeded. 'thongs' is None (take CMU) but isn't in CMU, so it was silently dropped. Give it an explicit IPA (θɔŋz / θɑŋz). default_count=73 also doesn't match the list size."}
+  ]},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin → Accent guard", "issues": ["Removing a chip (including seeded defaults) happens with one click: there is no confirm, success toast or undo, and no way to restore the defaults."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_accent_guard.py", "/app/test_reports/pytest/pytest_accent_guard.xml", "/app/backend/tests/fake_mic_init.js"],
+  "action_items": [
+    "Optional: add an explicit IPA for 'thongs' in accent_guard.DEFAULTS (currently dropped from the seed).",
+    "Optional: add a confirm or undo to accent-guard remove, plus a 'restore defaults' option."
+  ],
+  "critical_code_review_comments": [
+    "accent_guard.load only seeds when the settings doc is missing. Words added to DEFAULTS in a later release will never reach an existing DB. Consider merging in new defaults that aren't in a removed-words list.",
+    "CUSTOM_IPA is process-local. If the backend runs more than one uvicorn worker or replica, add/remove only updates the worker that handled the request until the next restart. Prefer reloading from the DB or a version stamp.",
+    "add() returns success with the toast 'will now be voiced as /x/ everywhere' even when the coach has a My Dictionary entry for that word. In that case CUSTOM_IPA isn't updated and her entry wins, so the toast is misleading. Return a flag and show 'your My Dictionary entry takes priority'.",
+    "CMU-derived IPA keeps syllable dots (e.g. ˈɹɛk·ən) in the guard list and in CUSTOM_IPA. phonetics strips '·' before rendering (line 172), so this is OK, but the IPA a coach types and the CMU-derived IPA look different in the chip list.",
+    "_invalidate's turn_audio_cache regex runs an unindexed $regex delete on every add or remove. That is fine at the current scale."
+  ],
+  "updated_files": ["/app/backend/tests/test_accent_guard.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (admin accent guard, 2 practise checks, regressions)"},
+  "seed_data_creation": "None left behind. 'yeah nah', 'kangaroo' and 'test_zork blah' were added and removed. The seeded 'reckon' was removed in the UI test and re-added through the API (ˈɹɛk·ən), so the list is back to 72 entries.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "There is now a 48 kHz wav/b64 at /tmp/r_lily_word.{wav,b64}, alongside the ones from iteration_34. Admin JWT is cached at /tmp/admin_jwt. The practise flow is: practise-record, wait 2.6 s, practise-stop, practise-analyse, then wait for practise-score. The overdone badge can't be triggered with the test clips. If you remove a seeded accent-guard word, re-add it with POST /api/admin/accent-guard {word}."
+}
