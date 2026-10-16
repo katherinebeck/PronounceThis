@@ -132,6 +132,11 @@ class BlockedWordsBody(BaseModel):
     words: List[str]
 
 
+class AccentGuardBody(BaseModel):
+    word: str
+    ipa: Optional[str] = None
+
+
 class BlockDeviceBody(BaseModel):
     device_id: str
     blocked: bool = True
@@ -741,6 +746,29 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
                       "resolved_by": admin_email, "resolved_at": _now_iso()}},
         )
         return {"ok": True, "video_id": body.video_id, "action": body.action}
+
+    # --- Accent guard (non-US slang always voiced in General American) -----
+    @router.get("/accent-guard")
+    async def get_accent_guard(request: Request):
+        await require_admin(request, db)
+        import accent_guard
+        return {"entries": await accent_guard.entries(db), "default_count": len(accent_guard.DEFAULTS)}
+
+    @router.post("/accent-guard")
+    async def add_accent_guard(body: AccentGuardBody, request: Request):
+        await require_admin(request, db)
+        import accent_guard
+        try:
+            return {"ok": True, "entry": await accent_guard.add(db, body.word, body.ipa)}
+        except ValueError:
+            raise HTTPException(status_code=400, detail="That word isn't in the dictionary — please type its American IPA.")
+
+    @router.post("/accent-guard/delete")
+    async def delete_accent_guard(body: AccentGuardBody, request: Request):
+        await require_admin(request, db)
+        import accent_guard
+        await accent_guard.remove(db, body.word)
+        return {"ok": True}
 
     # --- Blocked words (slur list for Real Speakers) ------------------------
     @router.get("/blocked-words")

@@ -77,6 +77,7 @@ export default function PractiseFeedback({ result }) {
                   <div className="flex items-baseline gap-3 flex-wrap">
                     <span className="font-mono text-base text-ink">/{n.phoneme}/</span>
                     {n.confirmed ? <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-crimson" data-testid="practise-confirmed">not heard</span>
+                      : n.overdone ? <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-rust" data-testid="practise-overdone">held too long</span>
                       : <span className="font-mono text-xs text-muted2">{n.score != null ? `${Math.round(n.score)}/100` : ""}</span>}
                     {n.heard && !n.note ? <span className="font-serif text-xs text-crimson">sounded closer to /{n.heard}/</span> : null}
                   </div>
@@ -88,6 +89,17 @@ export default function PractiseFeedback({ result }) {
           ) : <div className="font-serif text-sm text-muted2 italic">Every sound scored well. Try it again for consistency.</div>}
         </div>
       </div>
+
+      {result.stress && result.stress.verdict !== "unsure" ? (
+        <div className={`mx-4 sm:mx-6 mb-4 border-l-2 pl-3 ${result.stress.verdict === "ok" ? "border-sage" : "border-crimson"}`} data-testid="practise-stress">
+          <div className="font-mono text-[10px] uppercase tracking-[0.25em] text-muted2">Word stress</div>
+          {result.stress.verdict === "ok" ? (
+            <div className="font-serif text-sm text-ink mt-1">Stress in the right place: <span className="font-mono text-sage">{result.stress.pattern_expected}</span></div>
+          ) : (
+            <div className="font-serif text-sm text-crimson mt-1">{result.stress.note}</div>
+          )}
+        </div>
+      ) : null}
 
       <EarReadout ear={result.ear} />
 

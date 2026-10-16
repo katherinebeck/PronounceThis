@@ -101,6 +101,16 @@ class NeedsWork(BaseModel):
     heard: Optional[str] = None
     tip: Optional[str] = None
     confirmed: bool = False  # the ear heard a different sound in this slot
+    overdone: bool = False   # sound present but held/leaned on too long
+    note: Optional[str] = None
+
+
+class StressCheck(BaseModel):
+    verdict: str  # ok | wrong | unsure
+    expected_index: int
+    heard_index: Optional[int] = None
+    pattern_expected: str
+    pattern_heard: Optional[str] = None
     note: Optional[str] = None
 
 
@@ -120,6 +130,82 @@ class AssessResponse(BaseModel):
     needs_work: List[NeedsWork] = []
     trial_locked: bool = False  # trial user has now used their one analysis for this word
     ear: Optional[dict] = None  # admin-only readout: {heard, checks, status}
+    stress: Optional[StressCheck] = None
+    syllables: List[dict] = []  # [{text, start_s, end_s}] from Azure, single-word lookups only
+
+
+STRESS_PENALTY = 10
+R_SOUNDS = {"ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ", "ɝ", "ɚ", "ɹ", "r"}
+R_MAX_S = 0.45          # word-internal R-coloured sound held this long is being leaned on
+R_MAX_FINAL_S = 0.70    # finals are naturally longer (Hannah: 0.37–0.61 s)
+OVERDONE_PENALTY = 10
+
+
+def check_held_r(out: "AssessResponse") -> None:
+    """Flag R-coloured sounds the speaker holds too long (Azure phoneme timings)."""
+    timed = [p for p in out.phonemes if p.start_s is not None and p.end_s is not None]
+    if not timed:
+        return
+    hits = []
+    for i, p in enumerate(timed):
+        if p.expected not in R_SOUNDS or p.ear == "missing":
+            continue
+        dur = p.end_s - p.start_s
+        limit = R_MAX_FINAL_S if i == len(timed) - 1 else R_MAX_S
+        if dur >= limit:
+            p.status, p.note = "needs_work", f"The R was held too long ({dur:.1f} s) — touch the R and move on."
+            hits.append(p)
+    if not hits:
+        return
+    seen = {n.phoneme for n in out.needs_work}
+    for p in hits:
+        if p.expected in seen:
+            continue
+        seen.add(p.expected)
+        out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, tip=TIPS.get(p.expected), overdone=True, note=p.note))
+    out.accurate = [a for a in out.accurate if a not in {p.expected for p in hits}]
+    out.score = max(0.0, min(float(out.score or 0) - OVERDONE_PENALTY * len({p.expected for p in hits}), MISS_CAP))
+    out.band, out.summary = _band(out.score)
+    out.score10 = round(out.score / 10, 1)
+
+
+def _display_pattern(graphemes: List[str], idx: int) -> str:
+    return "-".join(g.upper() if i == idx else g.lower() for i, g in enumerate(graphemes))
+
+
+def stress_check(word: str, syllables: List[dict], wav_bytes: bytes) -> Optional[StressCheck]:
+    """Compare the loudest/longest syllable with the CMU primary stress. Conservative:
+    only 'wrong' when another syllable is clearly louder AND not shorter."""
+    phones = get_arpabet(word) or []
+    stresses = [ph[-1] for ph in phones if ph[-1].isdigit()]
+    if len(stresses) < 2 or len(stresses) != len(syllables) or "1" not in stresses:
+        return None
+    expected = stresses.index("1")
+    import io
+    import numpy as np
+    import soundfile as sf
+    audio, sr = sf.read(io.BytesIO(wav_bytes), dtype="float32")
+    if audio.ndim > 1:
+        audio = audio.mean(axis=1)
+    rms, dur = [], []
+    for s in syllables:
+        a, b = int(s["start_s"] * sr), int(s["end_s"] * sr)
+        seg = audio[a:b]
+        rms.append(float(np.sqrt(np.mean(seg ** 2))) if len(seg) else 0.0)
+        dur.append(max(0.0, s["end_s"] - s["start_s"]))
+    graphemes = [s["text"] for s in syllables]
+    heard = int(np.argmax(rms))
+    pattern_expected = _display_pattern(graphemes, expected)
+    if heard == expected or rms[expected] >= 0.85 * rms[heard]:
+        return StressCheck(verdict="ok", expected_index=expected, heard_index=expected, pattern_expected=pattern_expected,
+                           pattern_heard=pattern_expected)
+    if rms[heard] >= 1.35 * max(rms[expected], 1e-6) and dur[heard] >= 0.8 * dur[expected]:
+        return StressCheck(
+            verdict="wrong", expected_index=expected, heard_index=heard, pattern_expected=pattern_expected,
+            pattern_heard=_display_pattern(graphemes, heard),
+            note=f"The stress landed on “{graphemes[heard]}” — Americans say {pattern_expected}.",
+        )
+    return StressCheck(verdict="unsure", expected_index=expected, heard_index=heard, pattern_expected=pattern_expected)
 
 
 MISS_PENALTY = 20   # points off the 100-scale per sound the ear confirms as missing/replaced
@@ -284,8 +370,12 @@ def _interpret(word: str, result: dict) -> AssessResponse:
                               reason="We didn't hear the word itself. Say just the word, then press Stop.")
 
     phonemes: List[PhonemeScore] = []
+    syllables: List[dict] = []
     for w in words:
         word_text = w.get("Word") or ""
+        if len(words) == 1:
+            syllables = [{"text": s.get("Grapheme") or s.get("Syllable") or "", "start_s": (s.get("Offset") or 0) / 1e7,
+                          "end_s": ((s.get("Offset") or 0) + (s.get("Duration") or 0)) / 1e7} for s in w.get("Syllables", [])]
         w_phonemes: List[PhonemeScore] = []
         for p in w.get("Phonemes", []):
             p = _pa(p)
@@ -330,7 +420,7 @@ def _interpret(word: str, result: dict) -> AssessResponse:
         word=word, assessable=True, recognized=nbest.get("Display"),
         score=round(float(score)), score10=round(float(score) / 10, 1), azure_score=round(float(score)),
         accuracy=round(float(accuracy)) if accuracy is not None else None,
-        band=band, summary=summary, phonemes=phonemes, accurate=accurate, needs_work=needs,
+        band=band, summary=summary, phonemes=phonemes, accurate=accurate, needs_work=needs, syllables=syllables,
     )
 
 
@@ -393,6 +483,17 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("phoneme ear failed: %s", exc)
             apply_ear(out, heard)
+        if out.assessable:
+            check_held_r(out)
+        if out.assessable and out.syllables:
+            try:
+                out.stress = await asyncio.to_thread(stress_check, reference, out.syllables, wav_bytes)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("stress check failed: %s", exc)
+            if out.stress and out.stress.verdict == "wrong":
+                out.score = max(0.0, min(float(out.score or 0) - STRESS_PENALTY, MISS_CAP))
+                out.band, out.summary = _band(out.score)
+                out.score10 = round(out.score / 10, 1)
         del wav_bytes
         if is_admin_email(actor.email):
             out.ear = {**ear.status(), "heard": (heard or {}).get("heard"), "checks": (heard or {}).get("checks")}

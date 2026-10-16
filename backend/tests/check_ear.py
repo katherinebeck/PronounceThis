@@ -38,8 +38,9 @@ async def main():
                 continue
             ear = b.get("ear") or {}
             checks = " ".join(f"{k['expected']}:{k['verdict'][0]}{'' if k['verdict']=='confirmed' else '('+str(k.get('heard'))+')'}" for k in (ear.get("checks") or []))
-            flagged = [f"{n['phoneme']}{'*' if n.get('confirmed') else ''}" for n in b.get("needs_work", [])]
-            print(f"{f:>18} [{expect:>9}] azure={b.get('azure_score')} → {b.get('score10')}/10 {b.get('band'):<13} heard='{ear.get('heard')}'  {checks}  flagged={flagged}")
+            flagged = [f"{n['phoneme']}{'*' if n.get('confirmed') else ''}{'~' if n.get('overdone') else ''}" for n in b.get("needs_work", [])]
+            st = b.get("stress") or {}
+            print(f"{f:>18} [{expect:>9}] azure={b.get('azure_score')} → {b.get('score10')}/10 {b.get('band'):<13} heard='{ear.get('heard')}'  {checks}  flagged={flagged} stress={st.get('verdict')}")
 
 
 asyncio.run(main())

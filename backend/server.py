@@ -78,6 +78,7 @@ from kajabi import create_kajabi_router
 from admin import create_admin_router
 from dictionary import create_dictionary_router, load_custom_ipa, revoice_recording, seed_toponyms
 from practice import create_practice_router
+import accent_guard
 import phoneme_ear
 from stripe_payments import create_stripe_router
 
@@ -1962,6 +1963,10 @@ async def _startup_indexes():
         if pref.get("source") != "dictionary":
             _ALWAYS_PREFERRED.add(pref["word"])
     await load_custom_ipa(db)
+    try:
+        await accent_guard.load(db)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("accent guard load failed: %s", exc)
     try:
         added = await seed_toponyms(db)
         if added:

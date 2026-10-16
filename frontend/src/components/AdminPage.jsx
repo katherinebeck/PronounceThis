@@ -12,6 +12,7 @@ import { HiddenVideos } from "./HiddenVideos";
 import LoginHealth from "./LoginHealth";
 import { ClipReports } from "./ClipReports";
 import { BlockedWords } from "./BlockedWords";
+import { AccentGuard } from "./AccentGuard";
 import { TrialDevices } from "./TrialDevices";
 import { KajabiStatus } from "./KajabiStatus";
 import NewBuyers from "./NewBuyers";
@@ -1132,6 +1133,7 @@ export default function AdminPage() {
 
 
         {tab === "dictionary" ? <DictionaryBuilder /> : null}
+        {tab === "accent" ? <AccentGuard /> : null}
         {tab === "wordqa" ? <WordQaDashboard /> : null}
 
 

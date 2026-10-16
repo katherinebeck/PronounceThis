@@ -1,7 +1,7 @@
 import React from "react";
 import {
   Users, UserPlus, RefreshCw, Link2, ShieldAlert, Flag, Ban, EyeOff, Youtube,
-  BookOpen, Gauge, Mail, Download, ShoppingBag, Eye, ShieldCheck, BellRing,
+  BookOpen, Gauge, Mail, Download, ShoppingBag, Eye, ShieldCheck, BellRing, Globe,
 } from "lucide-react";
 
 export const ADMIN_TABS = [
@@ -22,6 +22,7 @@ export const ADMIN_TABS = [
   { group: "Pronunciation", items: [
     { key: "dictionary", label: "My Dictionary", icon: BookOpen },
     { key: "wordqa", label: "Audio check", icon: ShieldCheck },
+    { key: "accent", label: "Accent guard", icon: Globe },
   ] },
   { group: "System", items: [
     { key: "credits", label: "Audio budget", icon: Gauge },
