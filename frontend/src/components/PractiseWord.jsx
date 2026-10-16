@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Mic, Square, Play, Volume2, RotateCcw, Loader2, Sparkles } from "lucide-react";
 import { useRecorder } from "@/lib/useRecorder";
 import { assessPronunciation, fetchPracticeStatus } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import PractiseFeedback from "./PractiseFeedback";
 
 const SUPPORTED = typeof window !== "undefined" && !!(navigator.mediaDevices?.getUserMedia && window.MediaRecorder);
@@ -17,16 +18,24 @@ function micMessage(err) {
 // "Practise This Word" — sits under the word result. Audio stays in the browser
 // until Analyse is pressed; the server deletes it after scoring.
 export default function PractiseWord({ word, onHearReference, referencePlaying, canHearReference = true }) {
+  const { openPaywall } = useAuth();
   const [enabled, setEnabled] = useState(null);
+  const [locked, setLocked] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [analysing, setAnalysing] = useState(false);
   const onMicError = useCallback((err) => setError(micMessage(err)), []);
   const rec = useRecorder({ onError: onMicError });
 
-  useEffect(() => { fetchPracticeStatus().then((s) => setEnabled(!!s.enabled)).catch(() => setEnabled(false)); }, []);
-  // New word → clear the previous take and verdict.
-  useEffect(() => { rec.reset(); setResult(null); setError(null); }, [word]); // eslint-disable-line react-hooks/exhaustive-deps
+  // New word → clear the previous take and verdict; ask whether a trial user already used this word.
+  useEffect(() => {
+    rec.reset(); setResult(null); setError(null); setLocked(false);
+    let alive = true;
+    fetchPracticeStatus(word)
+      .then((s) => { if (alive) { setEnabled(!!s.enabled); setLocked(!!s.locked); } })
+      .catch(() => { if (alive) setEnabled(false); });
+    return () => { alive = false; };
+  }, [word]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!enabled || !word) return null;
 
@@ -34,12 +43,16 @@ export default function PractiseWord({ word, onHearReference, referencePlaying, 
 
   const analyse = async () => {
     if (!rec.blob) return;
+    if (locked) { openPaywall("practice"); return; }
     setAnalysing(true); setError(null); setResult(null);
     try {
-      setResult(await assessPronunciation(word, rec.blob));
+      const r = await assessPronunciation(word, rec.blob);
+      setResult(r);
+      if (r.trial_locked) setLocked(true);
     } catch (e) {
       const status = e?.response?.status;
-      if (status === 401 || status === 402) return;
+      if (status === 402) { setLocked(true); return; } // join popup opened by the global handler
+      if (status === 401) return;
       const detail = e?.response?.data?.detail;
       if (status === 429) setError("You've reached the practice limit for this hour. Keep listening and try again a little later.");
       else if (typeof detail === "string") setError(detail);
@@ -97,10 +110,14 @@ export default function PractiseWord({ word, onHearReference, referencePlaying, 
 
             {rec.blob && !rec.recording ? (
               <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button type="button" onClick={analyse} disabled={busy} className="btn-primary" data-testid="practise-analyse">
-                  {analysing ? <><Loader2 size={13} className="animate-spin" /> Analysing…</> : <><Sparkles size={13} /> Analyse My Pronunciation</>}
+                <button type="button" onClick={analyse} disabled={busy} className="btn-primary" data-testid={locked ? "practise-join" : "practise-analyse"}>
+                  {analysing ? <><Loader2 size={13} className="animate-spin" /> Analysing…</>
+                    : locked ? <><Sparkles size={13} /> Join Pronounce This to keep practising</>
+                    : <><Sparkles size={13} /> Analyse My Pronunciation</>}
                 </button>
-                <span className="font-serif text-xs text-muted2">Happy with your take? Nothing is sent until you press Analyse.</span>
+                <span className="font-serif text-xs text-muted2">
+                  {locked ? "Free trial includes one pronunciation check per word." : "Happy with your take? Nothing is sent until you press Analyse."}
+                </span>
               </div>
             ) : null}
           </>

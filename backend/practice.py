@@ -18,7 +18,7 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 
-from auth import consume_trial, rate_limit, require_access
+from auth import _membership_status, consume_trial, optional_login, rate_limit, require_access
 
 logger = logging.getLogger("practice")
 
@@ -107,6 +107,7 @@ class AssessResponse(BaseModel):
     phonemes: List[PhonemeScore] = []
     accurate: List[str] = []
     needs_work: List[NeedsWork] = []
+    trial_locked: bool = False  # trial user has now used their one analysis for this word
 
 
 def enabled() -> bool:
@@ -243,9 +244,22 @@ def _interpret(word: str, result: dict) -> AssessResponse:
 def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
     router = APIRouter(prefix="/practice", tags=["practice"])
 
+    async def _trial_used(email: str, norm: str) -> bool:
+        user = await db.users.find_one({"email": email}, {"_id": 0, "practice_words": 1})
+        return norm in (user or {}).get("practice_words", [])
+
     @router.get("/status")
-    async def status():
-        return {"enabled": enabled()}
+    async def status(request: Request, word: Optional[str] = None):
+        """enabled + whether a trial user has already spent their one analysis on `word`."""
+        locked = False
+        norm = re.sub(r"\s+", " ", (word or "").strip()).lower()
+        if enabled() and norm:
+            email = await optional_login(request, db)
+            if email:
+                ms = await _membership_status(db, email)
+                if ms["status"] != "active":
+                    locked = await _trial_used(email, norm)
+        return {"enabled": enabled(), "locked": locked}
 
     @router.post("/assess", response_model=AssessResponse)
     async def assess(request: Request, word: str = Form(...), audio: UploadFile = File(...)):
@@ -256,7 +270,10 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
             raise HTTPException(status_code=400, detail="Please search for a word first.")
         norm = reference.lower()
         actor = await require_access(request, db, kind="word", word=norm)
-        rate_limit(f"practice:{actor.email}", 20, 3600)
+        # Free trial: one analysis per trial word.
+        if not actor.is_subscriber and await _trial_used(actor.email, norm):
+            raise HTTPException(status_code=402, detail={"code": "practice_exhausted", "kind": "practice"})
+        rate_limit(f"practice:{actor.email}", 40, 3600)
 
         data = await audio.read(MAX_BYTES + 1)
         if len(data) > MAX_BYTES:
@@ -277,6 +294,9 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
         del wav_bytes
         out = _interpret(reference, result)
         await consume_trial(db, actor)
+        if not actor.is_subscriber and out.assessable:
+            await db.users.update_one({"email": actor.email}, {"$addToSet": {"practice_words": norm}})
+            out.trial_locked = True
         return out
 
     return router

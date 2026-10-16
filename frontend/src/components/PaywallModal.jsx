@@ -58,6 +58,8 @@ export default function PaywallModal() {
       ? "You've used your free scene upload. "
       : paywallReason === "word"
       ? "You've used your 2 free words. "
+      : paywallReason === "practice"
+      ? "You've used your free pronunciation check for this word. Members get unlimited practice. "
       : paywallReason === "subscription"
       ? "This is a members-only feature. "
       : "";

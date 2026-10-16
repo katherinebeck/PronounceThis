@@ -94,8 +94,8 @@ export async function fetchTTS(word, phonetic = false, arpabet = null) {
   return data; // { word, audio_b64, mime, cached }
 }
 
-export async function fetchPracticeStatus() {
-  const { data } = await api.get("/practice/status");
+export async function fetchPracticeStatus(word) {
+  const { data } = await api.get("/practice/status", { params: word ? { word } : {} });
   return data;
 }
 
