@@ -69,7 +69,7 @@ export default function UploadDropzone({ onUploaded }) {
         <div className="flex gap-3 items-center">
           <button
             type="button"
-            className="btn-primary"
+            className="btn-primary whitespace-nowrap shrink-0"
             data-testid="upload-pdf-button"
             disabled={busy}
             onClick={() => (gated ? openPaywall("trial") : fileRef.current?.click())}
@@ -77,17 +77,17 @@ export default function UploadDropzone({ onUploaded }) {
             {busy ? (
               <>
                 <Loader2 size={14} className="animate-spin" />
-                Reading your script… (scans take up to a minute)
+                Uploading your scene… (scanned pages may take up to a minute)
               </>
             ) : (
               <>
                 <Upload size={14} />
-                Upload PDF
+                Upload your scene
               </>
             )}
           </button>
           <span className="font-mono text-xs text-muted2">
-            or drag a file anywhere in this panel — typed or scanned scripts
+            or drag a PDF anywhere in this panel (scanned pages may take up to a minute)
           </span>
         </div>
       </div>
