@@ -435,6 +435,20 @@ export default function SceneReader({ scene, highlightSet }) {
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   type="button"
+                  className={"btn-primary " + (readerRunning ? "!bg-rust" : "")}
+                  onClick={handlePlayReaderLines}
+                  data-testid="play-reader-lines-button"
+                  disabled={downloadingReader || running}
+                  title="Hear the other characters' lines in order, with a pause where your lines go"
+                >
+                  {readerRunning ? (
+                    <><Square size={12} fill="currentColor" /> Stop</>
+                  ) : (
+                    <><Play size={12} fill="currentColor" /> Play My Reader's Lines</>
+                  )}
+                </button>
+                <button
+                  type="button"
                   className="btn-secondary"
                   onClick={handleDownloadReaderLines}
                   data-testid="download-reader-lines-button"
