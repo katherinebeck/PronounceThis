@@ -2,6 +2,14 @@ import React from "react";
 import { useAuth } from "@/lib/auth";
 import "./landing.css";
 
+const TESTIMONIALS = [
+  ["You're such a genius for coming up with this Katherine. Fantastic, I love it.", "Antonia"],
+  ["I love being able to upload a scene I'm working on and download the reader's audio to help with line runs before I do my self tape.", "Sasha"],
+  ["This is a super helpful app to have for so many reasons! I love the option to look at specific words or entire scenes as well as getting a video to show how it sounds from a real person! Thanks Katherine for this awesome accent tool!", "Sassy"],
+  ["This is amazing!! It's unlike anything else I've come across before and I think will be extremely useful for future US auditions.", "Greg"],
+];
+
+
 const FAQ = [
   ["I've already tried an accent app. What's different about Pronounce This?",
    "Other accent apps are primarily built for ESL learners. Pronounce This is designed specifically for non-U.S. actors. It's not just learning how to pronounce words correctly but applying the accent to your scene. You get a reference for how your dialogue sounds in an American accent and the other character's lines ready to download. Use the recording to run lines and practice or let it be the reader for you when you film your audition."],
@@ -141,9 +149,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section className="testimonial">
+      <section className="testimonial" data-testid="landing-testimonials">
         <div className="wrap">
           <blockquote>"…this is actually incredible! What a game changer!"</blockquote>
+          <div className="testimonial-grid">
+            {TESTIMONIALS.map(([quote, name]) => (
+              <figure className="testimonial-card" key={name} data-testid={`testimonial-${name.toLowerCase()}`}>
+                <blockquote>"{quote}"</blockquote>
+                <figcaption>— {name}</figcaption>
+              </figure>
+            ))}
+          </div>
         </div>
       </section>
 
