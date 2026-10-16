@@ -1,0 +1,32 @@
+{
+  "summary": "Tested the new rule that free-trial users get one pronunciation analysis per trial word. Every requested check passed. (1) Trial user (logged in via /login, used a fake mic playing the cached 'party' clip): Record, Stop, Analyse returned practise-feedback with 100/100 Excellent. The button then changed to practise-join 'Join Pronounce This to keep practising', with the helper text 'Free trial includes one pronunciation check per word.' Clicking it opened paywall-modal; the subhead starts 'You've used your free pronunciation check for this word. Members get unlimited practice.' (2) Fresh session and reload, searched 'party' and recorded: the button was practise-join straight away, because status returned locked:true. Clicking it opened the same paywall, and no request was sent to /api/practice/assess (network capture showed only status + tts). Closing the paywall works. (3) Member: recorded and analysed 'party' twice. Both times practise-feedback appeared, the button stayed 'Analyse My Pronunciation' (practise-analyse), and no paywall appeared. Member has no practice_words in the DB. (4) Backend, using the legacy cookie: status for the trial user on 'party' gave locked:true; for 'PARTY ' (different case, trailing space) also locked:true; for 'hello' locked:false. Member gave locked:false. A trial POST to assess returned 402 {code:practice_exhausted, kind:practice} before any audio was processed. Azure calls used: 3. Cleanup done: practice_words removed for the trial user, and status now returns locked:false.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/practice/assess", "issue": "Race condition: _trial_used is checked before the Azure call and $addToSet runs only after it. A trial user who sends two assess requests at the same moment (e.g. a double click, or two tabs) can get 2 or more analyses for one word. The UI disables the button while busy, so this is low risk."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_practice_trial_lock.py", "/app/test_reports/pytest/practice_trial_lock.xml"],
+  "action_items": [
+    "Optional: to close the race, reserve the trial slot atomically before calling Azure: update_one({email, practice_words:{$ne:norm}}, {$addToSet:...}). If matched_count is 0, return 402. If the result turns out unassessable, release the slot with $pull.",
+    "Optional UX: when locked is true the join CTA only appears after the user records a take. You could show it (or a note) before recording so trial users don't record for nothing."
+  ],
+  "critical_code_review_comments": [
+    "practice.py: the lock is only set when out.assessable is true, so a failed or unclear take does not use up the trial. Good.",
+    "practice.py status: the word is normalised the same way as in assess (whitespace collapsed, lowercased). Checked: 'PARTY ' is locked.",
+    "PractiseWord.jsx: when locked is true, analyse() opens the paywall locally without calling the API. A 402 from the API sets locked and leaves the popup to the global interceptor, so the paywall is not opened twice.",
+    "The previous practise-feedback stays visible under the join CTA after the analysis that locks the word. That is good, since the user keeps their result."
+  ],
+  "updated_files": ["/app/backend/tests/test_practice_trial_lock.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None kept. The trial user's practice_words was removed after the tests (trial_words ['party'] and trial_word_used 1 are unchanged).",
+  "test_credentials": "From /app/memory/test_credentials.md and the request: trial pttrial997949@gmail.com/Trial2026pass, member ptbuyer114077@gmail.com/Buyer2026pass, legacy accent_session JWT via auth._issue_jwt.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fake mic: add_init_script overrides getUserMedia with an AudioContext MediaStreamDestination that plays window.__fakeB64. Fill it from the POST /api/tts JSON response (field audio_b64) after clicking pronounce-play. Login: /login, then auth-email, auth-password, auth-submit; close welcome-close if it appears. test_practice_trial_lock.py skips the locked tests unless the trial user already has 'party' in practice_words."
+}

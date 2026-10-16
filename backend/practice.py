@@ -18,7 +18,8 @@ from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
 
-from auth import _membership_status, consume_trial, optional_login, rate_limit, require_access
+from auth import _membership_status, consume_trial, is_admin_email, optional_login, rate_limit, require_access
+import phoneme_ear as ear
 
 logger = logging.getLogger("practice")
 
@@ -86,6 +87,10 @@ class PhonemeScore(BaseModel):
     score: Optional[float] = None
     heard: Optional[str] = None
     status: str  # accurate | close | needs_work | unknown
+    start_s: Optional[float] = None
+    end_s: Optional[float] = None
+    ear: Optional[str] = None  # confirmed | missing | unsure
+    note: Optional[str] = None
 
 
 class NeedsWork(BaseModel):
@@ -93,6 +98,8 @@ class NeedsWork(BaseModel):
     score: Optional[float] = None
     heard: Optional[str] = None
     tip: Optional[str] = None
+    confirmed: bool = False  # the ear heard a different sound in this slot
+    note: Optional[str] = None
 
 
 class AssessResponse(BaseModel):
@@ -100,7 +107,9 @@ class AssessResponse(BaseModel):
     assessable: bool
     reason: Optional[str] = None
     recognized: Optional[str] = None
-    score: Optional[float] = None
+    score: Optional[float] = None       # 0–100 (after confirmed-miss adjustment)
+    score10: Optional[float] = None     # same, out of 10
+    azure_score: Optional[float] = None
     accuracy: Optional[float] = None
     band: Optional[str] = None
     summary: Optional[str] = None
@@ -108,6 +117,43 @@ class AssessResponse(BaseModel):
     accurate: List[str] = []
     needs_work: List[NeedsWork] = []
     trial_locked: bool = False  # trial user has now used their one analysis for this word
+    ear: Optional[dict] = None  # admin-only readout: {heard, checks, status}
+
+
+MISS_PENALTY = 20   # points off the 100-scale per sound the ear confirms as missing/replaced
+MISS_CAP = 75       # a confirmed miss can never read "Excellent"
+
+
+def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
+    """Fold the recogniser's per-window verdicts into the Azure-based result."""
+    if not heard:
+        return
+    checks = heard.get("checks") or []
+    for p, c in zip(out.phonemes, checks):
+        p.ear = c.get("verdict")
+        if c["verdict"] == "missing":
+            p.status = "needs_work"
+            p.heard = c.get("heard") or p.heard
+            p.note = c.get("note")
+            if p.score is None or p.score > CLOSE_AT - 1:
+                p.score = float(CLOSE_AT - 1)
+    misses = [p for p in out.phonemes if p.ear == "missing"]
+    if misses:
+        distinct = {p.expected for p in misses}
+        out.score = max(0.0, min(float(out.score or 0) - MISS_PENALTY * len(distinct), MISS_CAP))
+        out.band, out.summary = _band(out.score)
+        out.accurate = sorted({p.expected for p in out.phonemes if p.status == "accurate" and p.ear != "missing"})
+        seen = {n.phoneme for n in out.needs_work}
+        for p in misses:
+            if p.expected in seen:
+                for n in out.needs_work:
+                    if n.phoneme == p.expected:
+                        n.confirmed, n.heard, n.score, n.note = True, p.heard or n.heard, min(n.score or 100, p.score or 0), p.note
+                continue
+            seen.add(p.expected)
+            out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=TIPS.get(p.expected), confirmed=True, note=p.note))
+        out.needs_work.sort(key=lambda n: (not n.confirmed, n.score or 0))
+    out.score10 = round((out.score or 0) / 10, 1)
 
 
 def enabled() -> bool:
@@ -218,7 +264,11 @@ def _interpret(word: str, result: dict) -> AssessResponse:
                 st = "close"
             else:
                 st = "needs_work"
-            phonemes.append(PhonemeScore(expected=exp, score=sc, heard=heard, status=st))
+            phonemes.append(PhonemeScore(
+                expected=exp, score=sc, heard=heard, status=st,
+                start_s=(p.get("Offset") or 0) / 1e7 if p.get("Offset") is not None else None,
+                end_s=((p.get("Offset") or 0) + (p.get("Duration") or 0)) / 1e7 if p.get("Offset") is not None else None,
+            ))
 
     score = nbest.get("PronScore")
     accuracy = nbest.get("AccuracyScore")
@@ -236,7 +286,8 @@ def _interpret(word: str, result: dict) -> AssessResponse:
     needs.sort(key=lambda n: n.score or 0)
     return AssessResponse(
         word=word, assessable=True, recognized=nbest.get("Display"),
-        score=round(float(score)), accuracy=round(float(accuracy)) if accuracy is not None else None,
+        score=round(float(score)), score10=round(float(score) / 10, 1), azure_score=round(float(score)),
+        accuracy=round(float(accuracy)) if accuracy is not None else None,
         band=band, summary=summary, phonemes=phonemes, accurate=accurate, needs_work=needs,
     )
 
@@ -291,8 +342,18 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
             wav_bytes = wav.read_bytes()
         del data
         result = await _call_azure(wav_bytes, reference)
-        del wav_bytes
         out = _interpret(reference, result)
+        heard = None
+        if out.assessable and ear.available():
+            windows = [{"expected": p.expected, "start_s": p.start_s or 0.0, "end_s": p.end_s or 0.0} for p in out.phonemes]
+            try:
+                heard = await asyncio.to_thread(ear.listen, wav_bytes, windows)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("phoneme ear failed: %s", exc)
+            apply_ear(out, heard)
+        del wav_bytes
+        if is_admin_email(actor.email):
+            out.ear = {**ear.status(), "heard": (heard or {}).get("heard"), "checks": (heard or {}).get("checks")}
         await consume_trial(db, actor)
         if not actor.is_subscriber and out.assessable:
             await db.users.update_one({"email": actor.email}, {"$addToSet": {"practice_words": norm}})

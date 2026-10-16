@@ -78,6 +78,7 @@ from kajabi import create_kajabi_router
 from admin import create_admin_router
 from dictionary import create_dictionary_router, load_custom_ipa, revoice_recording, seed_toponyms
 from practice import create_practice_router
+import phoneme_ear
 from stripe_payments import create_stripe_router
 
 # --- DB ---------------------------------------------------------------------
@@ -1954,6 +1955,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def _startup_indexes():
+    phoneme_ear.warm()
     await ensure_auth_indexes(db)
     async for pref in db.pronunciation_prefs.find({}, {"_id": 0}):
         PREFERRED_ARPA[pref["word"]] = pref["arpabet"]
