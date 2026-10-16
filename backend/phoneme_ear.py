@@ -5,7 +5,9 @@ Only two outcomes are asserted: 'confirmed' (expected sound clearly present) and
 'missing' (expected sound essentially absent AND another sound clearly present).
 Everything else is 'unsure' and is never shown to students.
 """
+import base64
 import io
+import json
 import logging
 import os
 import threading
@@ -44,6 +46,8 @@ DISPLAY = {"ʧ": "tʃ", "ʤ": "dʒ", "ɾ": "flap t", "g": "ɡ"}
 _IGNORE = {"|", " ", "[UNK]", "[PAD]", "<s>", "</s>"}
 
 _state = {"model": None, "proc": None, "status": "idle", "error": None}
+_worker = {"proc": None, "lock": threading.Lock()}
+EAR_PYTHON = os.environ.get("EAR_PYTHON", "/opt/ear-venv/bin/python")
 
 
 def status() -> dict:
@@ -51,7 +55,48 @@ def status() -> dict:
 
 
 def available() -> bool:
-    return _state["model"] is not None
+    return _state["model"] is not None or (_worker["proc"] is not None and _state["status"] == "ready")
+
+
+def _start_worker() -> None:
+    """Spawn the side-venv worker and wait for its ready line."""
+    import subprocess
+    try:
+        _state["status"] = "loading"
+        proc = subprocess.Popen(
+            [EAR_PYTHON, os.path.join(os.path.dirname(os.path.abspath(__file__)), "ear_worker.py")],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, bufsize=1,
+        )
+        first = json.loads(proc.stdout.readline() or "{}")
+        if first.get("ready"):
+            _worker["proc"] = proc
+            _state.update(status="ready", error=None)
+            logger.info("phoneme ear ready via worker (%s)", MODEL_ID)
+        else:
+            proc.kill()
+            _state.update(status="error", error=first.get("error") or "worker failed to load")
+            logger.warning("phoneme ear worker failed: %s", _state["error"])
+    except Exception as exc:  # noqa: BLE001
+        _state.update(status="error", error=str(exc)[:300])
+        logger.warning("phoneme ear worker unavailable: %s", exc)
+
+
+def _ask_worker(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
+    proc = _worker["proc"]
+    if proc is None or proc.poll() is not None:
+        _worker["proc"] = None
+        _state.update(status="error", error="worker exited")
+        return None
+    req = json.dumps({"wav_b64": base64.b64encode(wav_bytes).decode(), "windows": windows})
+    with _worker["lock"]:
+        proc.stdin.write(req + "\n")
+        proc.stdin.flush()
+        line = proc.stdout.readline()
+    out = json.loads(line or "{}")
+    if out.get("error"):
+        logger.warning("phoneme ear worker error: %s", out["error"])
+        return None
+    return out or None
 
 
 def _load() -> None:
@@ -70,10 +115,12 @@ def _load() -> None:
 
 
 def warm() -> None:
-    """Load the model in a background thread (no-op if disabled or already loading)."""
+    """Load the model in a background thread (no-op if disabled or already loading).
+    Uses the side-venv worker when present so the main env stays ML-free."""
     if os.environ.get("PHONEME_EAR", "on").lower() in ("0", "off", "false") or _state["status"] != "idle":
         return
-    threading.Thread(target=_load, name="phoneme-ear-load", daemon=True).start()
+    target = _start_worker if os.path.exists(EAR_PYTHON) else _load
+    threading.Thread(target=target, name="phoneme-ear-load", daemon=True).start()
 
 
 def _posteriors(wav_bytes: bytes):
@@ -160,6 +207,8 @@ def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
     """windows: [{expected, start_s, end_s}] from Azure phoneme timings (16 kHz mono PCM wav)."""
     if not available():
         return None
+    if _state["model"] is None:
+        return _ask_worker(wav_bytes, windows)
     probs, id2tok, heard, tokens = _posteriors(wav_bytes)
     checks = []
     for i, w in enumerate(windows):
