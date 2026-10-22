@@ -128,9 +128,13 @@ async def resolve_user_email(db: AsyncIOMotorDatabase, claims: dict) -> Optional
         email = await resolve_account_email(db, claims["email"])
         user = await db.users.find_one({"email": email}, {"email": 1, "supabase_sub": 1, "last_login_at": 1})
         if user and user.get("supabase_sub") not in (None, sub):
-            logger.warning("login %s resolves to account %s which is linked to another supabase identity",
-                           claims["email"], email)
-            raise IdentityConflict(email)
+            if (claims["email"] or "").lower() == (user["email"] or "").lower():
+                # Same verified address, new Supabase identity (e.g. switched password → Google): re-link.
+                logger.info("login %s re-linked from stale supabase identity to a new one", email)
+            else:
+                logger.warning("login %s resolves to account %s which is linked to another supabase identity",
+                               claims["email"], email)
+                raise IdentityConflict(email)
         if not user:
             try:
                 await db.users.insert_one({
