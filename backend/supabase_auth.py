@@ -44,6 +44,10 @@ async def _refresh_keys(force: bool = False) -> None:
             logger.warning("supabase jwks fetch failed (keeping %d cached keys): %s", len(_keyset["keys"]), exc)
 
 
+def keys_loaded() -> bool:
+    return bool(_keyset["keys"]) or bool(os.environ.get("SUPABASE_JWT_SECRET"))
+
+
 def prewarm() -> None:
     if SUPABASE_URL:
         asyncio.get_running_loop().create_task(_refresh_keys(force=True))

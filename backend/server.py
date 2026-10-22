@@ -767,7 +767,15 @@ async def root():
 
 @api_router.get("/health")
 async def health():
-    return {"ok": True, "tts_version": TTS_VERSION, "tts_model": TTS_MODEL, "voice": DEFAULT_VOICE_ID}
+    import supabase_auth
+    checks = {"auth_keys": supabase_auth.keys_loaded(), "database": False}
+    try:
+        await asyncio.wait_for(db.command("ping"), timeout=3)
+        checks["database"] = True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("health: database ping failed: %s", exc)
+    return {"ok": all(checks.values()), "checks": checks,
+            "tts_version": TTS_VERSION, "tts_model": TTS_MODEL, "voice": DEFAULT_VOICE_ID}
 
 
 @api_router.get("/sound-categories")
