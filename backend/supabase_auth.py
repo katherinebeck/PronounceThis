@@ -14,7 +14,18 @@ logger = logging.getLogger(__name__)
 
 SUPABASE_URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
 ISSUER = f"{SUPABASE_URL}/auth/v1"
-_jwks: Optional[PyJWKClient] = PyJWKClient(f"{ISSUER}/.well-known/jwks.json", cache_keys=True) if SUPABASE_URL else None
+_jwks: Optional[PyJWKClient] = (
+    PyJWKClient(f"{ISSUER}/.well-known/jwks.json", cache_keys=True, timeout=6) if SUPABASE_URL else None
+)
+
+
+async def verify_access_token_async(token: str) -> Optional[dict]:
+    """Off-loop wrapper: a slow JWKS fetch must never block the whole server."""
+    try:
+        return await asyncio.wait_for(asyncio.to_thread(verify_access_token, token), timeout=8)
+    except asyncio.TimeoutError:
+        logger.warning("supabase token verification timed out (JWKS unreachable?)")
+        return None
 
 
 def enabled() -> bool:

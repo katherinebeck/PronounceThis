@@ -203,7 +203,7 @@ async def caller_email(request: Request, db: AsyncIOMotorDatabase) -> Optional[s
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         import supabase_auth
-        claims = supabase_auth.verify_access_token(auth[7:].strip())
+        claims = await supabase_auth.verify_access_token_async(auth[7:].strip())
         if claims:
             try:
                 return await supabase_auth.resolve_user_email(db, claims)

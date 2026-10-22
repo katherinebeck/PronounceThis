@@ -4,3 +4,4 @@ __pycache__/
 .pytest_cache/
 *.log
 .DS_Store
+frontend/node_modules/.cache/default-development/0.pack
