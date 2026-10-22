@@ -1956,6 +1956,11 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def _startup_indexes():
+    try:
+        import supabase_auth
+        supabase_auth.prewarm()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("jwks prewarm failed: %s", exc)
     if practice_enabled():
         phoneme_ear.warm()  # Practise This Word only; dormant (no model, no RAM) unless PRACTICE_MODE=on + Azure key
     await ensure_auth_indexes(db)

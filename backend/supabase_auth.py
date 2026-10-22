@@ -9,6 +9,7 @@ import httpx
 import jwt
 from jwt import PyJWKClient
 from motor.motor_asyncio import AsyncIOMotorDatabase
+from pymongo.errors import DuplicateKeyError
 
 logger = logging.getLogger(__name__)
 
@@ -17,14 +18,65 @@ ISSUER = f"{SUPABASE_URL}/auth/v1"
 _jwks: Optional[PyJWKClient] = (
     PyJWKClient(f"{ISSUER}/.well-known/jwks.json", cache_keys=True, timeout=6) if SUPABASE_URL else None
 )
+# Our own JWKS cache: async fetch, long-lived, pre-warmed, keeps the last good keys on failure.
+_keyset = {"keys": {}, "fetched_at": 0.0, "lock": asyncio.Lock()}
+KEYS_TTL_S = 12 * 3600
+ROTATION_RETRY_S = 60
+
+
+async def _refresh_keys(force: bool = False) -> None:
+    import time
+    now = time.time()
+    if not force and _keyset["keys"] and now - _keyset["fetched_at"] < KEYS_TTL_S:
+        return
+    async with _keyset["lock"]:
+        if not force and _keyset["keys"] and time.time() - _keyset["fetched_at"] < KEYS_TTL_S:
+            return
+        try:
+            async with httpx.AsyncClient(timeout=5) as client:
+                r = await client.get(f"{ISSUER}/.well-known/jwks.json")
+                r.raise_for_status()
+            keys = {k["kid"]: jwt.PyJWK(k).key for k in r.json().get("keys", []) if k.get("kid")}
+            if keys:
+                _keyset.update(keys=keys, fetched_at=time.time())
+                logger.info("supabase jwks refreshed (%d keys)", len(keys))
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("supabase jwks fetch failed (keeping %d cached keys): %s", len(_keyset["keys"]), exc)
+
+
+def prewarm() -> None:
+    if SUPABASE_URL:
+        asyncio.get_running_loop().create_task(_refresh_keys(force=True))
 
 
 async def verify_access_token_async(token: str) -> Optional[dict]:
-    """Off-loop wrapper: a slow JWKS fetch must never block the whole server."""
+    """Verify with our cached key set; never blocks the loop on a network call."""
+    if not SUPABASE_URL:
+        return None
     try:
-        return await asyncio.wait_for(asyncio.to_thread(verify_access_token, token), timeout=8)
-    except asyncio.TimeoutError:
-        logger.warning("supabase token verification timed out (JWKS unreachable?)")
+        header = jwt.get_unverified_header(token)
+        alg, kid = header.get("alg"), header.get("kid")
+        if alg == "HS256" and os.environ.get("SUPABASE_JWT_SECRET"):
+            claims = jwt.decode(token, os.environ["SUPABASE_JWT_SECRET"], algorithms=["HS256"],
+                                issuer=ISSUER, audience="authenticated")
+        elif alg == "ES256":
+            await _refresh_keys()
+            key = _keyset["keys"].get(kid)
+            if key is None:
+                import time
+                if time.time() - _keyset["fetched_at"] > ROTATION_RETRY_S:
+                    await _refresh_keys(force=True)  # key rotation
+                    key = _keyset["keys"].get(kid)
+            if key is None:
+                return None
+            claims = jwt.decode(token, key, algorithms=["ES256"], issuer=ISSUER, audience="authenticated")
+        else:
+            return None
+        if not claims.get("sub") or not claims.get("email"):
+            return None
+        return claims
+    except Exception as e:  # noqa: BLE001
+        logger.debug("supabase token rejected: %s", e)
         return None
 
 
@@ -76,12 +128,17 @@ async def resolve_user_email(db: AsyncIOMotorDatabase, claims: dict) -> Optional
                            claims["email"], email)
             raise IdentityConflict(email)
         if not user:
-            await db.users.insert_one({
-                "email": email, "email_key": canonical_email(email), "supabase_sub": sub,
-                "trial_word_used": 0, "trial_scene_used": 0,
-                "created_at": _now().isoformat(), "last_login_at": None,
-            })
-            user = {"email": email, "last_login_at": None}
+            try:
+                await db.users.insert_one({
+                    "email": email, "email_key": canonical_email(email), "supabase_sub": sub,
+                    "trial_word_used": 0, "trial_scene_used": 0,
+                    "created_at": _now().isoformat(), "last_login_at": None,
+                })
+                user = {"email": email, "last_login_at": None}
+            except DuplicateKeyError:
+                # Concurrent first-login requests raced; the other one created the row.
+                await db.users.update_one({"email": email}, {"$set": {"supabase_sub": sub}})
+                user = await db.users.find_one({"email": email}, {"email": 1, "last_login_at": 1}) or {"email": email, "last_login_at": None}
         else:
             await db.users.update_one({"email": email}, {"$set": {"supabase_sub": sub}})
     if user.get("last_login_at") is None:
