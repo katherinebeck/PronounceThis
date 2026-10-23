@@ -770,10 +770,10 @@ async def health():
     import supabase_auth
     checks = {"auth_keys": supabase_auth.keys_loaded(), "database": False}
     try:
-        await asyncio.wait_for(db.command("ping"), timeout=3)
+        await asyncio.wait_for(db.command("ping"), timeout=8)
         checks["database"] = True
     except Exception as exc:  # noqa: BLE001
-        logger.warning("health: database ping failed: %s", exc)
+        logger.warning("health: database ping failed: %s", repr(exc))
     return {"ok": all(checks.values()), "checks": checks,
             "tts_version": TTS_VERSION, "tts_model": TTS_MODEL, "voice": DEFAULT_VOICE_ID}
 
