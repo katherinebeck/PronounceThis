@@ -255,8 +255,8 @@ async def link_existing_users(db: AsyncIOMotorDatabase) -> None:
     their first 'Forgot password' email works. Skips users already linked."""
     if not (enabled() and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")):
         return
-    async for u in db.users.find({"supabase_sub": {"$exists": False}}, {"email": 1}):
+    async for u in db.users.find({"supabase_sub": {"$exists": False}, "supabase_link_checked": {"$ne": True}}, {"email": 1}):
         sub = await admin_create_user(u["email"])
-        if sub:
-            await db.users.update_one({"_id": u["_id"]}, {"$set": {"supabase_sub": sub}})
+        update = {"supabase_sub": sub} if sub else {"supabase_link_checked": True}
+        await db.users.update_one({"_id": u["_id"]}, {"$set": update})
         await asyncio.sleep(0.2)

@@ -374,9 +374,10 @@ export default function AdminPage() {
 
   useEffect(() => {
     loadIngestStatus();
-    const iv = setInterval(loadIngestStatus, 15000);
+    // Heavy aggregate on the server — poll fast only while a job is running.
+    const iv = setInterval(loadIngestStatus, ingestStatus?.job?.running ? 15000 : 90000);
     return () => clearInterval(iv);
-  }, [loadIngestStatus]);
+  }, [loadIngestStatus, ingestStatus?.job?.running]);
 
   const startIngest = async () => {
     setIngestStarting(true);

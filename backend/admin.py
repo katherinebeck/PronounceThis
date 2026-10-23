@@ -160,6 +160,9 @@ class PronunciationPrefDeleteBody(BaseModel):
     word: str
 
 
+_INGEST_BY_CHANNEL_CACHE: dict = {"rows": None, "at": None}
+
+
 def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
     router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -1548,13 +1551,16 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         indexed = await db.caption_transcript_cache.count_documents(
             {"has_transcript": True}
         )
-        by_channel = []
-        async for d in db.caption_transcript_cache.aggregate([
-            {"$match": {"has_transcript": True}},
-            {"$group": {"_id": "$channel_meta.channel_title", "n": {"$sum": 1}}},
-            {"$sort": {"n": -1}}, {"$limit": 200},
-        ]):
-            by_channel.append({"channel": d["_id"] or "(unknown)", "videos": d["n"]})
+        by_channel = _INGEST_BY_CHANNEL_CACHE.get("rows")
+        if by_channel is None or (datetime.now(timezone.utc) - _INGEST_BY_CHANNEL_CACHE["at"]).total_seconds() > 120:
+            by_channel = []
+            async for d in db.caption_transcript_cache.aggregate([
+                {"$match": {"has_transcript": True}},
+                {"$group": {"_id": "$channel_meta.channel_title", "n": {"$sum": 1}}},
+                {"$sort": {"n": -1}}, {"$limit": 200},
+            ]):
+                by_channel.append({"channel": d["_id"] or "(unknown)", "videos": d["n"]})
+            _INGEST_BY_CHANNEL_CACHE.update(rows=by_channel, at=datetime.now(timezone.utc))
         stale = False
         if s and s.get("running"):
             try:

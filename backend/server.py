@@ -83,8 +83,13 @@ import phoneme_ear
 from stripe_payments import create_stripe_router
 
 # --- DB ---------------------------------------------------------------------
+# The pod is CPU-capped well below os.cpu_count(); keep thread pools small so
+# blocking helpers (ElevenLabs/Stripe/Resend) can't starve Mongo's I/O threads.
+import motor.frameworks.asyncio as _motor_asyncio
+from concurrent.futures import ThreadPoolExecutor
+_motor_asyncio._EXECUTOR = ThreadPoolExecutor(max_workers=12, thread_name_prefix="motor")
 mongo_url = os.environ["MONGO_URL"]
-mongo_client = AsyncIOMotorClient(mongo_url)
+mongo_client = AsyncIOMotorClient(mongo_url, maxPoolSize=20)
 db = mongo_client[os.environ["DB_NAME"]]
 notify.set_db(db)
 
@@ -1964,6 +1969,7 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def _startup_indexes():
+    asyncio.get_running_loop().set_default_executor(ThreadPoolExecutor(max_workers=8, thread_name_prefix="app"))
     try:
         import supabase_auth
         supabase_auth.prewarm()
