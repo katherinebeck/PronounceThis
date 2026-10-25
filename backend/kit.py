@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://api.kit.com/v4"
 TAG_TRIAL = "PT Trial"
+TAG_TRIAL_DONE = "PT Trial Done"
 TAG_MONTHLY = "PT Monthly"
 TAG_ANNUAL = "PT Annual"
 

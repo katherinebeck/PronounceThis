@@ -611,6 +611,17 @@ class Actor(BaseModel):
     trial_word: Optional[str] = None
 
 
+async def _mark_trial_exhausted(db: AsyncIOMotorDatabase, email: str) -> None:
+    """First time a trial user hits the wall: stamp it and tag them in Kit so the email sequence can start."""
+    r = await db.users.update_one(
+        {"email": email, "trial_exhausted_at": {"$exists": False}},
+        {"$set": {"trial_exhausted_at": _now().isoformat()}},
+    )
+    if r.modified_count:
+        import kit
+        kit.tag_subscriber(email, kit.TAG_TRIAL_DONE)
+
+
 async def require_access(
     request: Request,
     db: AsyncIOMotorDatabase,
@@ -655,6 +666,7 @@ async def require_access(
         return Actor(email=email, is_subscriber=False, allowed=True, device_id=device_id)
 
     if used >= limit:
+        await _mark_trial_exhausted(db, email)
         raise HTTPException(
             status_code=402,
             detail={"code": "trial_exhausted", "kind": kind},
@@ -667,6 +679,7 @@ async def require_access(
             {"$addToSet": {"trial_words": word_key}},
         )
         if claimed.matched_count == 0:
+            await _mark_trial_exhausted(db, email)
             raise HTTPException(status_code=402, detail={"code": "trial_exhausted", "kind": kind})
         if claimed.modified_count == 0:
             # Same word arrived concurrently and was already claimed — free replay, don't count it twice.
