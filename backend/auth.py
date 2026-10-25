@@ -659,6 +659,18 @@ async def require_access(
             status_code=402,
             detail={"code": "trial_exhausted", "kind": kind},
         )
+    if word_key:
+        # Atomic claim: only admits while the set is still under the limit, so
+        # concurrent lookups can't all slip through a slow read-then-write.
+        claimed = await db.users.update_one(
+            {"email": email, "$expr": {"$lt": [{"$size": {"$ifNull": ["$trial_words", []]}}, limit]}},
+            {"$addToSet": {"trial_words": word_key}},
+        )
+        if claimed.matched_count == 0:
+            raise HTTPException(status_code=402, detail={"code": "trial_exhausted", "kind": kind})
+        if claimed.modified_count == 0:
+            # Same word arrived concurrently and was already claimed — free replay, don't count it twice.
+            return Actor(email=email, is_subscriber=False, allowed=True, device_id=device_id)
     return Actor(email=email, is_subscriber=False, allowed=True,
                  consumed_trial_kind=kind, device_id=device_id, trial_word=word_key)
 

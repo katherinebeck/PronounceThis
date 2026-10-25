@@ -2061,6 +2061,12 @@ async def _startup_indexes():
     from supabase_auth import link_existing_users
     asyncio.create_task(link_existing_users(db))
     await db.users.create_index("supabase_sub", unique=True, sparse=True)
+    # Trial counters inflated by duplicate concurrent clicks under slow DB: counter must not exceed distinct words.
+    for coll in (db.users, db.trial_devices):
+        await coll.update_many(
+            {"trial_words.0": {"$exists": True}, "$expr": {"$gt": ["$trial_word_used", {"$size": "$trial_words"}]}},
+            [{"$set": {"trial_word_used": {"$size": "$trial_words"}}}],
+        )
     # Scene ownership: pre-existing scenes have no uploader record; mark them
     # legacy (admin-only) without touching their content. Idempotent.
     await db.scenes.update_many(

@@ -637,3 +637,8 @@
 - `GET /api/health` now reports `checks.auth_keys` and `checks.database` (`ok` is false if either fails) — check it right after every deploy.
 - `python backend/check_deploy_ready.py` must print `deploy check: OK` before publishing (blocks torch/transformers/soundfile and `+cpu` wheels; the deploy bundles the live preview filesystem, not git).
 - Practise This Word remains hidden in production (`/api/practice/status` → enabled:false).
+
+## 2026-06 — Production incident follow-ups (same day)
+- Admin Google login lockout: users doc pinned to stale supabase_sub → IdentityConflict. Fix: exact-email match re-links to the new identity (alias guard kept). Verified live (admin reached /admin).
+- Prod DB stalls (50–125 s find_one): in-process thread starvation on 500m-CPU pod (Motor executor cpu_count*5=80 threads + unbounded to_thread). Fix: Motor executor 12 threads, maxPoolSize 20, default executor 8; /admin/ingest/status aggregate cached 120 s and polled every 90 s unless running; link_existing_users marks checked users. Verified live: DB read 0.2 s. Recommend user raises CPU tier.
+- Free trial over-admit (one account got 5 words, two had inflated counters): require_access now claims words atomically ($expr size<limit $addToSet); duplicate concurrent same-word requests are free replays; startup reconciles trial_word_used to len(trial_words). Preview-verified with bursts.
