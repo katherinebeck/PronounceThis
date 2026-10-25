@@ -142,6 +142,11 @@ class BlockDeviceBody(BaseModel):
     blocked: bool = True
 
 
+class BlockTrialBody(BaseModel):
+    email: EmailStr
+    blocked: bool = True
+
+
 class DismissWordBody(BaseModel):
     word: str
 
@@ -414,6 +419,19 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         if r.matched_count == 0:
             raise HTTPException(status_code=404, detail="user_not_found")
         return {"ok": True, "email": email, "unlinked": r.modified_count == 1}
+
+    @router.post("/users/trial-block")
+    async def block_user_trial(body: BlockTrialBody, request: Request):
+        """Block (or unblock) one account's free trial. Paying members are never affected."""
+        admin_email = await require_admin(request, db)
+        email = body.email.strip().lower()
+        r = await db.users.update_one(
+            {"email": email},
+            {"$set": {"trial_blocked": body.blocked, "trial_blocked_by": admin_email, "trial_blocked_at": _now_iso()}},
+        )
+        if r.matched_count == 0:
+            raise HTTPException(status_code=404, detail="user_not_found")
+        return {"ok": True, "email": email, "blocked": body.blocked}
 
     @router.get("/notifications")
     async def owner_notifications(request: Request, limit: int = 60):

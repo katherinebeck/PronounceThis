@@ -86,6 +86,18 @@ export default function AdminPage() {
     }
   }, [authorized, query, page]);
 
+  const toggleTrialBlock = async (u) => {
+    const blocked = !u.trial_blocked;
+    if (blocked && !window.confirm(`Block the free trial for ${u.email}? They'll hit the paywall until unblocked.`)) return;
+    try {
+      await api.post("/admin/users/trial-block", { email: u.email, blocked });
+      setUsers((prev) => prev.map((x) => (x.email === u.email ? { ...x, trial_blocked: blocked } : x)));
+      toast.success(blocked ? `Trial blocked for ${u.email}` : `Trial unblocked for ${u.email}`);
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || "Could not update trial block");
+    }
+  };
+
   const submitSearch = (e) => {
     e?.preventDefault?.();
     setPage(1);
@@ -959,8 +971,17 @@ export default function AdminPage() {
                             </button>
                           )}
                         </td>
-                        <td className="px-4 py-3 text-xs text-muted2">
-                          {u.trial_word_used}w · {u.trial_scene_used}s
+                        <td className="px-4 py-3 text-xs whitespace-nowrap">
+                          <button
+                            type="button"
+                            onClick={() => toggleTrialBlock(u)}
+                            className={"group inline-flex items-center gap-1.5 hover:text-ink " + (u.trial_blocked ? "text-crimson" : "text-muted2")}
+                            title={u.trial_blocked ? "Trial blocked — click to unblock" : "Click to block this account's free trial"}
+                            data-testid={`admin-trial-block-${u.email}`}
+                          >
+                            {u.trial_word_used}w · {u.trial_scene_used}s
+                            {u.trial_blocked ? <ShieldOff size={10} /> : <ShieldCheck size={10} className="opacity-40 group-hover:opacity-100" />}
+                          </button>
                         </td>
                         <td className="px-4 py-3 text-xs whitespace-nowrap">
                           {u.pages ? (
