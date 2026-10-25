@@ -1,9 +1,43 @@
 import React, { useState, useEffect } from "react";
-import { X, ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { X, ArrowRight, Loader2, Sparkles, Check } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { createStripeCheckout } from "@/lib/api";
 import TrialSignupForm from "./TrialSignupForm";
 import { toast } from "sonner";
+
+const UNLOCKS = [
+  "Unlimited words — American IPA, audio and Real Speaker clips",
+  "Upload full scenes and hear every line in a General American accent",
+  "Download your Reader's Lines audio to run lines before a self-tape",
+  "Every sound you need to work on, pulled from your own script",
+];
+
+// What a trial user has just tasted, shown the moment the free trial runs out.
+function TrialOverPitch({ reason }) {
+  return (
+    <div className="mb-6" data-testid="paywall-trial-over">
+      <p className="font-serif text-base text-ink leading-relaxed">
+        {reason === "scene"
+          ? "You've seen how your own scene sounds in a General American accent. Members get this for every audition:"
+          : "You've heard how it sounds when it's right. Members get this for every word and every audition:"}
+      </p>
+      <ul className="mt-4 space-y-2.5">
+        {UNLOCKS.map((line) => (
+          <li key={line} className="flex items-start gap-3 font-serif text-sm text-ink leading-snug">
+            <Check size={14} className="text-rust shrink-0 mt-0.5" />
+            <span>{line}</span>
+          </li>
+        ))}
+      </ul>
+      <figure className="mt-5 border-l-2 border-rust pl-4" data-testid="paywall-testimonial">
+        <blockquote className="font-serif text-sm text-ink italic leading-relaxed">
+          "This is amazing!! It's unlike anything else I've come across before and I think will be extremely useful for future US auditions."
+        </blockquote>
+        <figcaption className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-1.5">— Greg</figcaption>
+      </figure>
+    </div>
+  );
+}
 
 // Shown when a trial-gated (or subscriber-only) request comes back 402.
 // The subscribe buttons open Stripe Checkout for the selected plan.
@@ -51,7 +85,12 @@ export default function PaywallModal() {
 
   const trialOnly = paywallReason === "trial" && !me?.email;
   const showTrial = trialOnly;
-  const headline = trialOnly ? "New here? Try it for free" : "Join Pronounce This";
+  const trialOver = paywallReason === "word" || paywallReason === "scene";
+  const headline = trialOnly
+    ? "New here? Try it for free"
+    : trialOver
+    ? (paywallReason === "scene" ? "That was your free scene." : "That was your 2 free words.")
+    : "Join Pronounce This";
 
   const usedNote =
     paywallReason === "scene"
@@ -108,7 +147,9 @@ export default function PaywallModal() {
               <button type="button" className="text-ink not-italic underline underline-offset-2 hover:text-rust" onClick={() => openPaywall("join")} data-testid="paywall-trial-join">Join Pronounce This</button>.
             </p>
           ) : null}
-          {!trialOnly ? (
+          {trialOver ? (
+            <TrialOverPitch reason={paywallReason} />
+          ) : !trialOnly ? (
           <p className="font-serif text-base text-ink leading-relaxed mb-6">
             {subhead}
           </p>
@@ -139,8 +180,8 @@ export default function PaywallModal() {
                           ? "text-surface/70"
                           : "text-muted2 group-hover:text-surface/70")
                       }>
-                        {p.label}
-                        {p.savings_note ? ` · ${p.savings_note}` : ""}
+                        {isAnnual && trialOver ? "Most popular · 2 months free" : p.label}
+                        {p.savings_note && !(isAnnual && trialOver) ? ` · ${p.savings_note}` : ""}
                       </div>
                       <div className="font-display text-xl mt-0.5">
                         {isAnnual ? "Save with annual · " : "Start monthly · "}
@@ -179,7 +220,7 @@ export default function PaywallModal() {
             </p>
           </div>
           ) : null}
-          {!trialOnly ? (
+          {!trialOnly && !trialOver ? (
             <p className="font-serif text-sm text-muted2 mt-4 text-center leading-relaxed" data-testid="paywall-spam-note">
               Don't see our email? Check your spam or junk folder.
             </p>
