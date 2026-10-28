@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import WordBlock from "./WordBlock";
 import YouglishModal from "./CaptionSearchModal";
-import GuidedNextStep from "./GuidedNextStep";
 import { useAuth } from "@/lib/auth";
 import { loadTurnAudio, withRetry } from "@/lib/audio";
 import { fetchReaderVoices, downloadMyLines, fetchTurnTTS } from "@/lib/api";
@@ -489,7 +488,6 @@ export default function SceneReader({ scene, highlightSet }) {
         className="flex-1 overflow-auto scrollbar-thin px-4 sm:px-6 lg:px-10 xl:px-14 py-6 sm:py-8 animate-fade-in"
         data-testid="scene-reader"
       >
-        {scene.is_sample && isGuidedTrial && guidedDone.scene ? <GuidedNextStep mode="unlock" /> : null}
         <div className="max-w-[78ch] flex flex-col gap-8">
           {grouped.map((turn) => {
             const isMine = prefs.character && turn.speaker === prefs.character;

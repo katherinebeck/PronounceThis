@@ -18,6 +18,7 @@ import ResetPasswordPage from "@/components/ResetPasswordPage";
 import PaymentCancelPage from "@/components/PaymentCancelPage";
 import LoginPage from "@/components/LoginPage";
 import GuidedTrialBar from "@/components/GuidedTrialBar";
+import { GuidedPopup } from "@/components/GuidedNextStep";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import { api, listScenes, getScene, getSampleScene, fetchSoundCategories } from "@/lib/api";
 import "@/App.css";
@@ -295,6 +296,7 @@ function App() {
             )}
           </main>
           </div>
+          <GuidedPopup mode="unlock" active={auth.isGuidedTrial && scenes.some((s) => s.is_sample)} delayMs={60000} />
         </div>
       )}
     </div>
@@ -372,9 +374,9 @@ function SampleSceneIntro({ hasSample }) {
     <div className="bg-paper border-b thin-rule" data-testid="sample-scene-intro">
       <div className="max-w-6xl mx-auto px-5 sm:px-8 py-6 sm:py-8 flex flex-col lg:flex-row lg:items-end gap-5 lg:gap-10">
         <div className="min-w-0 flex-1">
-          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust">Step 02 · Sample audition scene</div>
+          <div className="font-mono text-[10px] font-bold uppercase tracking-[0.28em] text-rust">Step 02 · Sample audition scene</div>
           <h2 className="font-display text-2xl sm:text-3xl text-ink mt-2 leading-tight">
-            {hasSample ? "Work this scene the way a member works their sides." : "Sample scene coming shortly."}
+            {hasSample ? "Try Pronounce This Scene." : "Sample scene coming shortly."}
           </h2>
           <p className="font-serif text-base text-muted2 mt-2 leading-relaxed max-w-2xl">
             Choose your character, tap any word to hear it in a General American accent, play the lines, and pull the sound list for the scene.

@@ -5,7 +5,7 @@ import { playWord } from "@/lib/audio";
 import YouglishModal from "./CaptionSearchModal";
 import HeteronymVariants from "./HeteronymVariants";
 import PractiseWord from "./PractiseWord";
-import GuidedNextStep from "./GuidedNextStep";
+import GuidedNextStep, { GuidedPopup } from "./GuidedNextStep";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
@@ -210,10 +210,6 @@ export default function PronouncePage({ onGoToScenes }) {
           </div>
         ) : null}
 
-        {result?.word && isGuidedTrial && guidedStep === 2 && !blockedWord ? (
-          <GuidedNextStep mode="scene" onGoToScenes={onGoToScenes} />
-        ) : null}
-
         {result?.word && result?.ipa ? (
           <PractiseWord word={result.word} onHearReference={play} referencePlaying={playingHint} canHearReference={!hasVariants} />
         ) : null}
@@ -223,6 +219,11 @@ export default function PronouncePage({ onGoToScenes }) {
             <YouglishModal open inline query={result.word} />
           </div>
         ) : null}
+
+        {result?.word && isGuidedTrial && guidedStep === 2 && !blockedWord ? (
+          <GuidedNextStep mode="scene" onGoToScenes={onGoToScenes} />
+        ) : null}
+        <GuidedPopup mode="scene" active={!!result?.word && isGuidedTrial && guidedStep === 2} delayMs={15000} onGoToScenes={onGoToScenes} />
 
         {/* Audition scene invitation — only on the empty search page; once a
             word result is up the page belongs to that word. */}

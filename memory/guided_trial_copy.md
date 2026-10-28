@@ -24,7 +24,7 @@ Button: "Open the sample scene"  ·  small link: "or unlock everything now"
 
 ## Scene tab — strip above the sample scene (replaces the upload box)
 Eyebrow: "Step 02 · Sample audition scene"
-Title: "Work this scene the way a member works their sides."
+Title: "Try Pronounce This Scene."  (eyebrow "Step 02 · Sample audition scene" in bold)
 Body: "Choose your character, tap any word to hear it in a General American accent, play the lines, and pull the sound list for the scene."
 Button (right): "Upload your own scene"  → opens the Unlock pop-up
 Scene library: "Sample scene · 201 words" (no delete option) · "New Scene" → opens the Unlock pop-up
@@ -58,3 +58,8 @@ Lead: "You've heard how it sounds when it's right. Members get this for every wo
 - Sign-up blurb: "Get 1 free word and a sample audition scene. No credit card needed."
 - Landing FAQ "What happens after the free trial?": "Your free trial is a guided tour: check one word, then work our sample audition scene — pick a character, hear the lines, explore the pronunciation. After that you'll have the option to join on our monthly or annual plan and start using Pronounce This with your own scripts."
 - Owner email on new trial: "They get 1 free word and the sample audition scene."
+
+## Timed nudges (once per session, dismissable, bottom-right)
+- Word tab: 15 s after their first word result → pop-up with the Step 02 text and "Open the sample scene".
+- Scene tab: 60 s after opening the scene section → pop-up with the Step 03 text and "Unlock Pronounce This".
+- Step 03 card also lives in the scene library (left column) once they have heard a line; the Step 02 card sits below the Real Speakers box.

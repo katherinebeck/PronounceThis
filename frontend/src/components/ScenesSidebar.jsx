@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { Plus, Trash2, Upload, Loader2 } from "lucide-react";
 import { uploadScene, deleteScene } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import GuidedNextStep from "./GuidedNextStep";
 import { toast } from "sonner";
 
 function formatDate(iso) {
@@ -24,7 +25,7 @@ export default function ScenesSidebar({
   const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isAuthenticated, loading: authLoading, openPaywall, isGuidedTrial } = useAuth();
+  const { isAuthenticated, loading: authLoading, openPaywall, isGuidedTrial, guidedDone } = useAuth();
   const gated = !authLoading && !isAuthenticated;
   const pickFile = () =>
     gated ? openPaywall("trial") : isGuidedTrial ? openPaywall("unlock") : fileRef.current?.click();
@@ -150,7 +151,7 @@ export default function ScenesSidebar({
       >
         {scenes.length === 0 ? (
           <div className="px-6 py-6 md:py-10 text-sm text-muted2 font-serif italic">
-            No scenes yet. Upload a PDF to start your first transcription.
+            {isGuidedTrial ? "The sample scene isn't available right now." : "No scenes yet. Upload a PDF to start your first transcription."}
           </div>
         ) : (
           <ul>
@@ -200,6 +201,11 @@ export default function ScenesSidebar({
             })}
           </ul>
         )}
+        {isGuidedTrial && guidedDone.scene ? (
+          <div className="px-4 py-4" data-testid="sidebar-guided-unlock">
+            <GuidedNextStep mode="unlock" compact />
+          </div>
+        ) : null}
       </div>
       <div className="hidden md:flex px-6 py-4 border-t thin-rule font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 items-center gap-2" data-testid="scene-retention-note">
         <Upload size={12} /> Scenes are kept for 90 days

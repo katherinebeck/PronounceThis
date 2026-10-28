@@ -95,9 +95,9 @@ export default function WelcomeModal() {
         </div>
 
         <div className="flex items-center justify-between px-6 sm:px-8 pb-6">
-          {/* progress dots */}
+          {/* progress dots (only when there is more than one slide) */}
           <div className="flex items-center gap-1.5">
-            {slides.map((_, i) => (
+            {slides.length > 1 ? slides.map((_, i) => (
               <span
                 key={i}
                 className={
@@ -105,7 +105,7 @@ export default function WelcomeModal() {
                   (i === step ? "bg-ink border-ink" : "bg-transparent")
                 }
               />
-            ))}
+            )) : null}
           </div>
           {isLast ? (
             <button
