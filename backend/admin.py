@@ -147,6 +147,10 @@ class BlockTrialBody(BaseModel):
     blocked: bool = True
 
 
+class SampleSceneBody(BaseModel):
+    scene_id: str
+
+
 class DismissWordBody(BaseModel):
     word: str
 
@@ -432,6 +436,34 @@ def create_admin_router(db: AsyncIOMotorDatabase) -> APIRouter:
         if r.matched_count == 0:
             raise HTTPException(status_code=404, detail="user_not_found")
         return {"ok": True, "email": email, "blocked": body.blocked}
+
+    @router.get("/sample-scene")
+    async def get_sample_scene_admin(request: Request):
+        """Current guided-trial sample scene plus the admin's own scenes to pick from."""
+        email = await require_admin(request, db)
+        current = await db.scenes.find_one({"is_sample": True}, {"_id": 0, "id": 1, "title": 1, "turns": 1})
+        mine = await db.scenes.find({"owner_email": email}, {"_id": 0, "id": 1, "title": 1, "created_at": 1}).to_list(200)
+        return {
+            "current": {"id": current["id"], "title": current["title"], "turns": len(current.get("turns") or [])} if current else None,
+            "scenes": mine,
+        }
+
+    @router.post("/sample-scene")
+    async def set_sample_scene(body: SampleSceneBody, request: Request):
+        """Make one of the admin's scenes the trial sample. It never expires and is readable by every signed-in user."""
+        await require_admin(request, db)
+        scene = await db.scenes.find_one({"id": body.scene_id}, {"_id": 0, "id": 1, "title": 1})
+        if not scene:
+            raise HTTPException(status_code=404, detail="scene_not_found")
+        await db.scenes.update_many({"is_sample": True}, {"$set": {"is_sample": False}})
+        await db.scenes.update_one({"id": body.scene_id}, {"$set": {"is_sample": True}, "$unset": {"expires_at_dt": ""}})
+        return {"ok": True, "id": scene["id"], "title": scene["title"]}
+
+    @router.delete("/sample-scene")
+    async def clear_sample_scene(request: Request):
+        await require_admin(request, db)
+        await db.scenes.update_many({"is_sample": True}, {"$set": {"is_sample": False}})
+        return {"ok": True}
 
     @router.get("/notifications")
     async def owner_notifications(request: Request, limit: int = 60):

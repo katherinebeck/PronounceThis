@@ -20,7 +20,7 @@ const FAQ = [
   ["How fast can I actually prep the accent before a self-tape audition?",
    "Paste your scene in and the breakdown is immediate. IPA transcription, sound lists and downloadable audio for both your lines and your reader's. It's that fast."],
   ["What happens after the free trial?",
-   "Once you've looked up your 2 free words and used your one free scene upload, you'll have the option to sign up for our monthly or annual plan. Choose whichever works for you, then keep using Pronounce This."],
+   "Your free trial is a guided tour: check one word, then work our sample audition scene — pick a character, hear the lines, explore the pronunciation. After that you'll have the option to join on our monthly or annual plan and start using Pronounce This with your own scripts."],
 ];
 
 const TRIED = [

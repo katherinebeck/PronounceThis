@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import WordBlock from "./WordBlock";
 import YouglishModal from "./CaptionSearchModal";
+import GuidedNextStep from "./GuidedNextStep";
+import { useAuth } from "@/lib/auth";
 import { loadTurnAudio, withRetry } from "@/lib/audio";
 import { fetchReaderVoices, downloadMyLines, fetchTurnTTS } from "@/lib/api";
 import { toast } from "sonner";
@@ -71,6 +73,7 @@ function usePersistedScenePrefs(sceneId) {
 }
 
 export default function SceneReader({ scene, highlightSet }) {
+  const { isGuidedTrial, guidedStep, me, refresh, openPaywall } = useAuth();
   const [activeIdx, setActiveIdx] = useState(null);
   const [playingTurn, setPlayingTurn] = useState(null); // int | null
   const [loadingTurn, setLoadingTurn] = useState(null);
@@ -202,6 +205,7 @@ export default function SceneReader({ scene, highlightSet }) {
     stopRef.current = false;
     try {
       await playOneTurn(turnIndex, { voice: prefs.voice });
+      if (scene.is_sample && isGuidedTrial && !me?.sample_scene_explored) refresh();
     } catch (e) {
       toast.error(e.friendly || "Playback failed.");
       stopEverything();
@@ -275,6 +279,10 @@ export default function SceneReader({ scene, highlightSet }) {
   };
 
   const downloadBundle = async (mode) => {
+    if (isGuidedTrial) {
+      openPaywall("unlock");
+      return;
+    }
     if (!prefs.character) {
       toast.error("Pick your character first.");
       return;
@@ -471,6 +479,7 @@ export default function SceneReader({ scene, highlightSet }) {
         className="flex-1 overflow-auto scrollbar-thin px-4 sm:px-6 lg:px-10 xl:px-14 py-6 sm:py-8 animate-fade-in"
         data-testid="scene-reader"
       >
+        {scene.is_sample && isGuidedTrial && guidedStep === 3 ? <GuidedNextStep mode="unlock" /> : null}
         <div className="max-w-[78ch] flex flex-col gap-8">
           {grouped.map((turn) => {
             const isMine = prefs.character && turn.speaker === prefs.character;
@@ -492,6 +501,7 @@ export default function SceneReader({ scene, highlightSet }) {
                 isMine={isMine}
                 dimOthers={dimOthers}
                 onOpenReference={setYgQuery}
+                sceneId={scene.id}
               />
             );
           })}
@@ -573,6 +583,7 @@ function TurnBlock({
   isMine,
   dimOthers,
   onOpenReference,
+  sceneId,
 }) {
   const isNarration = !turn.speaker;
   return (
@@ -649,6 +660,7 @@ function TurnBlock({
             }
             onSetActive={() => onSetActive(`${turn.index}:${i}`)}
             onOpenReference={onOpenReference}
+            sceneId={sceneId}
           />
         ))}
       </div>

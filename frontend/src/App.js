@@ -17,8 +17,9 @@ import LandingPage from "@/components/landing/LandingPage";
 import ResetPasswordPage from "@/components/ResetPasswordPage";
 import PaymentCancelPage from "@/components/PaymentCancelPage";
 import LoginPage from "@/components/LoginPage";
+import GuidedTrialBar from "@/components/GuidedTrialBar";
 import { AuthProvider, useAuth } from "@/lib/auth";
-import { api, listScenes, getScene, fetchSoundCategories } from "@/lib/api";
+import { api, listScenes, getScene, getSampleScene, fetchSoundCategories } from "@/lib/api";
 import "@/App.css";
 
 const TABS = [
@@ -112,6 +113,7 @@ function App() {
         if (status === 401) {
           auth.openLogin();
         } else if (status === 402) {
+          if (err?.config?.skipPaywall) return Promise.reject(err);
           const detail = err?.response?.data?.detail;
           const kind =
             (detail && typeof detail === "object" && detail.kind) ||
@@ -144,17 +146,29 @@ function App() {
 
   // The server is the authority on which scenes belong to the signed-in
   // user (scoped by owner_email). localStorage is only a display cache.
+  // Guided-trial accounts can't upload, so their library is the sample scene.
   const refreshScenes = useCallback(async () => {
     try {
       const mine = await listScenes();
-      writeMyScenes(mine);
-      setScenes(mine);
-      return mine;
+      let list = mine;
+      if (auth.isGuidedTrial) {
+        try {
+          const sample = await getSampleScene();
+          list = [{ id: sample.id, title: sample.title, created_at: sample.created_at, is_sample: true,
+                    word_count: (sample.tokens || []).filter((t) => t.is_word).length }, ...mine];
+        } catch (e) {
+          console.warn("No sample scene set", e);
+        }
+      }
+      writeMyScenes(list);
+      setScenes(list);
+      return list;
     } catch {
       setScenes([]);
       return [];
     }
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth.isGuidedTrial]);
 
   useEffect(() => {
     (async () => {
@@ -189,7 +203,7 @@ function App() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth.loading, auth.isAuthenticated, auth.me?.email]);
+  }, [auth.loading, auth.isAuthenticated, auth.me?.email, auth.isGuidedTrial]);
 
   const handleSelect = async (id) => {
     try {
@@ -235,16 +249,21 @@ function App() {
   return (
     <div className="App min-h-screen flex flex-col">
       <Header tab={tab} onSwitchTab={switchTab} />
+      <GuidedTrialBar tab={tab} onGoToWord={() => switchTab("pronounce")} onGoToScenes={() => switchTab("scenes")} />
 
       {tab === "pronounce" ? (
         <PronouncePage onGoToScenes={() => switchTab("scenes")} />
       ) : (
         <div className="flex flex-col flex-1 min-h-0" data-testid="scenes-page">
+          {auth.isGuidedTrial ? (
+            <SampleSceneIntro hasSample={scenes.some((s) => s.is_sample)} />
+          ) : (
           <div className="bg-paper border-b thin-rule">
             <div className="max-w-6xl mx-auto px-5 sm:px-8 py-6 sm:py-8">
               <UploadDropzone onUploaded={handleNewScene} />
             </div>
           </div>
+          )}
           <div className="flex flex-col md:flex-row flex-1 min-h-0">
           <ScenesSidebar
             scenes={scenes}
@@ -272,7 +291,7 @@ function App() {
                 />
               </>
             ) : (
-              <ScenesEmptyState />
+              <ScenesEmptyState guided={auth.isGuidedTrial} />
             )}
           </main>
           </div>
@@ -334,12 +353,42 @@ function Header({ tab, onSwitchTab }) {
   );
 }
 
-function ScenesEmptyState() {
+function ScenesEmptyState({ guided = false }) {
   return (
     <div className="flex-1 flex items-center justify-center bg-paper px-6 py-16" data-testid="scenes-empty-state">
       <p className="font-serif text-base text-muted2 italic text-center max-w-md">
-        Your transcribed scenes will appear here. Upload a PDF above to get started.
+        {guided
+          ? "The sample audition scene isn't available right now — please check back shortly."
+          : "Your transcribed scenes will appear here. Upload a PDF above to get started."}
       </p>
+    </div>
+  );
+}
+
+// Guided trial, step 02: replaces the upload panel with a short brief for the sample scene.
+function SampleSceneIntro({ hasSample }) {
+  const { openPaywall } = useAuth();
+  return (
+    <div className="bg-paper border-b thin-rule" data-testid="sample-scene-intro">
+      <div className="max-w-6xl mx-auto px-5 sm:px-8 py-6 sm:py-8 flex flex-col lg:flex-row lg:items-end gap-5 lg:gap-10">
+        <div className="min-w-0 flex-1">
+          <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust">Step 02 · Sample audition scene</div>
+          <h2 className="font-display text-2xl sm:text-3xl text-ink mt-2 leading-tight">
+            {hasSample ? "Work this scene the way a member works their sides." : "Sample scene coming shortly."}
+          </h2>
+          <p className="font-serif text-base text-muted2 mt-2 leading-relaxed max-w-2xl">
+            Choose your character, tap any word to hear it in a General American accent, play the lines, and pull the sound list for the scene. Your own scripts are one step away.
+          </p>
+        </div>
+        <button
+          type="button"
+          className="btn-secondary shrink-0 justify-center"
+          onClick={() => openPaywall("unlock")}
+          data-testid="sample-scene-upload-own"
+        >
+          Upload your own scene
+        </button>
+      </div>
     </div>
   );
 }

@@ -86,9 +86,18 @@ export function AuthProvider({ children }) {
 
   const isAuthenticated = !!me?.authenticated;
   const isSubscriber = me?.subscription_status === "active";
+  // Guided trial: one word → sample scene → unlock (accounts created after launch).
+  const isGuidedTrial = isAuthenticated && !isSubscriber && !!me?.guided_trial;
+  const guidedStep = !isGuidedTrial
+    ? 0
+    : (me?.trial_word_used ?? 0) < 1
+    ? 1
+    : !me?.sample_scene_explored
+    ? 2
+    : 3;
   const trialWordRemaining = Math.max(
     0,
-    (me?.trial_word_limit ?? 5) - (me?.trial_word_used ?? 0),
+    (me?.trial_word_limit ?? 1) - (me?.trial_word_used ?? 0),
   );
   const trialSceneRemaining = Math.max(
     0,
@@ -100,6 +109,8 @@ export function AuthProvider({ children }) {
     loading,
     isAuthenticated,
     isSubscriber,
+    isGuidedTrial,
+    guidedStep,
     trialWordRemaining,
     trialSceneRemaining,
     refresh,

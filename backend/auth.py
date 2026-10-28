@@ -50,6 +50,15 @@ MAGIC_LINK_MAX_USES = 10            # scanners/prefetchers may open a link befor
 MAGIC_LINK_RATE_LIMIT_MIN = 1       # 1 magic link per minute per email
 TRIAL_WORD_LIMIT = 2
 TRIAL_SCENE_LIMIT = 1
+# Guided trial (accounts created after launch): one word, then the sample scene, then unlock.
+GUIDED_TRIAL_WORD_LIMIT = 1
+GUIDED_TRIAL_SCENE_LIMIT = 0
+
+
+def trial_limits(user: dict) -> dict:
+    if user.get("guided_trial"):
+        return {"word": GUIDED_TRIAL_WORD_LIMIT, "scene": GUIDED_TRIAL_SCENE_LIMIT}
+    return {"word": TRIAL_WORD_LIMIT, "scene": TRIAL_SCENE_LIMIT}
 
 APP_PUBLIC_URL = (os.environ.get("APP_PUBLIC_URL") or "").rstrip("/")
 SENDER_EMAIL = os.environ["SENDER_EMAIL"]
@@ -87,6 +96,9 @@ class AuthMeResponse(BaseModel):
     stripe_prices: list = []
     has_stripe_customer: bool = False
     is_admin: bool = False
+    # Guided trial: 1 word → sample scene → unlock. False for pre-launch trial accounts.
+    guided_trial: bool = False
+    sample_scene_explored: bool = False
     # Set when a valid Supabase login could not be linked to an account
     # (e.g. "inbox_already_linked"): the frontend must not treat this as
     # a plain visitor.
@@ -358,6 +370,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             "email_key": canonical_email(email),
             "trial_word_used": 0,
             "trial_scene_used": 0,
+            "guided_trial": True,
             "created_at": _now().isoformat(),
             "last_login_at": None,
         }
@@ -575,6 +588,7 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
         # after a possible self-heal that just linked the customer.
         user = await db.users.find_one({"email": email}) or user
         used = await effective_trial_used(db, user, device_id)
+        limits = trial_limits(user)
         pages = await page_allowance.usage(db, email, user) if status["status"] == "active" else None
 
         return AuthMeResponse(
@@ -585,6 +599,10 @@ def create_auth_router(db: AsyncIOMotorDatabase) -> APIRouter:
             subscription_end_at=status["subscription_end_at"],
             trial_word_used=used["word"],
             trial_scene_used=used["scene"],
+            trial_word_limit=limits["word"],
+            trial_scene_limit=limits["scene"],
+            guided_trial=bool(user.get("guided_trial")),
+            sample_scene_explored=bool(user.get("sample_scene_explored_at")),
             pages_used=pages["used"] if pages else None,
             pages_allowance=pages["allowance"] if pages else None,
             pages_reset_at=pages["resets_at"] if pages else None,
@@ -658,7 +676,7 @@ async def require_access(
             raise HTTPException(status_code=402, detail={"code": "trial_exhausted", "kind": kind})
     usage = await trial_usage(db, user, device_id)
     used = usage[kind]
-    limit = TRIAL_WORD_LIMIT if kind == "word" else TRIAL_SCENE_LIMIT
+    limit = trial_limits(user)[kind]
     word_key = trial_word_key(word) if (kind == "word" and word) else None
 
     # A word already in the trial set is free to search/hear again.

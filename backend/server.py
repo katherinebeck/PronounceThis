@@ -62,6 +62,7 @@ import page_allowance
 from wiktionary import WiktionaryIPA
 import llm
 from auth import (
+    Actor,
     create_auth_router,
     require_access,
     require_login,
@@ -155,6 +156,7 @@ class Scene(BaseModel):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     owner_email: Optional[str] = None   # None only for legacy (pre-ownership) scenes
     legacy: bool = False
+    is_sample: bool = False             # the guided-trial sample scene, readable by every signed-in user
 
 
 class SceneSummary(BaseModel):
@@ -172,6 +174,8 @@ class TTSRequest(BaseModel):
     phonetic: bool = False
     # Explicit CMU ARPABET ("P R OW1 D UW0 S") for heteronym variants.
     arpabet: Optional[str] = None
+    # Set when the word was tapped inside a scene; the sample scene is free for trial users.
+    scene_id: Optional[str] = None
 
 
 class TTSResponse(BaseModel):
@@ -1041,9 +1045,22 @@ async def _load_owned_scene(scene_id: str, request: Request) -> Dict:
     doc = await db.scenes.find_one({"id": scene_id}, {"_id": 0})
     if not doc:
         raise HTTPException(status_code=404, detail="Scene not found")
-    if doc.get("owner_email") != email and not is_admin_email(email):
+    if doc.get("owner_email") != email and not is_admin_email(email) and not doc.get("is_sample"):
         raise HTTPException(status_code=404, detail="Scene not found")
     return doc
+
+
+@api_router.get("/scenes/sample", response_model=Scene)
+async def get_sample_scene(request: Request):
+    """The guided-trial sample audition scene (set by the admin). 404 when none is set."""
+    await require_login(request, db)
+    doc = await db.scenes.find_one({"is_sample": True}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="No sample scene set")
+    doc = _refresh_categories(await _ensure_dialogue_only(doc))
+    if isinstance(doc.get("created_at"), str):
+        doc["created_at"] = datetime.fromisoformat(doc["created_at"])
+    return Scene(**doc)
 
 
 @api_router.get("/scenes", response_model=List[SceneSummary])
@@ -1134,6 +1151,8 @@ async def reparse_scene(scene_id: str, request: Request):
     """Force a re-extraction of dialogue for a saved scene. Useful if the
     original extraction missed lines or grouped them oddly."""
     doc = await _load_owned_scene(scene_id, request)
+    if doc.get("is_sample") and not is_admin_email(await require_login(request, db)):
+        raise HTTPException(status_code=403, detail="Only an admin can re-parse the sample scene.")
     doc["dialogue_only"] = False  # Force re-run.
     doc = await _ensure_dialogue_only(doc)
     if isinstance(doc.get("created_at"), str):
@@ -1143,7 +1162,9 @@ async def reparse_scene(scene_id: str, request: Request):
 
 @api_router.delete("/scenes/{scene_id}")
 async def delete_scene(scene_id: str, request: Request):
-    await _load_owned_scene(scene_id, request)
+    doc = await _load_owned_scene(scene_id, request)
+    if doc.get("is_sample") and doc.get("owner_email") != await require_login(request, db):
+        raise HTTPException(status_code=403, detail="The sample scene can only be removed by its owner.")
     res = await db.scenes.delete_one({"id": scene_id})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Scene not found")
@@ -1260,7 +1281,11 @@ async def tts(req: TTSRequest, request: Request):
         raise HTTPException(status_code=400, detail="word is required")
 
     # Gate: subscribers unlimited; trial users get 1 word audio.
-    actor = await require_access(request, db, kind="word", word=word)
+    # Words tapped inside the guided-trial sample scene are free to hear.
+    if req.scene_id and await db.scenes.find_one({"id": req.scene_id, "is_sample": True}, {"_id": 1}):
+        actor = Actor(email=await require_login(request, db), is_subscriber=False, allowed=True)
+    else:
+        actor = await require_access(request, db, kind="word", word=word)
 
     base_key = word.lower()
     # Explicit phonemes (heteronym variants) always synthesize phonetically
@@ -1888,6 +1913,13 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
     """
     doc = await _load_owned_scene(scene_id, request)
     doc = await _ensure_dialogue_only(doc)
+    if doc.get("is_sample"):
+        # Guided trial step 2: first line heard in the sample scene.
+        email = await require_login(request, db)
+        await db.users.update_one(
+            {"email": email, "sample_scene_explored_at": {"$exists": False}},
+            {"$set": {"sample_scene_explored_at": datetime.now(timezone.utc).isoformat()}},
+        )
 
     turns = doc.get("turns") or []
     if turn_index < 0 or turn_index >= len(turns):
@@ -2079,7 +2111,7 @@ async def _startup_indexes():
     # rule applies uniformly (never expires legacy/admin scenes).
     await db.scenes.create_index("expires_at_dt", expireAfterSeconds=0)
     async for s in db.scenes.find(
-        {"expires_at_dt": {"$exists": False}, "legacy": {"$ne": True}},
+        {"expires_at_dt": {"$exists": False}, "legacy": {"$ne": True}, "is_sample": {"$ne": True}},
         {"_id": 1, "created_at": 1},
     ):
         try:

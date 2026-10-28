@@ -49,8 +49,8 @@ export default function WelcomeModal() {
       title: "You're in — try it free first.",
       body: (
         <>
-          You get <strong className="font-mono not-italic text-ink">2 free words</strong> and{" "}
-          <strong className="font-mono not-italic text-ink">1 free scene</strong> to
+          You get <strong className="font-mono not-italic text-ink">1 free word</strong> and a{" "}
+          <strong className="font-mono not-italic text-ink">sample audition scene</strong> to
           feel out the app before you subscribe. No card required, no timer.
         </>
       ),
@@ -71,13 +71,13 @@ export default function WelcomeModal() {
     {
       icon: <FileText size={20} className="text-rust" />,
       eyebrow: "Scene tab",
-      title: "Rehearse your audition.",
+      title: "Rehearse an audition scene.",
       body: (
         <>
-          Upload a scene PDF. Every word gets phonetic transcription. Pull a
-          "sound list" of sounds in your scene for targeted drills, then
-          download your character's dialogue as a single MP3 you can practice
-          against on repeat.
+          Open the sample scene, choose your character, tap any word for its
+          pronunciation and play the dialogue. Members upload their own PDFs,
+          pull a "sound list" for targeted drills, and download their lines
+          and their reader's lines as MP3s.
         </>
       ),
     },

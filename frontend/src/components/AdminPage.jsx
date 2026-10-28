@@ -14,6 +14,7 @@ import { ClipReports } from "./ClipReports";
 import { BlockedWords } from "./BlockedWords";
 import { AccentGuard } from "./AccentGuard";
 import { TrialDevices } from "./TrialDevices";
+import { SampleScene } from "./SampleScene";
 import { KajabiStatus } from "./KajabiStatus";
 import NewBuyers from "./NewBuyers";
 import EmailPreviews from "./EmailPreviews";
@@ -837,7 +838,7 @@ export default function AdminPage() {
         {tab === "reports" ? <ClipReports /> : null}
         {tab === "blocked" ? <BlockedWords /> : null}
         {tab === "hidden" ? <HiddenVideos /> : null}
-        {tab === "trial" ? <TrialDevices /> : null}
+        {tab === "trial" ? (<><TrialDevices /><SampleScene /></>) : null}
         {tab === "kajabi" ? <KajabiStatus /> : null}
         {tab === "buyers" ? <NewBuyers /> : null}
 

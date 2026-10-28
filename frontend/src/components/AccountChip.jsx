@@ -9,7 +9,7 @@ import SupportModal from "./SupportModal";
 // menu with email + status + logout for logged-in users.
 export default function AccountChip() {
   const { me, isAuthenticated, isSubscriber, openLogin, openPaywall, logout,
-          trialWordRemaining, trialSceneRemaining } = useAuth();
+          trialWordRemaining, trialSceneRemaining, guidedStep } = useAuth();
   const [open, setOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [portalLoading, setPortalLoading] = useState(false);
@@ -105,8 +105,10 @@ export default function AccountChip() {
               {status}
             </div>
             {!isSubscriber ? (
-              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-2">
-                {trialWordRemaining} {trialWordRemaining === 1 ? "word" : "words"} · {trialSceneRemaining} scene left
+              <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-2" data-testid="account-trial-status">
+                {me?.guided_trial
+                  ? `Guided trial · step ${Math.min(guidedStep, 3)} of 3`
+                  : `${trialWordRemaining} ${trialWordRemaining === 1 ? "word" : "words"} · ${trialSceneRemaining} scene left`}
               </div>
             ) : me?.pages_allowance ? (
               <div className="font-mono text-[10px] uppercase tracking-[0.22em] text-muted2 mt-2" data-testid="account-pages">

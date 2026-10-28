@@ -5,6 +5,7 @@ import { playWord } from "@/lib/audio";
 import YouglishModal from "./CaptionSearchModal";
 import HeteronymVariants from "./HeteronymVariants";
 import PractiseWord from "./PractiseWord";
+import GuidedNextStep from "./GuidedNextStep";
 import { useAuth } from "@/lib/auth";
 import { toast } from "sonner";
 
@@ -12,9 +13,10 @@ import { toast } from "sonner";
 // sound categories, tap to hear Rachel say it, or open real-speaker clips
 // from curated American YouTube channels. Complements the full scene view.
 export default function PronouncePage({ onGoToScenes }) {
-  const { isAuthenticated, loading: authLoading, openPaywall } = useAuth();
+  const { isAuthenticated, loading: authLoading, openPaywall, isGuidedTrial, guidedStep, refresh } = useAuth();
   const [input, setInput] = useState("");
   const [result, setResult] = useState(null);
+  const [blockedWord, setBlockedWord] = useState(null);
   const [loading, setLoading] = useState(false);
   const [playingHint, setPlayingHint] = useState(false);
   const [categoriesMeta, setCategoriesMeta] = useState([]);
@@ -40,10 +42,17 @@ export default function PronouncePage({ onGoToScenes }) {
     }
     setLoading(true);
     try {
-      const r = await pronounceWord(word);
+      // Guided trial: a 2nd word is handled here (nudge to the sample scene), not by the paywall.
+      const r = await pronounceWord(word, { skipPaywall: isGuidedTrial && guidedStep === 2 });
       setResult(r);
+      setBlockedWord(null);
+      if (isGuidedTrial) refresh();
     } catch (err) {
       const status = err?.response?.status;
+      if (status === 402 && isGuidedTrial && guidedStep === 2) {
+        setBlockedWord(word);
+        return;
+      }
       if (status === 402 || status === 401) return; // paywall / login modal handles it
       const detail = err?.response?.data?.detail;
       toast.error(typeof detail === "string" ? detail : "Lookup failed.");
@@ -123,6 +132,10 @@ export default function PronouncePage({ onGoToScenes }) {
           </button>
         </form>
 
+        {blockedWord && isGuidedTrial ? (
+          <GuidedNextStep mode="scene" blocked onGoToScenes={onGoToScenes} />
+        ) : null}
+
         {result ? (
           <div className="mt-8 sm:mt-10 border thin-rule bg-surface animate-fade-in shadow-[0_30px_80px_-40px_rgba(0,0,0,0.9)]" data-testid="pronounce-result">
             <div className="px-5 sm:px-8 py-6 sm:py-8 border-b thin-rule flex items-start justify-between gap-4 sm:gap-6 flex-wrap">
@@ -196,6 +209,10 @@ export default function PronouncePage({ onGoToScenes }) {
           </div>
         ) : null}
 
+        {result?.word && isGuidedTrial && guidedStep === 2 && !blockedWord ? (
+          <GuidedNextStep mode="scene" onGoToScenes={onGoToScenes} />
+        ) : null}
+
         {result?.word && result?.ipa ? (
           <PractiseWord word={result.word} onHearReference={play} referencePlaying={playingHint} canHearReference={!hasVariants} />
         ) : null}
@@ -222,7 +239,7 @@ export default function PronouncePage({ onGoToScenes }) {
             className="mt-6 sm:mt-8 btn-primary text-[11px] sm:text-[12px] px-6 py-3 sm:px-7 sm:py-3.5"
             data-testid="scenes-promo-banner"
           >
-            Upload a scene <ArrowRight size={13} />
+            {isGuidedTrial ? "Try the sample scene" : "Upload a scene"} <ArrowRight size={13} />
           </button>
         </div>
         ) : null}

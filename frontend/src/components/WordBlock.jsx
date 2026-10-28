@@ -8,6 +8,7 @@ export default function WordBlock({
   highlighted,
   onSetActive,
   onOpenReference,
+  sceneId = null,
 }) {
   const isWord = token.is_word;
   if (!isWord) {
@@ -25,6 +26,7 @@ export default function WordBlock({
       await playWord(token.text, {
         phonetic: !!token.is_proper_noun,
         arpabet: token.variant_label && token.arpabet?.length ? token.arpabet.join(" ") : null,
+        sceneId,
       });
     } catch (err) {
       toast.error(err.friendly || "Audio playback failed.");

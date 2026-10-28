@@ -6,10 +6,10 @@ import TrialSignupForm from "./TrialSignupForm";
 import { toast } from "sonner";
 
 const UNLOCKS = [
+  "Upload your own scripts — audition sides, self-tapes, acting-class scenes",
   "Unlimited words — American IPA, audio and Real Speaker clips",
-  "Upload full scenes and hear every line in a General American accent",
+  "Hear every line of your scene in a General American accent",
   "Download your Reader's Lines audio to run lines before a self-tape",
-  "Every sound you need to work on, pulled from your own script",
 ];
 
 // What a trial user has just tasted, shown the moment the free trial runs out.
@@ -17,7 +17,9 @@ function TrialOverPitch({ reason }) {
   return (
     <div className="mb-6" data-testid="paywall-trial-over">
       <p className="font-serif text-base text-ink leading-relaxed">
-        {reason === "scene"
+        {reason === "unlock"
+          ? "You've checked a word and worked a scene. Members do exactly this with their own audition sides, self-tape scripts and acting-class scenes — for every audition:"
+          : reason === "scene"
           ? "You've seen how your own scene sounds in a General American accent. Members get this for every audition:"
           : "You've heard how it sounds when it's right. Members get this for every word and every audition:"}
       </p>
@@ -85,11 +87,14 @@ export default function PaywallModal() {
 
   const trialOnly = paywallReason === "trial" && !me?.email;
   const showTrial = trialOnly;
-  const trialOver = paywallReason === "word" || paywallReason === "scene";
+  const trialOver = paywallReason === "word" || paywallReason === "scene" || paywallReason === "unlock";
+  const oneWord = (me?.trial_word_limit ?? 2) === 1;
   const headline = trialOnly
     ? "New here? Try it for free"
+    : paywallReason === "unlock"
+    ? "Bring your own scripts."
     : trialOver
-    ? (paywallReason === "scene" ? "That was your free scene." : "That was your 2 free words.")
+    ? (paywallReason === "scene" ? "That was your free scene." : oneWord ? "That was your free word." : "That was your 2 free words.")
     : "Join Pronounce This";
 
   const usedNote =

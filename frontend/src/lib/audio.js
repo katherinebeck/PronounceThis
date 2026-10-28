@@ -38,7 +38,7 @@ export async function withRetry(fn, tries = 4) {
 }
 
 // `phonetic` = proper noun: pronunciation driven by the dictionary's phonemes.
-export async function playWord(word, { phonetic = false, arpabet = null } = {}) {
+export async function playWord(word, { phonetic = false, arpabet = null, sceneId = null } = {}) {
   if (!word) return null;
   const key = `${word.toLowerCase()}${arpabet ? `#${arpabet}` : phonetic ? "#ph" : ""}`;
   let cached = cache.get(key);
@@ -48,7 +48,7 @@ export async function playWord(word, { phonetic = false, arpabet = null } = {}) 
   } else {
     let resp;
     try {
-      resp = await withRetry(() => fetchTTS(word, phonetic, arpabet));
+      resp = await withRetry(() => fetchTTS(word, phonetic, arpabet, sceneId));
     } catch (e) {
       const err = new Error(friendlyError(e, "Unable to generate audio."));
       err.friendly = err.message;

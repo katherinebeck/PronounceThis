@@ -7,7 +7,7 @@ import AuthForm from "./AuthForm";
 const TITLES = { signin: "Sign in", signup: "Create your account", forgot: "Reset your password" };
 const BLURBS = {
   signin: "Welcome back. Enter your email and password.",
-  signup: "Get 2 free words and 1 free scene. No credit card needed.",
+  signup: "Get 1 free word and a sample audition scene. No credit card needed.",
   forgot: "Enter your email and we'll send you a link to choose a new password.",
 };
 

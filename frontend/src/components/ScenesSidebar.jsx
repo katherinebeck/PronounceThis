@@ -24,12 +24,14 @@ export default function ScenesSidebar({
   const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { isAuthenticated, loading: authLoading, openPaywall } = useAuth();
+  const { isAuthenticated, loading: authLoading, openPaywall, isGuidedTrial } = useAuth();
   const gated = !authLoading && !isAuthenticated;
-  const pickFile = () => (gated ? openPaywall("trial") : fileRef.current?.click());
+  const pickFile = () =>
+    gated ? openPaywall("trial") : isGuidedTrial ? openPaywall("unlock") : fileRef.current?.click();
 
   const handleFile = async (file) => {
     if (gated) { openPaywall("trial"); return; }
+    if (isGuidedTrial) { openPaywall("unlock"); return; }
     if (!file) return;
     setBusy(true);
     try {
@@ -178,9 +180,10 @@ export default function ScenesSidebar({
                         {s.title}
                       </div>
                       <div className="mt-1 font-mono text-[10px] uppercase tracking-[0.2em] text-muted2">
-                        {s.word_count} words · {formatDate(s.created_at)}
+                        {s.is_sample ? "Sample scene · " : ""}{s.word_count} words{s.is_sample ? "" : ` · ${formatDate(s.created_at)}`}
                       </div>
                     </div>
+                    {s.is_sample ? null : (
                     <button
                       type="button"
                       className="md:opacity-0 md:group-hover:opacity-100 transition-opacity p-1 text-muted2 hover:text-rust"
@@ -190,6 +193,7 @@ export default function ScenesSidebar({
                     >
                       <Trash2 size={14} />
                     </button>
+                    )}
                   </div>
                 </li>
               );

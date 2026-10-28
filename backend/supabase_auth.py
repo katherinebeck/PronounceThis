@@ -139,7 +139,7 @@ async def resolve_user_email(db: AsyncIOMotorDatabase, claims: dict) -> Optional
             try:
                 await db.users.insert_one({
                     "email": email, "email_key": canonical_email(email), "supabase_sub": sub,
-                    "trial_word_used": 0, "trial_scene_used": 0,
+                    "trial_word_used": 0, "trial_scene_used": 0, "guided_trial": True,
                     "created_at": _now().isoformat(), "last_login_at": None,
                 })
                 user = {"email": email, "last_login_at": None}
@@ -156,7 +156,7 @@ async def resolve_user_email(db: AsyncIOMotorDatabase, claims: dict) -> Optional
             from notify import notify_owner
             import kit
             notify_owner("New free trial", "Someone just started a free trial",
-                         [f"<b>{user['email']}</b> created an account.", "They get 2 free words and 1 free scene."])
+                         [f"<b>{user['email']}</b> created an account.", "They get 1 free word and the sample audition scene."])
             kit.tag_subscriber(user["email"], kit.TAG_TRIAL)
     return user["email"]
 

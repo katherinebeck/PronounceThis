@@ -87,11 +87,17 @@ export async function fetchSoundCategories() {
   return data.categories;
 }
 
-export async function fetchTTS(word, phonetic = false, arpabet = null) {
+export async function fetchTTS(word, phonetic = false, arpabet = null, sceneId = null) {
   const body = { word, phonetic };
   if (arpabet) body.arpabet = arpabet;
+  if (sceneId) body.scene_id = sceneId;
   const { data } = await api.post("/tts", body);
   return data; // { word, audio_b64, mime, cached }
+}
+
+export async function getSampleScene() {
+  const { data } = await api.get("/scenes/sample", { skipPaywall: true });
+  return data;
 }
 
 export async function fetchPracticeStatus(word) {
@@ -110,8 +116,8 @@ export async function assessPronunciation(word, blob) {
   return data;
 }
 
-export async function pronounceWord(word) {
-  const { data } = await api.get("/pronounce", { params: { word } });
+export async function pronounceWord(word, { skipPaywall = false } = {}) {
+  const { data } = await api.get("/pronounce", { params: { word }, skipPaywall });
   return data; // { word, normalized, ipa, arpabet, categories, source }
 }
 
