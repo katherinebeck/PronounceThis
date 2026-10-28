@@ -71,15 +71,19 @@ export function SampleScene() {
             return (
               <li key={s.id} className="px-4 py-3 flex items-center justify-between gap-4">
                 <span className={"font-serif text-sm truncate " + (active ? "text-rust" : "text-ink")}>{s.title}</span>
+                {active ? (
+                  <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-rust shrink-0" data-testid={`sample-scene-pick-${s.id}`}>In use</span>
+                ) : (
                 <button
                   type="button"
-                  className={"!py-1.5 !px-3 shrink-0 " + (active ? "btn-primary" : "btn-secondary")}
+                  className="btn-secondary !py-1.5 !px-3 shrink-0"
                   onClick={() => choose(s)}
-                  disabled={busy || active}
+                  disabled={busy}
                   data-testid={`sample-scene-pick-${s.id}`}
                 >
-                  {active ? "In use" : "Use as sample"}
+                  Use as sample
                 </button>
+                )}
               </li>
             );
           })}

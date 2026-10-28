@@ -1281,8 +1281,9 @@ async def tts(req: TTSRequest, request: Request):
         raise HTTPException(status_code=400, detail="word is required")
 
     # Gate: subscribers unlimited; trial users get 1 word audio.
-    # Words tapped inside the guided-trial sample scene are free to hear.
-    if req.scene_id and await db.scenes.find_one({"id": req.scene_id, "is_sample": True}, {"_id": 1}):
+    # Words tapped inside the guided-trial sample scene are free to hear — only words that are in it.
+    sample = await db.scenes.find_one({"id": req.scene_id, "is_sample": True}, {"_id": 0, "tokens.text": 1}) if req.scene_id else None
+    if sample and normalize_word(word) in {normalize_word(t.get("text", "")) for t in sample.get("tokens", [])}:
         actor = Actor(email=await require_login(request, db), is_subscriber=False, allowed=True)
     else:
         actor = await require_access(request, db, kind="word", word=word)
@@ -1913,6 +1914,11 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
     """
     doc = await _load_owned_scene(scene_id, request)
     doc = await _ensure_dialogue_only(doc)
+
+    turns = doc.get("turns") or []
+    if turn_index < 0 or turn_index >= len(turns):
+        raise HTTPException(status_code=404, detail="Turn not found")
+    turn = turns[turn_index]
     if doc.get("is_sample"):
         # Guided trial step 2: first line heard in the sample scene.
         email = await require_login(request, db)
@@ -1920,11 +1926,6 @@ async def tts_turn(scene_id: str, turn_index: int, request: Request,
             {"email": email, "sample_scene_explored_at": {"$exists": False}},
             {"$set": {"sample_scene_explored_at": datetime.now(timezone.utc).isoformat()}},
         )
-
-    turns = doc.get("turns") or []
-    if turn_index < 0 or turn_index >= len(turns):
-        raise HTTPException(status_code=404, detail="Turn not found")
-    turn = turns[turn_index]
 
     voice_id: Optional[str] = None
     voice_key: Optional[str] = None

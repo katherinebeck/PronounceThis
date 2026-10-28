@@ -51,6 +51,7 @@ export default function PronouncePage({ onGoToScenes }) {
       const status = err?.response?.status;
       if (status === 402 && isGuidedTrial && guidedStep === 2) {
         setBlockedWord(word);
+        setResult(null);
         return;
       }
       if (status === 402 || status === 401) return; // paywall / login modal handles it

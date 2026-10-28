@@ -645,3 +645,10 @@
 - Admin: per-account "block trial" toggle in All users → Trial column (POST /api/admin/users/trial-block). Preview-verified (blocked → 402, unblocked → 200).
 - Conversion #1 shipped: paywall "trial over" pitch (PaywallModal TrialOverPitch — 4 benefits, Greg testimonial, Annual "Most popular · 2 months free") when the 2 words / 1 scene run out. Backlog: #3 72-hour first-month Stripe coupon + countdown; "trial exhausted" Kit tag for the email sequence; #4 partial scene preview for trial users.
 - Conversion #2 shipped: first trial-exhausted 402 stamps users.trial_exhausted_at and tags the subscriber "PT Trial Done" in Kit (auth._mark_trial_exhausted). User builds the email automation in Kit on that tag. #3 (first-month coupon) explicitly declined by user — do not build.
+
+## 2026-06 — Guided 3-step free trial (preview-complete, NOT yet deployed)
+- New sign-ups get `users.guided_trial: true` → limits word 1 / scene uploads 0 (auth.trial_limits). Legacy trial accounts unchanged (2 words / 1 upload).
+- Step 01 word → Step 02 admin-set SAMPLE scene (scenes.is_sample; never expires; readable by all signed-in users; word taps free only for words in the scene via /tts scene_id; turn TTS stamps users.sample_scene_explored_at; downloads 402; delete 403) → Step 03 paywall reason "unlock" ("Bring your own scripts.").
+- Frontend: GuidedTrialBar (3 steps under header), GuidedNextStep cards (after word / in sample scene), SampleSceneIntro replaces dropzone, sidebar New Scene → paywall, PronouncePage 2nd word → nudge to scene (skipPaywall), AccountChip "Guided trial · step N of 3", copy updated (WelcomeModal, LoginModal, TrialSignupForm, landing FAQ).
+- Admin → Trial tab → "Sample audition scene": upload the scene as admin in the app, then "Use as sample". Endpoints GET/POST/DELETE /api/admin/sample-scene.
+- Tested: iteration_37 (11/11 backend, all frontend flows) + fixes for the 5 reported issues re-verified. Pending: user to upload the real sample scene in production after publishing.

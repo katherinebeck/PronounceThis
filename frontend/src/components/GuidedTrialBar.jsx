@@ -10,7 +10,7 @@ const STEPS = [
 
 // Three-step guided trial strip for new free-trial accounts.
 export default function GuidedTrialBar({ tab, onGoToWord, onGoToScenes }) {
-  const { isGuidedTrial, guidedStep, openPaywall } = useAuth();
+  const { isGuidedTrial, guidedStep, guidedDone, openPaywall } = useAuth();
   if (!isGuidedTrial) return null;
 
   const go = (i) => {
@@ -24,8 +24,8 @@ export default function GuidedTrialBar({ tab, onGoToWord, onGoToScenes }) {
       <ol className="max-w-6xl mx-auto px-4 sm:px-8 grid grid-cols-3">
         {STEPS.map((s, i) => {
           const stepNo = i + 1;
-          const done = guidedStep > stepNo;
-          const current = guidedStep === stepNo || (stepNo === 1 && tab === "pronounce" && guidedStep === 1) ;
+          const done = stepNo === 1 ? guidedDone.word : stepNo === 2 ? guidedDone.scene : false;
+          const current = guidedStep === stepNo;
           const onTab = (stepNo === 1 && tab === "pronounce") || (stepNo === 2 && tab === "scenes");
           return (
             <li key={s.n} className={"relative " + (i < 2 ? "border-r thin-rule" : "")}>

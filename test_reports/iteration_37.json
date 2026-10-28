@@ -1,0 +1,40 @@
+{
+  "summary": "Tested the guided 3-step free trial end to end. Backend: 11/11 pytest pass. Covered /auth/me guided flags, the 1-word limit (2nd word 402, same word again 200), /scenes/sample, /tts scene_id bypass, turn TTS setting sample_scene_explored, locks on download/delete/upload (402/403/402), the admin sample-scene GET/POST/DELETE (only one is_sample at a time, bad id rejected, non-admin forbidden) and the legacy 2/1 limits. Frontend (Playwright, desktop): checked the guided bar steps 1/2/3, the next-scene card after word 1, the 2nd word nudge with no paywall, the sample scene intro/sidebar/title, the unlock card after playing a turn, all 5 paywall triggers showing 'Bring your own scripts.' with the benefits list, Reader's Lines download sending no network request, word tap in the sample scene with no paywall, account status 'step N of 3', the admin Trial tab panel, a paid member with no guided bar and their own dropzone and scenes, and the landing FAQ text (in code). All requested flows work. Found 2 medium issues and a few minor ones.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/tts", "issue": "A sample scene_id skips the trial gate for ANY word, not just words in the scene. A guided trial user can get unlimited single-word ElevenLabs audio by sending {word: <anything>, scene_id: <sampleId>} (verified: 'house' returned 200 after the trial word was used). Check that the normalized word appears in the sample scene's tokens before skipping require_access."},
+      {"endpoint": "POST /api/scenes/{sampleId}/turns/{i}/tts", "issue": "sample_scene_explored_at is set before the turn index is checked, so an invalid turn (404) still marks the scene explored. The ?voice= param also lets every trial user start new paid syntheses per voice on the sample scene. Low risk, since caching limits it."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "SceneReader handlePlayTurn", "issue": "/auth/me refresh() (which shows guided-next-unlock and moves the bar to step 3) runs only after the turn's audio has FINISHED playing, not when the request completes. If the user stops the turn mid-playback, stopEverything() pauses the audio, onended never fires, the playOneTurn promise never resolves and the unlock card never appears until a reload. In testing the card was still missing 7s after the click (turn 0 was still 'Now speaking') and appeared later.", "selector": "[data-testid=guided-next-unlock]", "priority": "MEDIUM"},
+      {"component": "SceneReader Play My Lines / Play My Reader's Lines", "issue": "These buttons call playOneTurn but never call refresh(). The backend marks the scene explored, but the UI stays on step 2 with no unlock card until reload. These are the main 'hear the lines' actions the intro copy points users to.", "selector": "[data-testid=play-my-lines-button], [data-testid=play-reader-lines-button]", "priority": "MEDIUM"},
+      {"component": "auth.jsx guidedStep", "issue": "guidedStep returns 1 whenever trial_word_used < 1, even if sample_scene_explored is true. A user who goes straight to the sample scene (via 'Try the sample scene' or the step 2 button) and plays lines without checking a word stays at step 1: no unlock card, and step 2 never shows done.", "selector": "[data-testid=guided-step-2]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Pronounce page after 2nd word", "issues": ["The input shows 'bottle' but the result card below the nudge still shows 'water'. Consider clearing the stale result or showing the blocked word in the headline."]},
+      {"screen": "Admin Trial tab", "issues": ["The 'In use' pill is white text on light pink: low contrast."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_guided_trial.py", "/app/test_reports/pytest/guided_trial.xml"],
+  "action_items": [
+    "SceneReader: call refresh() when the turn TTS request succeeds (before playback), and also in handlePlayMyLines/handlePlayReaderLines for the sample scene, so the step 3 unlock card shows even if playback is stopped",
+    "Backend /tts: only skip the trial gate for words that appear in the sample scene",
+    "Optional: guidedStep should treat sample_scene_explored as finishing step 2 even if no word was checked; stamp explored only after turn index validation"
+  ],
+  "critical_code_review_comments": [
+    "server.py /tts sample bypass is not tied to the scene's words (cost/abuse vector).",
+    "SceneReader.jsx is 670 lines, close to the 700-line split threshold.",
+    "isGuidedTrial is false only for subscription_status 'active'. A 'trialing' (Stripe trial) user with guided_trial would still see the guided bar. Confirm this is intended."
+  ],
+  "updated_files": ["/app/backend/tests/test_guided_trial.py"],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "~90% (all requested flows pass; unlock-card timing/refresh gaps)"},
+  "seed_data_creation": "None. Trial user pttrial997949 reset to fresh guided state at the end (guided_trial true, trial_word_used 0, no explored/exhausted, trial_devices cleared). Sample scene re-set to 48727781-390e-4af9-af3f-49d5282ad610 (only is_sample).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run pytest /app/backend/tests/test_guided_trial.py. It resets the trial user via Mongo in fixture setup/teardown and re-sets the sample scene. Reset helper: /tmp/reset.py imports reset_trial from that test file. Frontend login is via /login with auth-email/auth-password/auth-submit; close welcome-close. Turn 0 audio of the sample scene is cached. Admin: add cookie accent_session (JWT) then /admin → admin-nav-trial.",
+  "rca of the issue": "Unlock card delay: SceneReader.handlePlayTurn awaits playOneTurn(), which resolves on audio.onended. refresh() comes after that await, so the step advance depends on playback finishing. stopEverything() pauses without resolving, which leaves it pending. Play My Lines/Reader's Lines never call refresh(). Fix: call refresh() right after the TTS POST resolves (in playOneTurn, or fire and forget when scene.is_sample)."
+}

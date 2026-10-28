@@ -73,7 +73,7 @@ function usePersistedScenePrefs(sceneId) {
 }
 
 export default function SceneReader({ scene, highlightSet }) {
-  const { isGuidedTrial, guidedStep, me, refresh, openPaywall } = useAuth();
+  const { isGuidedTrial, guidedDone, me, refresh, openPaywall } = useAuth();
   const [activeIdx, setActiveIdx] = useState(null);
   const [playingTurn, setPlayingTurn] = useState(null); // int | null
   const [loadingTurn, setLoadingTurn] = useState(null);
@@ -177,6 +177,8 @@ export default function SceneReader({ scene, highlightSet }) {
         reject(e);
         return;
       }
+      // Guided trial step 02 is complete once a line has been fetched — don't wait for playback to end.
+      if (scene.is_sample && isGuidedTrial && !me?.sample_scene_explored) refresh();
       if (stopRef.current) {
         setLoadingTurn(null);
         return resolve();
@@ -205,7 +207,6 @@ export default function SceneReader({ scene, highlightSet }) {
     stopRef.current = false;
     try {
       await playOneTurn(turnIndex, { voice: prefs.voice });
-      if (scene.is_sample && isGuidedTrial && !me?.sample_scene_explored) refresh();
     } catch (e) {
       toast.error(e.friendly || "Playback failed.");
       stopEverything();
@@ -479,7 +480,7 @@ export default function SceneReader({ scene, highlightSet }) {
         className="flex-1 overflow-auto scrollbar-thin px-4 sm:px-6 lg:px-10 xl:px-14 py-6 sm:py-8 animate-fade-in"
         data-testid="scene-reader"
       >
-        {scene.is_sample && isGuidedTrial && guidedStep === 3 ? <GuidedNextStep mode="unlock" /> : null}
+        {scene.is_sample && isGuidedTrial && guidedDone.scene ? <GuidedNextStep mode="unlock" /> : null}
         <div className="max-w-[78ch] flex flex-col gap-8">
           {grouped.map((turn) => {
             const isMine = prefs.character && turn.speaker === prefs.character;
