@@ -223,7 +223,7 @@ export default function PronouncePage({ onGoToScenes }) {
         {result?.word && isGuidedTrial && guidedStep === 2 && !blockedWord ? (
           <GuidedNextStep mode="scene" onGoToScenes={onGoToScenes} />
         ) : null}
-        <GuidedPopup mode="scene" active={!!result?.word && isGuidedTrial && guidedStep === 2} delayMs={15000} onGoToScenes={onGoToScenes} />
+        <GuidedPopup mode="scene" active={!!result?.word && isGuidedTrial && guidedStep === 2} delayMs={10000} onGoToScenes={onGoToScenes} />
 
         {/* Audition scene invitation — only on the empty search page; once a
             word result is up the page belongs to that word. */}

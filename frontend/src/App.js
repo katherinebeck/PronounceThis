@@ -134,6 +134,7 @@ function App() {
   const [activeScene, setActiveScene] = useState(null);
   const [categories, setCategories] = useState([]);
   const [highlightSet, setHighlightSet] = useState(new Set());
+  const [dialogueDone, setDialogueDone] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const switchTab = (t) => {
@@ -284,6 +285,7 @@ function App() {
                 <SceneReader
                   scene={activeScene}
                   highlightSet={highlightSet}
+                  onDialogueFinished={() => { if (activeScene?.is_sample && auth.isGuidedTrial) setDialogueDone(true); }}
                 />
                 <LaundryListPanel
                   scene={activeScene}
@@ -296,7 +298,7 @@ function App() {
             )}
           </main>
           </div>
-          <GuidedPopup mode="unlock" active={auth.isGuidedTrial && scenes.some((s) => s.is_sample)} delayMs={60000} />
+          <GuidedPopup mode="unlock" active={auth.isGuidedTrial && scenes.some((s) => s.is_sample)} delayMs={30000} center={dialogueDone} />
         </div>
       )}
     </div>

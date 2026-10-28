@@ -61,7 +61,8 @@ export default function GuidedNextStep({ mode, onGoToScenes, blocked = false, co
 }
 
 // Timed nudge: slides in from the corner after `delayMs` while `active`, once per mode per session.
-export function GuidedPopup({ mode, active, delayMs, onGoToScenes }) {
+// When `center` becomes true it re-opens in the middle of the screen (e.g. after the dialogue finishes).
+export function GuidedPopup({ mode, active, delayMs, onGoToScenes, center = false }) {
   const { openPaywall } = useAuth();
   const [open, setOpen] = useState(false);
   const key = `guided_popup_${mode}`;
@@ -76,6 +77,10 @@ export function GuidedPopup({ mode, active, delayMs, onGoToScenes }) {
     return () => clearTimeout(t);
   }, [active, delayMs, key]);
 
+  useEffect(() => {
+    if (active && center) setOpen(true);
+  }, [active, center]);
+
   if (!open || !active) return null;
   const c = COPY[mode];
   const act = () => {
@@ -84,22 +89,33 @@ export function GuidedPopup({ mode, active, delayMs, onGoToScenes }) {
     else openPaywall("unlock");
   };
 
-  return (
+  const panel = (
     <div
-      className="fixed z-40 inset-x-3 bottom-3 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[380px] bg-ink text-stage p-5 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.8)] animate-fade-in"
+      className={
+        "bg-[#0B2A8E] text-white p-5 sm:p-6 shadow-[0_30px_80px_-30px_rgba(11,42,142,0.8)] animate-fade-in " +
+        (center ? "relative w-full max-w-md" : "fixed z-40 inset-x-3 bottom-3 sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-[380px]")
+      }
       role="dialog"
       aria-live="polite"
       data-testid={`guided-popup-${mode}`}
+      data-centered={center ? "1" : "0"}
     >
-      <button type="button" className="absolute top-3 right-3 text-stage/60 hover:text-stage p-1" onClick={() => setOpen(false)} aria-label="Dismiss" data-testid="guided-popup-close">
+      <button type="button" className="absolute top-3 right-3 text-white/60 hover:text-white p-1" onClick={() => setOpen(false)} aria-label="Dismiss" data-testid="guided-popup-close">
         <X size={16} />
       </button>
-      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust">{c.step}</div>
-      <h3 className="font-display text-xl mt-1.5 leading-tight pr-6">{c.title}</h3>
-      <p className="font-serif text-sm text-stage/80 mt-2 leading-relaxed">{c.body}</p>
+      <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-white/70">{c.step}</div>
+      <h3 className={"font-display mt-1.5 leading-tight pr-6 " + (center ? "text-2xl sm:text-3xl" : "text-xl")}>{c.title}</h3>
+      <p className={"font-serif text-white/85 mt-2 leading-relaxed " + (center ? "text-base" : "text-sm")}>{c.body}</p>
       <button type="button" className="btn-primary mt-4 w-full justify-center" onClick={act} data-testid={`guided-popup-${mode}-cta`}>
         {c.cta} <ArrowRight size={13} />
       </button>
+    </div>
+  );
+
+  if (!center) return panel;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stage/70 backdrop-blur-sm p-4" onClick={() => setOpen(false)} data-testid="guided-popup-backdrop">
+      <div onClick={(e) => e.stopPropagation()} className="w-full flex justify-center">{panel}</div>
     </div>
   );
 }

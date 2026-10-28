@@ -60,6 +60,6 @@ Lead: "You've heard how it sounds when it's right. Members get this for every wo
 - Owner email on new trial: "They get 1 free word and the sample audition scene."
 
 ## Timed nudges (once per session, dismissable, bottom-right)
-- Word tab: 15 s after their first word result → pop-up with the Step 02 text and "Open the sample scene".
-- Scene tab: 60 s after opening the scene section → pop-up with the Step 03 text and "Unlock Pronounce This".
+- Word tab: 10 s after their first word result → pop-up with the Step 02 text and "Open the sample scene".
+- Scene tab: 30 s after opening the scene section → pop-up (bottom-right) with the Step 03 text; it re-opens in the centre of the screen when Play My Lines or Play My Reader's Lines finishes. All pop-ups and pointer pills are royal blue (#0B2A8E).
 - Step 03 card also lives in the scene library (left column) once they have heard a line; the Step 02 card sits below the Real Speakers box.

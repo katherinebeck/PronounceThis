@@ -72,7 +72,7 @@ function usePersistedScenePrefs(sceneId) {
   return [prefs, update];
 }
 
-export default function SceneReader({ scene, highlightSet }) {
+export default function SceneReader({ scene, highlightSet, onDialogueFinished }) {
   const { isGuidedTrial, guidedDone, me, refresh, openPaywall } = useAuth();
   const [activeIdx, setActiveIdx] = useState(null);
   const [playingTurn, setPlayingTurn] = useState(null); // int | null
@@ -245,6 +245,7 @@ export default function SceneReader({ scene, highlightSet }) {
         }
         await playOneTurn(mine[i].index, { voice: prefs.voice });
       }
+      if (!stopRef.current) onDialogueFinished?.();
     } catch (e) {
       toast.error(e.friendly || "Playback failed.");
     } finally {
@@ -283,6 +284,7 @@ export default function SceneReader({ scene, highlightSet }) {
       setReaderRunning(false);
       setPlayingTurn(null);
     }
+    if (!stopRef.current) onDialogueFinished?.();
   };
 
   const downloadBundle = async (mode) => {
@@ -531,7 +533,7 @@ const pickerCls =
 function GuidedHint({ text }) {
   return (
     <span
-      className="inline-flex items-center gap-1.5 bg-rust text-stage font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-2 whitespace-nowrap animate-fade-in motion-safe:animate-pulse"
+      className="inline-flex items-center gap-1.5 bg-[#0B2A8E] text-white font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-2 whitespace-nowrap animate-fade-in motion-safe:animate-pulse"
       data-testid="guided-hint"
     >
       <ArrowLeft size={11} strokeWidth={2.5} />
