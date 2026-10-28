@@ -7,7 +7,9 @@ export default function TrialSignupForm() {
   const { closePaywall } = useAuth();
   return (
     <div data-testid="trial-signup">
-      <p className="font-serif text-base text-muted2 mb-4">Get 1 free word + a sample audition scene. No credit card needed.</p>
+      <p className="font-serif text-base text-muted2 mb-4">
+        To begin, enter your email address and choose a password — or continue with Google. Then you're straight in.
+      </p>
       <AuthForm mode="signup" setMode={() => {}} compact onDone={closePaywall} />
     </div>
   );

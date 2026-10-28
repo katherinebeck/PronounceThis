@@ -55,7 +55,7 @@ Lead: "You've heard how it sounds when it's right. Members get this for every wo
 "Guided trial · step 1 of 3"  (2 of 3, 3 of 3)
 
 ## Sign-up / landing wording
-- Sign-up blurb: "Get 1 free word and a sample audition scene. No credit card needed."
+- Trial pop-up ("New here? Try it for free") blurb: "To begin, enter your email address and choose a password — or continue with Google. Then you're straight in."  (Login modal sign-up tab still says "Get 1 free word and a sample audition scene. No credit card needed.")
 - Landing FAQ "What happens after the free trial?": "Your free trial is a guided tour: check one word, then work our sample audition scene — pick a character, hear the lines, explore the pronunciation. After that you'll have the option to join on our monthly or annual plan and start using Pronounce This with your own scripts."
 - Owner email on new trial: "They get 1 free word and the sample audition scene."
 
