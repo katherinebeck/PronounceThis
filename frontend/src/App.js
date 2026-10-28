@@ -85,11 +85,29 @@ export default function AppRoot() {
         <AdminPage />
       ) : path.startsWith("/app") ? (
         <App />
+      ) : path === "/try" || path.startsWith("/try/") ? (
+        <TryGate />
       ) : (
         <HomeGate />
       )}
     </AuthProvider>
   );
+}
+
+// "/try" → shareable trial link: visitors land on the sales page with the free-trial sign-up already open.
+function TryGate() {
+  const { loading, isAuthenticated, openPaywall } = useAuth();
+  useEffect(() => {
+    if (loading) return;
+    if (isAuthenticated) {
+      window.history.replaceState({}, "", "/app");
+    } else {
+      window.history.replaceState({}, "", "/");
+      openPaywall("trial");
+    }
+  }, [loading, isAuthenticated, openPaywall]);
+  if (loading) return <div className="min-h-screen bg-stage" data-testid="try-loading" />;
+  return isAuthenticated ? <App /> : <LandingPage />;
 }
 
 // "/" → sales page for visitors; signed-in members go straight to the app.
