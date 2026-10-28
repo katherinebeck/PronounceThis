@@ -3,7 +3,7 @@
 ## Progress bar (under the header, all three steps always visible)
 - 01 · Check one word — hint: "Hear it the American way" (shows "Done" when complete)
 - 02 · Try a scene — hint: "Pick a character, hear the lines"
-- 03 · Unlock Pronounce This — hint: "Bring your own scripts"
+- 03 · Unlock Pronounce This — hint: "Bring your own scenes"
 
 ## Welcome pop-up (first login only)
 Single slide — eyebrow "Welcome" · title "You're in!"
@@ -36,7 +36,7 @@ On-screen pointers (sample scene only, until a line is heard): "← Start here �
 Button: "Unlock Pronounce This"  ·  note: "Uploads & downloads are member features"
 
 ## Unlock pop-up (Step 03 — also opens from Download buttons, New Scene, Upload your own scene)
-Headline: "Bring your own scripts."
+Headline: "Bring your own scenes."
 Lead: "Now that you've seen what Pronounce This can do, imagine how much easier it will be now that you have a place to practice your American accent."
 Benefits (ticks):
   - Upload your own scenes

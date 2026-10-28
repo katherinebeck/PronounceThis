@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 const STEPS = [
   { n: "01", label: "Check one word", hint: "Hear it the American way" },
   { n: "02", label: "Try a scene", hint: "Pick a character, hear the lines" },
-  { n: "03", label: "Unlock Pronounce This", hint: "Bring your own scripts" },
+  { n: "03", label: "Unlock Pronounce This", hint: "Bring your own scenes" },
 ];
 
 // Three-step guided trial strip for new free-trial accounts.

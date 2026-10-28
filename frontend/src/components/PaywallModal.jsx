@@ -92,7 +92,7 @@ export default function PaywallModal() {
   const headline = trialOnly
     ? "New here? Try it for free"
     : paywallReason === "unlock"
-    ? "Bring your own scripts."
+    ? "Bring your own scenes."
     : trialOver
     ? (paywallReason === "scene" ? "That was your free scene." : oneWord ? "That was your free word." : "That was your 2 free words.")
     : "Join Pronounce This";
