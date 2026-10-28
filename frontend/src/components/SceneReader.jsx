@@ -8,6 +8,7 @@ import {
   User,
   ChevronDown,
   Download,
+  ArrowLeft,
 } from "lucide-react";
 import WordBlock from "./WordBlock";
 import YouglishModal from "./CaptionSearchModal";
@@ -140,6 +141,12 @@ export default function SceneReader({ scene, highlightSet }) {
     }
     return out;
   }, [grouped]);
+
+  // Guided trial, sample scene: one on-screen pointer at a time until they've heard a line.
+  const coachHint =
+    scene.is_sample && isGuidedTrial && !guidedDone.scene
+      ? (prefs.character ? "play" : "character")
+      : null;
 
   // Cleanup on unmount / scene change.
   useEffect(() => {
@@ -390,6 +397,7 @@ export default function SceneReader({ scene, highlightSet }) {
                   value={prefs.character}
                   onChange={(c) => setPrefs({ character: c })}
                 />
+                {coachHint === "character" ? <GuidedHint text="Start here — choose your character" /> : null}
                 <VoicePicker
                   voices={voices}
                   value={prefs.voice}
@@ -410,6 +418,7 @@ export default function SceneReader({ scene, highlightSet }) {
                     <><Play size={12} fill="currentColor" /> Play My Lines</>
                   )}
                 </button>
+                {coachHint === "play" ? <GuidedHint text="Now play the dialogue" /> : null}
                 <button
                   type="button"
                   className="btn-secondary"
@@ -519,6 +528,19 @@ export default function SceneReader({ scene, highlightSet }) {
 
 const pickerCls =
   "flex items-center gap-3 border border-ink/40 bg-elevated px-4 py-3 hover:border-rust focus-within:border-rust transition-colors";
+
+// Pointer pill that sits beside a control during the guided trial.
+function GuidedHint({ text }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 bg-rust text-stage font-mono text-[10px] uppercase tracking-[0.2em] px-3 py-2 whitespace-nowrap animate-fade-in motion-safe:animate-pulse"
+      data-testid="guided-hint"
+    >
+      <ArrowLeft size={11} strokeWidth={2.5} />
+      {text}
+    </span>
+  );
+}
 const pickerLabel = "font-mono text-[10px] uppercase tracking-[0.24em] text-rust";
 const pickerSelect =
   "appearance-none bg-transparent outline-none font-display font-semibold text-base text-ink pr-1 cursor-pointer";

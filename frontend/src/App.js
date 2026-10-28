@@ -377,7 +377,7 @@ function SampleSceneIntro({ hasSample }) {
             {hasSample ? "Work this scene the way a member works their sides." : "Sample scene coming shortly."}
           </h2>
           <p className="font-serif text-base text-muted2 mt-2 leading-relaxed max-w-2xl">
-            Choose your character, tap any word to hear it in a General American accent, play the lines, and pull the sound list for the scene. Your own scripts are one step away.
+            Choose your character, tap any word to hear it in a General American accent, play the lines, and pull the sound list for the scene.
           </p>
         </div>
         <button

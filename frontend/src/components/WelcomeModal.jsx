@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X, ChevronRight, Sparkles, FileText, Volume2 } from "lucide-react";
+import { X, ChevronRight, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
 const STORAGE_KEY = "welcome_seen_v1";
@@ -46,38 +46,12 @@ export default function WelcomeModal() {
     {
       icon: <Sparkles size={20} className="text-rust" />,
       eyebrow: "Welcome",
-      title: "You're in — try it free first.",
+      title: "You're in!",
       body: (
         <>
-          You get <strong className="font-mono not-italic text-ink">1 free word</strong> and a{" "}
-          <strong className="font-mono not-italic text-ink">sample audition scene</strong> to
-          feel out the app before you subscribe. No card required, no timer.
-        </>
-      ),
-    },
-    {
-      icon: <Volume2 size={20} className="text-rust" />,
-      eyebrow: "Word tab",
-      title: "Look up any tricky word.",
-      body: (
-        <>
-          Type a word to see its American IPA transcription. Tap{" "}
-          <em className="not-italic font-mono text-ink">Play</em> to hear it,
-          or open <em className="not-italic font-mono text-ink">Real Speakers</em> to
-          hear it spoken by a native speaker on YouTube — cued to the exact moment.
-        </>
-      ),
-    },
-    {
-      icon: <FileText size={20} className="text-rust" />,
-      eyebrow: "Scene tab",
-      title: "Rehearse an audition scene.",
-      body: (
-        <>
-          Open the sample scene, choose your character, tap any word for its
-          pronunciation and play the dialogue. Members upload their own PDFs,
-          pull a "sound list" for targeted drills, and download their lines
-          and their reader's lines as MP3s.
+          Let's start by looking up a word. Type a word to hear it pronounced for
+          you or open <em className="not-italic font-mono text-ink">Real Speakers</em> to
+          hear it spoken by an American speaker on YouTube.
         </>
       ),
     },

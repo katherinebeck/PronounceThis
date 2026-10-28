@@ -13,10 +13,10 @@ export default function GuidedNextStep({ mode, onGoToScenes, blocked = false }) 
       <div className="mt-6 border border-rust/60 bg-surface p-5 sm:p-7 animate-fade-in" data-testid="guided-next-scene">
         <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust">Step 02 of 03</div>
         <h3 className="font-display text-2xl sm:text-3xl text-ink mt-2 leading-tight">
-          {blocked ? "That was your free word. Now hear a whole scene." : "Nice. Now hear a whole scene."}
+          {blocked ? "That was your free word. Now let's pronounce a scene." : "Nice. Now let's pronounce a scene."}
         </h3>
         <p className="font-serif text-base text-muted2 mt-3 leading-relaxed max-w-2xl">
-          Words are the warm-up — auditions are scenes. Open our sample audition scene, choose your character, tap any word for its pronunciation and listen to the dialogue in a General American accent.
+          Open our sample audition scene, choose your character, tap any word for its pronunciation and listen to the dialogue in a General American accent.
         </p>
         <div className="mt-5 flex flex-wrap items-center gap-3">
           <button type="button" className="btn-primary" onClick={onGoToScenes} data-testid="guided-open-sample-scene">
@@ -35,9 +35,9 @@ export default function GuidedNextStep({ mode, onGoToScenes, blocked = false }) 
   return (
     <div className="mb-8 border border-rust/60 bg-surface p-5 sm:p-7 animate-fade-in max-w-[78ch]" data-testid="guided-next-unlock">
       <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-rust">Step 03 of 03</div>
-      <h3 className="font-display text-2xl sm:text-3xl text-ink mt-2 leading-tight">Now picture this with your own script.</h3>
+      <h3 className="font-display text-2xl sm:text-3xl text-ink mt-2 leading-tight">Now picture this with your own scene.</h3>
       <p className="font-serif text-base text-muted2 mt-3 leading-relaxed">
-        Members upload their audition sides, self-tape scripts and acting-class scenes — every line transcribed, every word audible, Reader's Lines ready to download before the tape.
+        Members upload their audition sides and acting-class scenes with every line transcribed, every word pronounced. Reader's Lines ready to download to use for practice before you film.
       </p>
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <button type="button" className="btn-primary" onClick={() => openPaywall("unlock")} data-testid="guided-unlock-button">

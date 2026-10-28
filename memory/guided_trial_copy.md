@@ -6,46 +6,43 @@
 - 03 · Unlock Pronounce This — hint: "Bring your own scripts"
 
 ## Welcome pop-up (first login only)
-Slide 1 — eyebrow "Welcome" · title "You're in — try it free first."
-  You get **1 free word** and a **sample audition scene** to feel out the app before you subscribe. No card required, no timer.
-Slide 2 — eyebrow "Word tab" · title "Look up any tricky word."
-  Type a word to see its American IPA transcription. Tap Play to hear it, or open Real Speakers to hear it spoken by a native speaker on YouTube — cued to the exact moment.
-Slide 3 — eyebrow "Scene tab" · title "Rehearse an audition scene."
-  Open the sample scene, choose your character, tap any word for its pronunciation and play the dialogue. Members upload their own PDFs, pull a "sound list" for targeted drills, and download their lines and their reader's lines as MP3s.
+Single slide — eyebrow "Welcome" · title "You're in!"
+  Let's start by looking up a word. Type a word to hear it pronounced for you or open Real Speakers to hear it spoken by an American speaker on YouTube.
 
 ## Word tab — empty page, scene promo button
 "Try the sample scene" (members see "Upload a scene")
 
 ## Word tab — card under their first word result  (Step 02 of 03)
-Title: "Nice. Now hear a whole scene."
-Body: "Words are the warm-up — auditions are scenes. Open our sample audition scene, choose your character, tap any word for its pronunciation and listen to the dialogue in a General American accent."
+Title: "Nice. Now let's pronounce a scene."
+Body: "Open our sample audition scene, choose your character, tap any word for its pronunciation and listen to the dialogue in a General American accent."
 Button: "Open the sample scene"
 
 ## Word tab — when they try a SECOND word  (Step 02 of 03)
-Title: "That was your free word. Now hear a whole scene."
+Title: "That was your free word. Now let's pronounce a scene."
 Body: same as above
 Button: "Open the sample scene"  ·  small link: "or unlock everything now"
 
 ## Scene tab — strip above the sample scene (replaces the upload box)
 Eyebrow: "Step 02 · Sample audition scene"
 Title: "Work this scene the way a member works their sides."
-Body: "Choose your character, tap any word to hear it in a General American accent, play the lines, and pull the sound list for the scene. Your own scripts are one step away."
+Body: "Choose your character, tap any word to hear it in a General American accent, play the lines, and pull the sound list for the scene."
 Button (right): "Upload your own scene"  → opens the Unlock pop-up
 Scene library: "Sample scene · 201 words" (no delete option) · "New Scene" → opens the Unlock pop-up
 
 ## Scene tab — card at the top of the scene once they've heard a line  (Step 03 of 03)
-Title: "Now picture this with your own script."
-Body: "Members upload their audition sides, self-tape scripts and acting-class scenes — every line transcribed, every word audible, Reader's Lines ready to download before the tape."
+Title: "Now picture this with your own scene."
+Body: "Members upload their audition sides and acting-class scenes with every line transcribed, every word pronounced. Reader's Lines ready to download to use for practice before you film."
+On-screen pointers (sample scene only, until a line is heard): "← Start here — choose your character" beside the character picker, then "← Now play the dialogue" beside Play My Lines.
 Button: "Unlock Pronounce This"  ·  note: "Uploads & downloads are member features"
 
 ## Unlock pop-up (Step 03 — also opens from Download buttons, New Scene, Upload your own scene)
 Headline: "Bring your own scripts."
-Lead: "You've checked a word and worked a scene. Members do exactly this with their own audition sides, self-tape scripts and acting-class scenes — for every audition:"
+Lead: "Now that you've seen what Pronounce This can do, imagine how much easier it will be now that you have a place to practice your American accent."
 Benefits (ticks):
-  - Upload your own scripts — audition sides, self-tapes, acting-class scenes
-  - Unlimited words — American IPA, audio and Real Speaker clips
+  - Upload your own scenes
+  - Unlimited words — audio and Real Speaker clips
   - Hear every line of your scene in a General American accent
-  - Download your Reader's Lines audio to run lines before a self-tape
+  - Download your Reader's Lines to run lines before you audition
 Testimonial: "This is amazing!! It's unlike anything else I've come across before and I think will be extremely useful for future US auditions." — Greg
 Plans: "Monthly · Start monthly · $19/mo"  ·  "Most popular · 2 months free · Save with annual · $190/yr"
 Footer: "Cancel anytime. Secure checkout by Stripe."

@@ -6,10 +6,10 @@ import TrialSignupForm from "./TrialSignupForm";
 import { toast } from "sonner";
 
 const UNLOCKS = [
-  "Upload your own scripts — audition sides, self-tapes, acting-class scenes",
-  "Unlimited words — American IPA, audio and Real Speaker clips",
+  "Upload your own scenes",
+  "Unlimited words — audio and Real Speaker clips",
   "Hear every line of your scene in a General American accent",
-  "Download your Reader's Lines audio to run lines before a self-tape",
+  "Download your Reader's Lines to run lines before you audition",
 ];
 
 // What a trial user has just tasted, shown the moment the free trial runs out.
@@ -18,7 +18,7 @@ function TrialOverPitch({ reason }) {
     <div className="mb-6" data-testid="paywall-trial-over">
       <p className="font-serif text-base text-ink leading-relaxed">
         {reason === "unlock"
-          ? "You've checked a word and worked a scene. Members do exactly this with their own audition sides, self-tape scripts and acting-class scenes — for every audition:"
+          ? "Now that you've seen what Pronounce This can do, imagine how much easier it will be now that you have a place to practice your American accent."
           : reason === "scene"
           ? "You've seen how your own scene sounds in a General American accent. Members get this for every audition:"
           : "You've heard how it sounds when it's right. Members get this for every word and every audition:"}
