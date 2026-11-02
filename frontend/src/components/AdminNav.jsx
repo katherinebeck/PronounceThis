@@ -11,7 +11,7 @@ export const ADMIN_TABS = [
     { key: "grant", label: "Grant access", icon: UserPlus },
     { key: "stripe", label: "Stripe sync", icon: RefreshCw },
     { key: "kajabi", label: "Kajabi", icon: Link2 },
-    { key: "trial", label: "Trial abuse", icon: ShieldAlert },
+    { key: "trial", label: "Free trial", icon: ShieldAlert },
   ] },
   { group: "Real Speakers", items: [
     { key: "reports", label: "Clip reports", icon: Flag },

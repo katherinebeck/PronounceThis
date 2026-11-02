@@ -42,7 +42,7 @@ export function SampleScene() {
   };
 
   return (
-    <section className="bg-surface border thin-rule p-6 mt-6" data-testid="admin-sample-scene">
+    <section className="bg-surface border thin-rule p-6 mb-6" data-testid="admin-sample-scene">
       <div className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted2 mb-1">Guided trial · step 02</div>
       <h2 className="font-display text-2xl text-ink mb-4">Sample audition scene</h2>
       <p className="font-serif text-sm text-muted2 italic mb-5 leading-relaxed">

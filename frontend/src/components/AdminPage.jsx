@@ -838,7 +838,7 @@ export default function AdminPage() {
         {tab === "reports" ? <ClipReports /> : null}
         {tab === "blocked" ? <BlockedWords /> : null}
         {tab === "hidden" ? <HiddenVideos /> : null}
-        {tab === "trial" ? (<><TrialDevices /><SampleScene /></>) : null}
+        {tab === "trial" ? (<><SampleScene /><TrialDevices /></>) : null}
         {tab === "kajabi" ? <KajabiStatus /> : null}
         {tab === "buyers" ? <NewBuyers /> : null}
 
