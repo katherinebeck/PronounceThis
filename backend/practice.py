@@ -39,8 +39,8 @@ TIPS = {
     'ɪ': 'The arch of the tongue lowers ever so slightly. Lips: smiling and slightly spread apart. Lower jaw: lowers slightly. Tongue tip rests at the lower gum ridge. This vowel is short in length.',
     'ɛ': "Tongue: only slightly arched, with the tongue tip still resting at the lower gum ridge. Lips: smile in a wider position. Lower jaw: lowers a bit more. A short vowel — watch that you don't over-lengthen it.",
     'æ': 'Tongue: lies flat in the mouth with the tongue tip at the lower gum ridge. Lips: wide open smile, teeth far apart. Lower jaw: open.',
-    'ʌ': 'As in lunch. Tongue: lies flat with the tip resting at the lower gum ridge. Lips: relaxed. Lower jaw: gently drop the jaw more to create a bigger space in the mouth. Similar to the schwa, but used in the stressed syllable with slightly more length.',
-    'ə': 'As in the. Tongue: relaxed, with a gentle, natural arch; the tip rests at the lower gum ridge. Lips: relaxed — neither rounded nor smiling. Jaw and lips free of tension. A short vowel heard in unstressed syllables. Keep the tongue tip at the lower gum ridge to avoid an intrusive r.',
+    'ʌ': 'Tongue: lies flat with the tip resting at the lower gum ridge. Lips: relaxed. Lower jaw: gently drop the jaw more to create a bigger space in the mouth. Similar to the schwa, but used in the stressed syllable with slightly more length.',
+    'ə': 'Tongue: relaxed, with a gentle, natural arch; the tip rests at the lower gum ridge. Lips: relaxed — neither rounded nor smiling. Jaw and lips free of tension. A short vowel heard in unstressed syllables. Keep the tongue tip at the lower gum ridge to avoid an intrusive r.',
     'ɑ': 'As in father — the most open sound in the American accent. Tongue: the back is flat with the tip resting at the lower gum ridge. Lips: stretched and opened forward. Lower jaw: its most open position, teeth far apart. A long vowel.',
     'ɔ': 'As in call. Tongue: the back is only slightly arched; the tip rests at the lower gum ridge. Lips: rounded and protruded — you should feel sensation in the cheeks, and your thumb should fit between your lips. Lower jaw: open, released forward and down. A long vowel.',
     'ʊ': 'As in should. Tongue: the arch at the back lowers slightly; the tip rests at the lower gum ridge. Lips: open up a bit more and actively round into the shape of a circle. Lower jaw: opens slightly more. A short vowel.',
@@ -51,7 +51,7 @@ TIPS = {
     'aʊ': 'As in now. Starts very open on ɑ as in father — the most open vowel in the accent — then the arch in the back of the tongue raises for ʊ. Lips start open and close to a more rounded position. The length comes from the first sound.',
     'ɔɪ': 'As in toy. Starts on the back vowel ɔ as in call and glides to ɪ. Look in the mirror: the tongue arch moves from back to front, the jaw from a wide to a small opening, and the lips from rounded to smiling. The length comes from the first sound.',
     'ɝ': 'As in serve. Tongue: remove the tip from the lower gum ridge — the tip curls as the r is activated and you should feel tension in the tip. The body of the tongue should not pull back; the middle of the tongue is arched high. Lips: relaxed. Lower jaw: only slightly opened. Used in the stressed syllable (journey, herbal).',
-    'ɚ': 'As in mother. The tongue tip curls but is more relaxed, not as tense as ɝ in serve. Lips relaxed, jaw slightly opened. Short in duration — if this sound is stressed or lengthened the accent will begin to sound unnatural.',
+    'ɚ': 'The tongue tip curls but is more relaxed, not as tense as ɝ in serve. Lips relaxed, jaw slightly opened. Short in duration — if this sound is stressed or lengthened the accent will begin to sound unnatural.',
     'ɑɹ': "As in car. The back vowel ɑ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
     'ɔɹ': "As in horse. The back vowel ɔ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
     'ɛɹ': "As in Claire. The front vowel ɛ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
@@ -114,6 +114,7 @@ class PhonemeScore(BaseModel):
     note: Optional[str] = None
     flap: bool = False  # American flapped T expected in this slot
     reduced: bool = False  # unstressed ɪ: ə is accepted
+    stress: Optional[int] = None  # CMU stress of this vowel (0/1/2)
     t_kind: Optional[str] = None  # full | flap | held (t only)
     azure_expected: Optional[str] = None  # set when Azure picked a non-American variant
     intrusion: bool = False  # extra vowel/glide glued to this sound (ə-u, j-u)
@@ -286,6 +287,30 @@ def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[
     return readings
 
 
+def rhotic_check(out: "AssessResponse", wav_bytes: bytes, scale) -> List[dict]:
+    """Fourth ear for r-colouring: a rhotic vowel pulls F3 down to ~1.9–2.1 kHz (women); a plain
+    vowel keeps it ≥ 2.5 kHz. Catches a non-rhotic ɝ/ɚ the recogniser let through (sɜːv)."""
+    readings: List[dict] = []
+    hits: List[PhonemeScore] = []
+    for p in out.phonemes:
+        if p.expected not in R_SOUNDS or p.start_s is None or p.end_s is None or p.ear == "missing":
+            continue
+        start = p.start_s if p.expected in ("ɝ", "ɚ", "ɹ", "r") else p.start_s + 0.6 * (p.end_s - p.start_s)
+        f3 = formants.f3_median(wav_bytes, start, p.end_s)
+        if f3 is None:
+            continue
+        readings.append({"expected": p.expected, "f3": round(f3)})
+        if formants.rhotic_missing(f3, scale):
+            p.status, p.note = "needs_work", "The r sound wasn't heard."
+            p.heard = {"ɝ": "ɜ", "ɚ": "ə"}.get(p.expected, p.expected[0])
+            if p.score is None or p.score > CLOSE_AT - 1:
+                p.score = float(CLOSE_AT - 1)
+            hits.append(p)
+    if hits:
+        _flag_sounds(out, hits)
+    return readings
+
+
 def _flag_sounds(out: "AssessResponse", hits: List["PhonemeScore"]) -> None:
     """Add measurement-based misses (formant / fricative ears) to the result with the miss penalty."""
     seen = {n.phoneme for n in out.needs_work}
@@ -295,11 +320,9 @@ def _flag_sounds(out: "AssessResponse", hits: List["PhonemeScore"]) -> None:
                 if n.phoneme == p.expected:
                     n.confirmed, n.heard, n.note, n.score = True, p.heard, p.note, min(n.score or 100, p.score or 0)
                     n.badge, n.tip = p.badge, p.tip or n.tip
-                    if p.badge:
-                        n.heard = None  # the sound was there; the badge says what was wrong
             continue
         seen.add(p.expected)
-        out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=None if p.badge else p.heard, tip=p.tip or tip_for(p.expected),
+        out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=p.tip or tip_for(p.expected),
                                         confirmed=True, note=p.note, badge=p.badge))
     out.needs_work.sort(key=lambda n: (not (n.confirmed or n.intrusion), n.score or 0))
     out.accurate = [a for a in out.accurate if a not in {p.expected for p in hits}]
@@ -401,6 +424,7 @@ def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
             p.heard = c.get("heard") or p.heard
             p.note = c.get("note")
             p.intrusion = bool(c.get("intrusion"))
+            p.badge = "glided" if c.get("glided") else None
             if p.score is None or p.score > CLOSE_AT - 1:
                 p.score = float(CLOSE_AT - 1)
     misses = [p for p in out.phonemes if p.ear == "missing"]
@@ -414,12 +438,12 @@ def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
             if p.expected in seen:
                 for n in out.needs_work:
                     if n.phoneme == p.expected:
-                        n.confirmed, n.intrusion = not p.intrusion, p.intrusion
+                        n.confirmed, n.intrusion, n.badge = not p.intrusion, p.intrusion, p.badge
                         n.heard, n.score, n.note = p.heard or n.heard, min(n.score or 100, p.score or 0), p.note
                 continue
             seen.add(p.expected)
             out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=tip_for(p.expected, p.t_kind),
-                                            confirmed=not p.intrusion, intrusion=p.intrusion, note=p.note))
+                                            confirmed=not p.intrusion, intrusion=p.intrusion, note=p.note, badge=p.badge))
         out.needs_work.sort(key=lambda n: (not (n.confirmed or n.intrusion), n.score or 0))
     out.score10 = round((out.score or 0) / 10, 1)
 
@@ -594,6 +618,20 @@ def reduced_i_slots(word: str, azure_phonemes: List[str]) -> List[bool]:
     return out
 
 
+def vowel_stress_slots(word: str, azure_phonemes: List[str]) -> List[Optional[int]]:
+    """CMU stress (0/1/2) for each vowel slot, in order; None everywhere if the counts don't line up."""
+    phones = get_arpabet(word) or []
+    cmu = [int(ph[-1]) for ph in phones if ph[:2] in _ARPA_VOWELS and ph[-1].isdigit()]
+    vowel_syms = ear.EXPECTED_VOWELS | {"ɝ", "ɚ"}
+    slots = [i for i, p in enumerate(azure_phonemes) if p in vowel_syms]
+    out: List[Optional[int]] = [None] * len(azure_phonemes)
+    if len(slots) != len(cmu):
+        return out
+    for slot, st in zip(slots, cmu):
+        out[slot] = st
+    return out
+
+
 def _pa(item: dict) -> dict:
     """Azure REST puts scores flat on the item; the SDK nests them under PronunciationAssessment."""
     return {**item, **(item.get("PronunciationAssessment") or {})}
@@ -655,6 +693,8 @@ def _interpret(word: str, result: dict) -> AssessResponse:
                 ps.azure_expected, ps.expected = ps.expected, ours
         for ps, reduced in zip(w_phonemes, reduced_i_slots(word_text, [ps.expected for ps in w_phonemes])):
             ps.reduced = reduced
+        for ps, st in zip(w_phonemes, vowel_stress_slots(word_text, [ps.expected for ps in w_phonemes])):
+            ps.stress = st
         phonemes.extend(w_phonemes)
 
     score = nbest.get("PronScore")
@@ -757,7 +797,7 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
         out = _interpret(reference, result)
         heard = None
         if out.assessable and ear.available():
-            windows = [{"expected": p.expected, "start_s": p.start_s or 0.0, "end_s": p.end_s or 0.0, "flap": p.flap, "reduced": p.reduced} for p in out.phonemes]
+            windows = [{"expected": p.expected, "start_s": p.start_s or 0.0, "end_s": p.end_s or 0.0, "flap": p.flap, "reduced": p.reduced, "stress": p.stress} for p in out.phonemes]
             try:
                 heard = await asyncio.to_thread(ear.listen, wav_bytes, windows)
             except Exception as exc:  # noqa: BLE001
@@ -773,13 +813,14 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
             try:
                 readings = await asyncio.to_thread(vowel_check, out, wav_bytes, profile)
                 fric = await asyncio.to_thread(fricative_check, out, wav_bytes)
+                rho = await asyncio.to_thread(rhotic_check, out, wav_bytes, formants.speaker_scale(profile))
             except Exception as exc:  # noqa: BLE001
                 logger.warning("formant/fricative check failed: %s", exc)
-                readings, fric = [], []
+                readings, fric, rho = [], [], []
             if profile:
                 await db.users.update_one({"email": actor.email}, {"$set": {"formant_profile": profile}})
         else:
-            ref, readings, fric, profile = None, [], [], {}
+            ref, readings, fric, rho, profile = None, [], [], [], {}
         if out.assessable and out.syllables:
             try:
                 out.stress = await asyncio.to_thread(stress_check, reference, out.syllables, wav_bytes)
@@ -796,7 +837,7 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
                        "ref": ref_ph[i]["dur"] if i < len(ref_ph) and ref_ph[i]["expected"] == p.expected else None}
                       for i, p in enumerate(out.phonemes)]
             out.ear = {**ear.status(), "heard": (heard or {}).get("heard"), "checks": (heard or {}).get("checks"),
-                       "extra_nuclei": (heard or {}).get("extra_nuclei"), "timing": timing, "formants": readings, "fricatives": fric,
+                       "extra_nuclei": (heard or {}).get("extra_nuclei"), "timing": timing, "formants": readings, "fricatives": fric, "rhotic": rho,
                        "speaker_scale": [round(x, 2) for x in (formants.speaker_scale(profile) or ())]}
         await consume_trial(db, actor)
         if not actor.is_subscriber and out.assessable:

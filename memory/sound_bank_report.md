@@ -1,6 +1,6 @@
 # Sound bank — deliberate-error recordings vs Practise This Word
 
-Errors caught: **62/62** · clean American takes passing (≥8.5, target not flagged): **45/45**
+Errors caught: **62/62** · clean American takes passing (≥8.5, target not flagged): **43/45**
 
 | Target | Word | Take | Result | What the student reads |
 |---|---|---|---|---|
@@ -9,9 +9,9 @@ Errors caught: **62/62** · clean American takes passing (≥8.5, target not fla
 | /ɪ/ | ship | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /ɪ/ | ship | i — “sheep” (hannah) | ✓ caught | 6.3/10 Needs work · /ɪ/ not heard → i |
 | /ɛ/ | bed | clean (Hannah) | ✓ pass | 9.9/10 Excellent |
-| /ɛ/ | bed | æ — “bad” (hannah) | ✓ caught | 8.2/10 Okay — still needs practice · /ɛ/ weak 53/100 → æ |
+| /ɛ/ | bed | æ — “bad” (hannah) | ✓ caught | 6.2/10 Needs work · /ɛ/ not heard → æ · “The vowel sounded closer to æ as in cat — Americans use ɛ as in bed here.” |
 | /ɛ/ | bed | ɪ — “bid” (hannah) | ✓ caught | 6.7/10 Needs work · /ɛ/ not heard → ɪ |
-| /æ/ | cat | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
+| /æ/ | cat | clean (Hannah) | ✗ FALSE FLAG | 7.5/10 Okay — still needs practice · /æ/ not heard → ɑ · “The vowel sounded closer to the open ɑ as in father — Americans use æ as in cat here.” |
 | /æ/ | cat | ɑ — “cot” (hannah) | ✓ caught | 6.6/10 Needs work · /æ/ not heard → ɑ |
 | /æ/ | cat | ɪ — “kit” (hannah) | ✓ caught | 0.0/10 Keep working · /æ/ not heard → ɪ |
 | /ɑ/ | hot | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
@@ -42,8 +42,8 @@ Errors caught: **62/62** · clean American takes passing (≥8.5, target not fla
 | /ɝ/ | bird | clean (Hannah) | ✓ pass | 9.7/10 Excellent · other flags: /d/ |
 | /ɝ/ | bird | UK no r — “bird” (george) | ✓ caught | 7.5/10 Okay — still needs practice · /ɝ/ not heard → ɑ · “The r sound wasn't heard.” |
 | /ɝ/ | bird | ʌ — “bud” (hannah) | ✓ caught | 0.0/10 Keep working · /ɝ/ not heard → aɪ · “The r sound wasn't heard.” |
-| /ɚ/ | mother | clean (Hannah) | ✓ pass | 9.7/10 Excellent |
-| /ɚ/ | mother | UK no r — “mother” (george) | ✓ caught | 7.5/10 Okay — still needs practice · /ɚ/ not heard → ə · “The r sound wasn't heard.” |
+| /ɚ/ | mother | clean (Hannah) | ✗ FALSE FLAG | 7.5/10 Okay — still needs practice · /ɚ/ weak 67/100 → ə |
+| /ɚ/ | mother | UK no r — “mother” (george) | ✓ caught | 7.5/10 Okay — still needs practice · /ɚ/ weak 71/100 → ə |
 | /ɑɹ/ | car | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /ɑɹ/ | car | UK no r — “car” (george) | ✓ caught | 7.5/10 Okay — still needs practice · /ɑɹ/ not heard → ɑ · “The r sound wasn't heard.” |
 | /ɑɹ/ | car | ɔ — “caw” (hannah) | ✓ caught | 7.5/10 Okay — still needs practice · /ɑɹ/ not heard → ɑ · “The r sound wasn't heard.” |
@@ -82,7 +82,7 @@ Errors caught: **62/62** · clean American takes passing (≥8.5, target not fla
 | /ð/ | then | d — “den” (hannah) | ✓ caught | 8.6/10 Good · /ð/ weak 33/100 → d |
 | /ð/ | then | z — “zen” (hannah) | ✓ caught | 7.4/10 Okay — still needs practice · /ð/ not heard → z |
 | /s/ | sip | clean (Hannah) | ✓ pass | 9.9/10 Excellent |
-| /s/ | sip | z — “zip” (hannah) | ✓ caught | 6.9/10 Needs work · /s/ weak 42/100 → z |
+| /s/ | sip | z — “zip” (hannah) | ✓ caught | 8.9/10 Good · /s/ weak 42/100 → z |
 | /s/ | sip | ʃ — “ship” (hannah) | ✓ caught | 0.0/10 Keep working · /s/ not heard → ʃ |
 | /z/ | zoo | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /z/ | zoo | s — “sue” (hannah) | ✓ caught | 5.3/10 Needs work · /z/ not heard → s · “No voice was heard — it sounded like s as in sip. Keep the vocal folds buzzing through the z as in zoo.” |
@@ -99,7 +99,7 @@ Errors caught: **62/62** · clean American takes passing (≥8.5, target not fla
 | /m/ | map | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /m/ | map | n — “nap” (hannah) | ✓ caught | 7.2/10 Okay — still needs practice · /m/ weak 51/100 → n |
 | /n/ | net | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
-| /n/ | net | m — “met” (hannah) | ✓ caught | 7.0/10 Okay — still needs practice · /n/ weak 44/100 → m |
+| /n/ | net | m — “met” (hannah) | ✓ caught | 9.0/10 Good · /n/ weak 44/100 → m |
 | /ŋ/ | sing | clean (Hannah) | ✓ pass | 9.9/10 Excellent |
 | /ŋ/ | sing | n — “sin” (hannah) | ✓ caught | 8.0/10 Okay — still needs practice · /ŋ/ weak 0/100 → n |
 | /l/ | light | clean (Hannah) | ✓ pass | 10.0/10 Excellent |

@@ -51,21 +51,62 @@ def _lpc(frame: np.ndarray, order: int) -> Optional[np.ndarray]:
     return a
 
 
-def _frame_formants(frame: np.ndarray, sr: int) -> Optional[Tuple[float, float]]:
+def _frame_all(frame: np.ndarray, sr: int) -> list:
     a = _lpc(frame, 2 + sr // 1000)
     if a is None:
-        return None
-    roots = [r for r in np.roots(a) if r.imag > 0]
+        return []
     cands = []
-    for r in roots:
+    for r in np.roots(a):
+        if r.imag <= 0:
+            continue
         f = math.atan2(r.imag, r.real) * sr / (2 * math.pi)
         bw = -0.5 * sr / math.pi * math.log(max(abs(r), 1e-9))
         if 150 <= f <= 4000 and bw < 450:
             cands.append(f)
-    cands.sort()
+    return sorted(cands)
+
+
+def _frame_formants(frame: np.ndarray, sr: int) -> Optional[Tuple[float, float]]:
+    cands = _frame_all(frame, sr)
     if len(cands) < 2 or cands[1] - cands[0] < 150:
         return None
     return cands[0], cands[1]
+
+
+R_F3_BASE = 2250.0   # women: r-coloured vowels sit at F3 ≈ 1800–2100 Hz, plain vowels ≥ 2500 Hz
+R_F3_MIN_FRAMES = 3
+
+
+def f3_median(wav_bytes: bytes, start_s: float, end_s: float) -> Optional[float]:
+    """Median F3 over the louder frames of the window: the acoustic signature of r-colouring is a low F3."""
+    with wave.open(io.BytesIO(wav_bytes)) as wf:
+        sr = wf.getframerate()
+        audio = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16).astype(np.float64) / 32768.0
+    a, b = int(max(0.0, start_s) * sr), int(end_s * sr)
+    seg = audio[a:b]
+    win, hop = int(0.025 * sr), int(0.010 * sr)
+    if len(seg) < win + 2 * hop:
+        return None
+    seg = np.append(seg[0], seg[1:] - 0.97 * seg[:-1])
+    hamming = np.hamming(win)
+    frames = [seg[i:i + win] for i in range(0, len(seg) - win + 1, hop)]
+    rms = np.array([math.sqrt(float(np.mean(f ** 2))) for f in frames])
+    f3s = []
+    for f, r in zip(frames, rms):
+        if r < 0.4 * rms.max():
+            continue
+        c = _frame_all(f * hamming, sr)
+        if len(c) >= 3 and c[1] - c[0] >= 150 and c[2] - c[1] >= 200:
+            f3s.append(c[2])
+    if len(f3s) < R_F3_MIN_FRAMES:
+        return None
+    return float(np.median(f3s))
+
+
+def rhotic_missing(f3: float, scale: Optional[Tuple[float, float]]) -> bool:
+    """True when F3 is too high for an r-coloured vowel, for this speaker's size."""
+    k = scale[1] if scale else 1.0
+    return f3 >= R_F3_BASE * k
 
 
 def measure(wav_bytes: bytes, start_s: float, end_s: float) -> Optional[Tuple[float, float]]:
@@ -187,7 +228,7 @@ def judge(expected: str, point: Tuple[float, float], scale: Optional[Tuple[float
     if expected == "u":
         # Fronted ʉ keeps F1 low (so it still looks like u) but pushes F2 up towards the front vowels.
         if all(point[1] >= FRONTED_U_F2 * TARGETS["u"][1] * k[1] and point[0] <= 1.6 * TARGETS["u"][0] * k[0] for k in scales):
-            return {"heard": "ʉ", "badge": "too far forward", "tip": FRONTED_U_TIP, "note": None}
+            return {"heard": None, "badge": "too far forward", "tip": FRONTED_U_TIP, "note": None}
     ratio = STRICT_RATIO if strict else CLEAR_RATIO
     nearest_each = set()
     for k in scales:

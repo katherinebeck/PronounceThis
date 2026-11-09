@@ -325,7 +325,10 @@ def _sequence_view(windows: List[dict], tokens: List[str]) -> dict:
         nxt_vowel = nxt is not None and nxt["expected"] in EXPECTED_VOWELS and aligned_req[k]
         prv_vowel = prv is not None and prv["expected"] in EXPECTED_VOWELS and aligned_req[k - 1]
         if nxt_vowel:
-            allowed = (VOWELS | GLIDES) if nxt["expected"] in ONGLIDE_ANY_HOSTS else ONGLIDE_TOKENS
+            # A stressed vowel approached through another vowel is a diphthongised vowel (Aussie [əi] for i),
+            # never an extra syllable; only an unstressed host (alu-min-i-um) can gain a syllable.
+            stressed = nxt.get("stress") in (1, 2) or nxt["expected"] in ONGLIDE_ANY_HOSTS
+            allowed = (VOWELS | GLIDES) if stressed else ONGLIDE_TOKENS
             if all(t in allowed for t in vowelish):
                 intrusion[owner[k]] = intrusion[owner[k]] or {"tok": vowelish[0], "where": "before"}
             else:
@@ -392,6 +395,15 @@ def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, ex
             "p_heard": round(other_p, 2), "note": note, "flap": bool(flap and expected == "t"), "r_failed": failing is _R or r_weak}
 
 
+PURE_HOSTS = {"i", "u", "ɪ", "ʊ"}
+GLIDE_SUBS = {("i", "eɪ"): "əi", ("i", "ɛ"): "əi", ("u", "oʊ"): "əu", ("u", "aʊ"): "əu", ("ɪ", "eɪ"): "əɪ"}
+
+
+def _glide_note(expected: str, glide: str) -> str:
+    return (f"The {expected} moved while you said it — it started on a schwa (ə) and slid into {expected} ({glide}). "
+            f"Americans hold one pure {expected} from start to finish.")
+
+
 def _intrusion_note(expected: str, intr: dict) -> str:
     tok = DISPLAY.get(intr["tok"], intr["tok"])
     shown = expected if expected not in ("ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ") else expected[0]
@@ -438,7 +450,15 @@ def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
         intr = seq["intrusion"][i]
         if intr and c["verdict"] != "missing":
             c["verdict"], c["intrusion"] = "missing", True
-            c["heard"] = DISPLAY.get(intr["tok"], intr["tok"])
-            c["note"] = _intrusion_note(c["expected"], intr)
+            if c["expected"] in PURE_HOSTS and intr["tok"] in VOWELS and intr["where"] == "before":
+                c["heard"], c["glided"] = "ə" + c["expected"], True   # a vowel run-up = diphthongised vowel
+                c["note"] = _glide_note(c["expected"], c["heard"])
+            else:
+                c["heard"] = DISPLAY.get(intr["tok"], intr["tok"])
+                c["note"] = _intrusion_note(c["expected"], intr)
+        # The model hears a diphthongised pure vowel as the nearest diphthong (Aussie [əi] → eɪ): name it as the glide.
+        if c["verdict"] == "missing" and not c.get("intrusion") and (c["expected"], c.get("heard")) in GLIDE_SUBS:
+            c["heard"], c["glided"] = GLIDE_SUBS[(c["expected"], c["heard"])], True
+            c["note"] = _glide_note(c["expected"], c["heard"])
         c.pop("r_failed", None)
     return {"heard": heard, "checks": checks, "tokens": tokens, "extra_nuclei": seq["extra_nuclei"]}

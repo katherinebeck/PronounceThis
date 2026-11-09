@@ -45,6 +45,12 @@ function EarReadout({ ear }) {
           {ear.fricatives.map((f, i) => <span key={i}>/{f.expected}/ {f.level}·{f.voicing}</span>)}
         </div>
       ) : null}
+      {ear.rhotic?.length ? (
+        <div className="mt-1 font-mono text-[11px] text-muted2 flex flex-wrap gap-x-3 gap-y-1" data-testid="practise-ear-rhotic">
+          <span className="uppercase tracking-[0.2em] text-[10px]">R-colouring F3 (low = r heard)</span>
+          {ear.rhotic.map((f, i) => <span key={i}>/{f.expected}/ {f.f3} Hz</span>)}
+        </div>
+      ) : null}
     </div>
   );
 }
