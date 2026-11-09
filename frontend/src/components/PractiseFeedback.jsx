@@ -39,6 +39,12 @@ function EarReadout({ ear }) {
           {ear.formants.map((f, i) => <span key={i}>/{f.expected}/ {f.f1}·{f.f2}</span>)}
         </div>
       ) : null}
+      {ear.fricatives?.length ? (
+        <div className="mt-1 font-mono text-[11px] text-muted2 flex flex-wrap gap-x-3 gap-y-1" data-testid="practise-ear-fricatives">
+          <span className="uppercase tracking-[0.2em] text-[10px]">Fricatives (level · voicing)</span>
+          {ear.fricatives.map((f, i) => <span key={i}>/{f.expected}/ {f.level}·{f.voicing}</span>)}
+        </div>
+      ) : null}
     </div>
   );
 }

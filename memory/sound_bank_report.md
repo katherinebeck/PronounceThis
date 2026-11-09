@@ -1,6 +1,6 @@
 # Sound bank — deliberate-error recordings vs Practise This Word
 
-Errors caught: **60/62** · clean American takes passing (≥8.5, target not flagged): **45/45**
+Errors caught: **61/62** · clean American takes passing (≥8.5, target not flagged): **45/45**
 
 | Target | Word | Take | Result | What the student reads |
 |---|---|---|---|---|
@@ -19,7 +19,7 @@ Errors caught: **60/62** · clean American takes passing (≥8.5, target not fla
 | /ɑ/ | hot | AU ɒ — “hot” (tanya) | ✓ caught | 7.5/10 Okay — still needs practice · /ɑ/ not heard → ɔ · “The vowel sounded closer to the rounded ɔ as in call — Americans use the open ɑ as in father here.” |
 | /ɔ/ɑ/ | caught | clean (Hannah) | ✓ pass | 9.9/10 Excellent |
 | /ɔ/ɑ/ | caught | oʊ — “coat” (hannah) | ✓ caught | 0.0/10 Keep working · /ɑ/ not heard → oʊ |
-| /ɔ/ɑ/ | caught | ʌ — “cut” (hannah) | ✓ caught | 0.0/10 Keep working · /ɑ/ not heard → æ · “The vowel sounded closer to æ as in cat — Americans use the open ɑ as in father here.” |
+| /ɔ/ɑ/ | caught | ʌ — “cut” (hannah) | ✓ caught | 0.0/10 Keep working · /ɑ/ not heard → ʌ · “The vowel sounded closer to ʌ as in cup — Americans use the open ɑ as in father here.” |
 | /ʊ/ | book | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /ʊ/ | book | ʌ — “buck” (hannah) | ✓ caught | 6.4/10 Needs work · /ʊ/ not heard → ə |
 | /u/ | food | clean (Hannah) | ✓ pass | 9.9/10 Excellent |
@@ -82,10 +82,10 @@ Errors caught: **60/62** · clean American takes passing (≥8.5, target not fla
 | /ð/ | then | d — “den” (hannah) | ✓ caught | 8.9/10 Good · /ð/ weak 35/100 → d |
 | /ð/ | then | z — “zen” (hannah) | ✓ caught | 7.3/10 Okay — still needs practice · /ð/ not heard → z |
 | /s/ | sip | clean (Hannah) | ✓ pass | 9.8/10 Excellent |
-| /s/ | sip | z — “zip” (hannah) | ✓ caught | 6.8/10 Needs work · /s/ weak 43/100 → z |
+| /s/ | sip | z — “zip” (hannah) | ✓ caught | 4.8/10 Keep working · /s/ not heard → z · “This was voiced — it sounded like z as in zoo. The s as in sip is just air, no buzz.” |
 | /s/ | sip | ʃ — “ship” (hannah) | ✓ caught | 0.0/10 Keep working · /s/ not heard → ʃ |
 | /z/ | zoo | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
-| /z/ | zoo | s — “sue” (hannah) | ✗ missed | 9.4/10 Good |
+| /z/ | zoo | s — “sue” (hannah) | ✓ caught | 7.4/10 Okay — still needs practice · /z/ not heard → s · “No voice was heard — it sounded like s as in sip. Keep the vocal folds buzzing through the z as in zoo.” |
 | /ʃ/ | ship | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /ʃ/ | ship | s — “sip” (hannah) | ✓ caught | 6.7/10 Needs work · /ʃ/ not heard → s |
 | /tʃ/ | chip | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
@@ -112,8 +112,9 @@ Errors caught: **60/62** · clean American takes passing (≥8.5, target not fla
 | /j/ | yes | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /j/ | yes | dʒ — “jess” (hannah) | ✓ caught | 6.9/10 Needs work · /j/ not heard → dʒ |
 
-## Known limits (ear model, not tunable)
-- ***think* said as *fink*** (θ→f) and ***zoo* said as *sue*** (z→s): voiceless fricatives are near-identical to the recogniser at 16 kHz, so f/θ/s and s/z swaps are never asserted by the ear; Azure's own score carries them (lenient here). A spectral fricative check (recommendation 2) would address this.
-- Vowel swaps the recogniser was unsure about (*cup→cop*, Aussie *hot*, *hot→hut*) are now caught by the **formant ear** (`backend/formants.py`): F1/F2 of the steadiest 40 ms of the vowel vs General American targets fitted to the speaker. The speaker fit is learned from vowels the recogniser confirmed (numbers only, kept in `users.formant_profile`); until 3 vowel categories are known the check only fires when every plausible speaker size agrees.
+## Known limits
+- ***think* said as *fink*** (θ→f): both are quiet, diffuse fricatives — indistinguishable to the recogniser and to the spectral check at 16 kHz; Azure is lenient too. The only remaining bank miss.
+- Voiced weak fricatives said correctly (v, ð, z before a vowel) often give the fricative ear nothing to measure (voicing hides the noise) — that is fine: it stays silent rather than guessing.
 
+Three ears now: recogniser (`phoneme_ear.py`), formant ear for vowels (`formants.py`, learns your voice), fricative ear (`fricatives.py`: sibilance level vs the word's peak, voicing by autocorrelation; final voiced fricatives may devoice).
 Clips: /tmp/pt_bank (regenerate with `python3 tests/sound_bank.py gen`). Re-run: `python3 tests/sound_bank.py run`.

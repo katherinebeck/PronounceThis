@@ -22,6 +22,7 @@ from auth import _membership_status, consume_trial, is_admin_email, optional_log
 from phonetics import ARPA_TO_IPA, CUSTOM_IPA, get_arpabet, ipa_to_arpabet
 import phoneme_ear as ear
 import formants
+import fricatives
 import difflib
 
 logger = logging.getLogger("practice")
@@ -267,20 +268,48 @@ def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[
                 p.score = float(CLOSE_AT - 1)
             hits.append(p)
     if hits:
-        seen = {n.phoneme for n in out.needs_work}
-        for p in hits:
-            if p.expected in seen:
-                for n in out.needs_work:
-                    if n.phoneme == p.expected:
-                        n.confirmed, n.heard, n.note, n.score = True, p.heard, p.note, min(n.score or 100, p.score or 0)
-                continue
-            seen.add(p.expected)
-            out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=tip_for(p.expected), confirmed=True, note=p.note))
-        out.needs_work.sort(key=lambda n: (not (n.confirmed or n.intrusion), n.score or 0))
-        out.accurate = [a for a in out.accurate if a not in {p.expected for p in hits}]
-        out.score = max(0.0, min(float(out.score or 0) - MISS_PENALTY * len({p.expected for p in hits}), MISS_CAP))
-        out.band, out.summary = _band(out.score)
-        out.score10 = round(out.score / 10, 1)
+        _flag_sounds(out, hits)
+    return readings
+
+
+def _flag_sounds(out: "AssessResponse", hits: List["PhonemeScore"]) -> None:
+    """Add measurement-based misses (formant / fricative ears) to the result with the miss penalty."""
+    seen = {n.phoneme for n in out.needs_work}
+    for p in hits:
+        if p.expected in seen:
+            for n in out.needs_work:
+                if n.phoneme == p.expected:
+                    n.confirmed, n.heard, n.note, n.score = True, p.heard, p.note, min(n.score or 100, p.score or 0)
+            continue
+        seen.add(p.expected)
+        out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=tip_for(p.expected), confirmed=True, note=p.note))
+    out.needs_work.sort(key=lambda n: (not (n.confirmed or n.intrusion), n.score or 0))
+    out.accurate = [a for a in out.accurate if a not in {p.expected for p in hits}]
+    out.score = max(0.0, min(float(out.score or 0) - MISS_PENALTY * len({p.expected for p in hits}), MISS_CAP))
+    out.band, out.summary = _band(out.score)
+    out.score10 = round(out.score / 10, 1)
+
+
+def fricative_check(out: "AssessResponse", wav_bytes: bytes) -> List[dict]:
+    """Third ear: sibilance and voicing of s z ʃ ʒ f v θ ð from the noise frames of each window."""
+    readings: List[dict] = []
+    hits: List[PhonemeScore] = []
+    last = len(out.phonemes) - 1
+    for i, p in enumerate(out.phonemes):
+        if p.expected not in fricatives.CHECKED or p.start_s is None or p.end_s is None or p.ear == "missing":
+            continue
+        m = fricatives.measure(wav_bytes, p.start_s, p.end_s)
+        if not m:
+            continue
+        readings.append({"expected": p.expected, **m})
+        verdict = fricatives.judge(p.expected, m, i == last)
+        if verdict:
+            p.status, p.heard, p.note = "needs_work", verdict["heard"], verdict["note"]
+            if p.score is None or p.score > CLOSE_AT - 1:
+                p.score = float(CLOSE_AT - 1)
+            hits.append(p)
+    if hits:
+        _flag_sounds(out, hits)
     return readings
 
 
@@ -710,13 +739,14 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
             profile = user_doc.get("formant_profile") or {}
             try:
                 readings = await asyncio.to_thread(vowel_check, out, wav_bytes, profile)
+                fric = await asyncio.to_thread(fricative_check, out, wav_bytes)
             except Exception as exc:  # noqa: BLE001
-                logger.warning("formant check failed: %s", exc)
-                readings = []
+                logger.warning("formant/fricative check failed: %s", exc)
+                readings, fric = [], []
             if profile:
                 await db.users.update_one({"email": actor.email}, {"$set": {"formant_profile": profile}})
         else:
-            ref, readings, profile = None, [], {}
+            ref, readings, fric, profile = None, [], [], {}
         if out.assessable and out.syllables:
             try:
                 out.stress = await asyncio.to_thread(stress_check, reference, out.syllables, wav_bytes)
@@ -733,7 +763,7 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
                        "ref": ref_ph[i]["dur"] if i < len(ref_ph) and ref_ph[i]["expected"] == p.expected else None}
                       for i, p in enumerate(out.phonemes)]
             out.ear = {**ear.status(), "heard": (heard or {}).get("heard"), "checks": (heard or {}).get("checks"),
-                       "extra_nuclei": (heard or {}).get("extra_nuclei"), "timing": timing, "formants": readings,
+                       "extra_nuclei": (heard or {}).get("extra_nuclei"), "timing": timing, "formants": readings, "fricatives": fric,
                        "speaker_scale": [round(x, 2) for x in (formants.speaker_scale(profile) or ())]}
         await consume_trial(db, actor)
         if not actor.is_subscriber and out.assessable:
