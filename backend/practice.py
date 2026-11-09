@@ -108,6 +108,7 @@ class PhonemeScore(BaseModel):
     flap: bool = False  # American flapped T expected in this slot
     t_kind: Optional[str] = None  # full | flap | held (t only)
     azure_expected: Optional[str] = None  # set when Azure picked a non-American variant
+    intrusion: bool = False  # extra vowel/glide glued to this sound (ə-u, j-u)
 
 
 class NeedsWork(BaseModel):
@@ -117,6 +118,7 @@ class NeedsWork(BaseModel):
     tip: Optional[str] = None
     confirmed: bool = False  # the ear heard a different sound in this slot
     overdone: bool = False   # sound present but held/leaned on too long
+    intrusion: bool = False  # sound present but with an extra vowel/glide glued to it
     note: Optional[str] = None
 
 
@@ -155,10 +157,11 @@ EXTRA_SYLLABLE_PENALTY = 15
 
 
 def check_extra_syllables(out: "AssessResponse", heard: Optional[dict]) -> None:
-    """More vowel nuclei heard than the American word has → an added syllable (alu-MIN-i-um)."""
+    """The ear heard a full extra vowel between the expected sounds → an added syllable (alu-MIN-i-um).
+    Onglides glued to a vowel (ə-u, j-u) are reported as a sound error instead, not here."""
     if not heard or not out.expected_vowels:
         return
-    extra = int(heard.get("heard_vowels") or 0) - out.expected_vowels
+    extra = int(heard.get("extra_nuclei") or 0)
     if extra < 1:
         return
     out.extra_syllables = extra
@@ -180,12 +183,27 @@ def check_extra_syllables(out: "AssessResponse", heard: Optional[dict]) -> None:
 STRESS_PENALTY = 10
 R_SOUNDS = {"ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ", "ɝ", "ɚ", "ɹ", "r"}
 R_MAX_S = 0.45          # word-internal R-coloured sound held this long is being leaned on
-R_MAX_FINAL_S = 0.62    # finals are naturally longer (Hannah: 0.37–0.61 s)
+R_MAX_FINAL_S = 0.62    # stressed final ɝ/ɹ (word, serve): Hannah runs 0.37–0.61 s
+R_MAX_FINAL_UNSTRESSED_S = 0.42  # final ɚ (mother, water) is short by nature: Hannah 0.32–0.41 s
+R_REL = 1.25            # or clearly longer than Hannah's own take of this word
+R_REL_MIN_S = 0.30
 OVERDONE_PENALTY = 10
 
 
-def check_held_r(out: "AssessResponse") -> None:
-    """Flag R-coloured sounds the speaker holds too long (Azure phoneme timings)."""
+def _held_r(p: "PhonemeScore", i: int, timed: List["PhonemeScore"], ref: Optional[dict]) -> bool:
+    dur = p.end_s - p.start_s
+    final = i == len(timed) - 1
+    limit = (R_MAX_FINAL_UNSTRESSED_S if p.expected == "ɚ" else R_MAX_FINAL_S) if final else R_MAX_S
+    if dur >= limit:
+        return True
+    ref_ph = (ref or {}).get("phonemes") or []
+    if i < len(ref_ph) and ref_ph[i]["expected"] == p.expected and ref_ph[i]["dur"] > 0:
+        return dur >= R_REL_MIN_S and dur >= R_REL * ref_ph[i]["dur"]
+    return False
+
+
+def check_held_r(out: "AssessResponse", ref: Optional[dict] = None) -> None:
+    """Flag R-coloured sounds the speaker holds too long (Azure phoneme timings vs Hannah's reference take)."""
     timed = [p for p in out.phonemes if p.start_s is not None and p.end_s is not None]
     if not timed:
         return
@@ -193,9 +211,7 @@ def check_held_r(out: "AssessResponse") -> None:
     for i, p in enumerate(timed):
         if p.expected not in R_SOUNDS or p.ear == "missing":
             continue
-        dur = p.end_s - p.start_s
-        limit = R_MAX_FINAL_S if i == len(timed) - 1 else R_MAX_S
-        if dur >= limit:
+        if _held_r(p, i, timed, ref):
             p.status, p.note = "needs_work", "The r was held too long. Pronounce the r but don’t linger on the sound."
             hits.append(p)
     if not hits:
@@ -225,11 +241,11 @@ def stress_check(word: str, syllables: List[dict], wav_bytes: bytes) -> Optional
         return None
     expected = stresses.index("1")
     import io
+    import wave
     import numpy as np
-    import soundfile as sf
-    audio, sr = sf.read(io.BytesIO(wav_bytes), dtype="float32")
-    if audio.ndim > 1:
-        audio = audio.mean(axis=1)
+    with wave.open(io.BytesIO(wav_bytes)) as wf:
+        sr = wf.getframerate()
+        audio = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0
     rms, dur = [], []
     for s in syllables:
         a, b = int(s["start_s"] * sr), int(s["end_s"] * sr)
@@ -253,6 +269,7 @@ def stress_check(word: str, syllables: List[dict], wav_bytes: bytes) -> Optional
 
 MISS_PENALTY = 20   # points off the 100-scale per sound the ear confirms as missing/replaced
 MISS_CAP = 75       # a confirmed miss can never read "Excellent"
+EAR_SURE_P = 0.90   # ear confidence that overrides an Azure "close" (60–79) hedge
 
 
 def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
@@ -262,28 +279,35 @@ def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
     checks = heard.get("checks") or []
     for p, c in zip(out.phonemes, checks):
         p.ear = c.get("verdict")
+        if c["verdict"] == "confirmed" and p.status == "close" and (c.get("p_expected") or 0) >= EAR_SURE_P:
+            p.status = "accurate"  # Azure hedged, the ear clearly heard the sound: don't nag
+            out.needs_work = [n for n in out.needs_work if n.phoneme != p.expected or any(
+                q.expected == p.expected and q.status in ("close", "needs_work") for q in out.phonemes if q is not p)]
         if c["verdict"] == "missing":
             p.status = "needs_work"
             p.heard = c.get("heard") or p.heard
             p.note = c.get("note")
+            p.intrusion = bool(c.get("intrusion"))
             if p.score is None or p.score > CLOSE_AT - 1:
                 p.score = float(CLOSE_AT - 1)
     misses = [p for p in out.phonemes if p.ear == "missing"]
+    out.accurate = sorted({p.expected for p in out.phonemes if p.status == "accurate" and p.ear != "missing"})
     if misses:
         distinct = {p.expected for p in misses}
         out.score = max(0.0, min(float(out.score or 0) - MISS_PENALTY * len(distinct), MISS_CAP))
         out.band, out.summary = _band(out.score)
-        out.accurate = sorted({p.expected for p in out.phonemes if p.status == "accurate" and p.ear != "missing"})
         seen = {n.phoneme for n in out.needs_work}
         for p in misses:
             if p.expected in seen:
                 for n in out.needs_work:
                     if n.phoneme == p.expected:
-                        n.confirmed, n.heard, n.score, n.note = True, p.heard or n.heard, min(n.score or 100, p.score or 0), p.note
+                        n.confirmed, n.intrusion = not p.intrusion, p.intrusion
+                        n.heard, n.score, n.note = p.heard or n.heard, min(n.score or 100, p.score or 0), p.note
                 continue
             seen.add(p.expected)
-            out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=tip_for(p.expected, p.t_kind), confirmed=True, note=p.note))
-        out.needs_work.sort(key=lambda n: (not n.confirmed, n.score or 0))
+            out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=tip_for(p.expected, p.t_kind),
+                                            confirmed=not p.intrusion, intrusion=p.intrusion, note=p.note))
+        out.needs_work.sort(key=lambda n: (not (n.confirmed or n.intrusion), n.score or 0))
     out.score10 = round((out.score or 0) / 10, 1)
 
 
@@ -336,7 +360,7 @@ async def _call_azure(wav: bytes, reference: str) -> dict:
     }
     params = {"language": "en-US", "format": "detailed"}
     r = None
-    for attempt in range(2):
+    for attempt in range(3):
         try:
             async with httpx.AsyncClient(timeout=30) as client:
                 r = await client.post(url, params=params, headers=headers, content=wav)
@@ -344,10 +368,11 @@ async def _call_azure(wav: bytes, reference: str) -> dict:
             raise HTTPException(status_code=504, detail="The pronunciation checker took too long. Please try again.")
         except httpx.HTTPError:
             raise HTTPException(status_code=503, detail="The pronunciation checker is unreachable right now. Please try again shortly.")
-        if r.status_code == 200 or attempt == 1:
+        if r.status_code == 200 or attempt == 2:
             break
-        logger.warning("Azure speech %s on attempt 1: %s — retrying", r.status_code, r.text[:200])
-        await asyncio.sleep(1.5)
+        # The speech tier returns sporadic 401/429s under back-to-back requests; they clear within seconds.
+        logger.warning("Azure speech %s on attempt %d: %s — retrying", r.status_code, attempt + 1, r.text[:200])
+        await asyncio.sleep(1.5 * (attempt + 1))
     if r.status_code in (401, 403):
         logger.error("Azure speech auth failed (%s)", r.status_code)
         raise HTTPException(status_code=503, detail="The pronunciation checker isn't configured correctly. Please contact support.")
@@ -535,6 +560,30 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
         user = await db.users.find_one({"email": email}, {"_id": 0, "practice_words": 1})
         return norm in (user or {}).get("practice_words", [])
 
+    async def _reference_profile(norm: str) -> Optional[dict]:
+        """Hannah's cached clip for this word, timed by Azure once and kept (phoneme durations)."""
+        cached = await db.practice_ref.find_one({"word": norm}, {"_id": 0})
+        if cached:
+            return cached if cached.get("phonemes") else None
+        clip = await db.audio_cache.find_one({"word": norm, "manual_override": True}, {"_id": 0, "audio_b64": 1}) \
+            or await db.audio_cache.find_one({"word": {"$in": [norm, f"{norm}#ph"]}}, {"_id": 0, "audio_b64": 1})
+        if not clip or not clip.get("audio_b64"):
+            return None
+        profile = {"word": norm, "phonemes": []}
+        try:
+            with tempfile.TemporaryDirectory(prefix="pt-ref-") as d:
+                src, wav = Path(d) / "ref.bin", Path(d) / "ref.wav"
+                src.write_bytes(base64.b64decode(clip["audio_b64"]))
+                await asyncio.to_thread(_to_wav, src, wav)
+                ref = _interpret(norm, await _call_azure(wav.read_bytes(), norm))
+            if ref.assessable:
+                profile["phonemes"] = [{"expected": p.expected, "dur": round((p.end_s or 0) - (p.start_s or 0), 3)} for p in ref.phonemes]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("reference profile for %r failed: %s", norm, exc)
+            return None
+        await db.practice_ref.update_one({"word": norm}, {"$set": profile}, upsert=True)
+        return profile if profile["phonemes"] else None
+
     @router.get("/status")
     async def status(request: Request, word: Optional[str] = None):
         """enabled + whether a trial user has already spent their one analysis on `word`."""
@@ -589,7 +638,11 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
             apply_ear(out, heard)
             check_extra_syllables(out, heard)
         if out.assessable:
-            check_held_r(out)
+            want_ref = any(p.expected in R_SOUNDS for p in out.phonemes) or is_admin_email(actor.email)
+            ref = await _reference_profile(norm) if want_ref else None
+            check_held_r(out, ref)
+        else:
+            ref = None
         if out.assessable and out.syllables:
             try:
                 out.stress = await asyncio.to_thread(stress_check, reference, out.syllables, wav_bytes)
@@ -601,7 +654,12 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 out.score10 = round(out.score / 10, 1)
         del wav_bytes
         if is_admin_email(actor.email):
-            out.ear = {**ear.status(), "heard": (heard or {}).get("heard"), "checks": (heard or {}).get("checks")}
+            ref_ph = (ref or {}).get("phonemes") or []
+            timing = [{"expected": p.expected, "dur": round((p.end_s or 0) - (p.start_s or 0), 2),
+                       "ref": ref_ph[i]["dur"] if i < len(ref_ph) and ref_ph[i]["expected"] == p.expected else None}
+                      for i, p in enumerate(out.phonemes)]
+            out.ear = {**ear.status(), "heard": (heard or {}).get("heard"), "checks": (heard or {}).get("checks"),
+                       "extra_nuclei": (heard or {}).get("extra_nuclei"), "timing": timing}
         await consume_trial(db, actor)
         if not actor.is_subscriber and out.assessable:
             await db.users.update_one({"email": actor.email}, {"$addToSet": {"practice_words": norm}})

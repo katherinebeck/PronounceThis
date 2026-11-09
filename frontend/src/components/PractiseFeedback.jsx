@@ -25,6 +25,14 @@ function EarReadout({ ear }) {
           })}
         </div>
       ) : null}
+      {ear.timing?.length ? (
+        <div className="mt-2 font-mono text-[11px] text-muted2 flex flex-wrap gap-x-3 gap-y-1" data-testid="practise-ear-timing">
+          <span className="uppercase tracking-[0.2em] text-[10px]">Length (yours · Hannah)</span>
+          {ear.timing.map((t, i) => (
+            <span key={i}>/{t.expected}/ {t.dur.toFixed(2)}s{t.ref != null ? ` · ${t.ref.toFixed(2)}s` : ""}</span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -73,10 +81,11 @@ export default function PractiseFeedback({ result }) {
           {result.needs_work?.length ? (
             <ul className="space-y-3">
               {result.needs_work.map((n) => (
-                <li key={n.phoneme} className={`border-l-2 pl-3 ${n.confirmed ? "border-crimson" : "border-rust"}`}>
+                <li key={n.phoneme} className={`border-l-2 pl-3 ${n.confirmed || n.intrusion ? "border-crimson" : "border-rust"}`}>
                   <div className="flex items-baseline gap-3 flex-wrap">
                     <span className="font-mono text-base text-ink">{n.phoneme.includes(" ") ? n.phoneme : `/${n.phoneme}/`}</span>
                     {n.confirmed ? <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-crimson" data-testid="practise-confirmed">not heard</span>
+                      : n.intrusion ? <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-crimson" data-testid="practise-intrusion">extra sound</span>
                       : n.overdone ? <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-rust" data-testid="practise-overdone">held too long</span>
                       : <span className="font-mono text-xs text-muted2">{n.score != null ? `${Math.round(n.score)}/100` : ""}</span>}
                     {n.heard && !n.note ? <span className="font-serif text-xs text-crimson">sounded closer to /{n.heard}/</span> : null}

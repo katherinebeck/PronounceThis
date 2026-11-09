@@ -17,7 +17,7 @@ COOKIE = {"accent_session": _issue_jwt("katherine@katherinebeck.com")}
 def test_status_enabled():
     r = requests.get(f"{BASE_URL}/api/practice/status", timeout=20)
     assert r.status_code == 200
-    assert r.json() == {"enabled": True}
+    assert r.json() == {"enabled": True, "locked": False}
 
 
 # Auth required

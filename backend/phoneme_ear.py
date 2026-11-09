@@ -32,7 +32,7 @@ _FLAP = {"ɾ", "d"}
 EXPECTED = {
     "ɑɹ": [{"ɑ"}, _R], "ɔɹ": [{"ɑ", "oʊ"}, _R], "ɛɹ": [{"ɛ", "eɪ", "æ"}, _R],
     "ɪɹ": [{"ɪ", "i"}, _R], "ʊɹ": [{"ʊ", "u", "ɑ"}, _R], "ɝ": [_R], "ɚ": [_R], "ɹ": [_R], "r": [_R],
-    "ɑ": [{"ɑ"}], "ɔ": [{"ɑ"}], "ʌ": [{"ə"}], "ə": [{"ə", "ɪ"}],
+    "ɑ": [{"ɑ"}], "ɔ": [{"ɑ", "ə"}], "ʌ": [{"ə"}], "ə": [{"ə", "ɪ"}],
     "æ": [{"æ"}], "ɛ": [{"ɛ"}], "ɪ": [{"ɪ"}], "i": [{"i"}], "ʊ": [{"ʊ"}], "u": [{"u"}],
     "eɪ": [{"eɪ"}], "aɪ": [{"aɪ"}], "oʊ": [{"oʊ"}], "aʊ": [{"aʊ"}], "ɔɪ": [{"ɔɪ"}],
     "t": [{"t"}], "d": [{"d", "ɾ"}], "p": [{"p"}], "b": [{"b"}], "k": [{"k"}], "ɡ": [{"g"}], "g": [{"g"}],
@@ -150,12 +150,116 @@ def _posteriors(wav_bytes: bytes):
 
 
 VOWELS = {"ɑ", "æ", "ə", "aʊ", "aɪ", "ɛ", "ɝ", "eɪ", "ɪ", "i", "oʊ", "ɔɪ", "ʊ", "u"}
-# Pure (monophthong) targets that must not be approached through another vowel or glide.
-PURE_VOWELS = {"u", "i", "ɑ", "ɔ", "æ", "ɛ", "ʊ"}
-ONGLIDE_TOKENS = {"j", "ə", "ɪ", "ʊ", "i", "ɛ", "ɨ", "w"}
-ONGLIDE_FRAC = 0.45      # lead-in portion of the window inspected
-ONGLIDE_P = 0.60         # intruder must clearly dominate the lead-in…
-ONGLIDE_EXP_MAX = 0.35   # …while the expected vowel is still weak there
+GLIDES = {"j", "w"}
+# Short sounds that, heard right before a vowel, are an onglide (Aussie/British "yoo", "ə-oo", "ə-oh")
+# rather than a syllable of their own. Before u, i/ɪ count too ("ee-oo" = yoo).
+ONGLIDE_TOKENS = {"j", "w", "ə", "ɪ", "ʊ"}
+# Before u ("yoo", "ə-oo") and oʊ (Aussie/British "ə-oh") any inserted vowel is an onglide, never a syllable.
+ONGLIDE_ANY_HOSTS = {"u", "oʊ"}
+# Acoustically confusable pairs the ear never asserts as "missing" on its own (Azure still scores them).
+NEAR = {"ð": {"θ", "d", "v"}, "θ": {"ð", "f"}, "s": {"z"}, "z": {"s"}, "f": {"v", "θ"}, "v": {"f", "ð"},
+        "ʃ": {"ʒ"}, "ʒ": {"ʃ"}, "w": {"m", "v"}, "ʌ": {"ɑ"}, "ɑ": {"ə"}, "ɔ": {"oʊ"}}
+EXPECTED_VOWELS = set(EXPECTED) & (VOWELS | {"ɔ", "ʌ", "ɚ", "ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ"})
+
+
+def _is_vowel_req(req: set) -> bool:
+    return bool(req & VOWELS)
+
+
+def _align(flat: List[set], tokens: List[str]) -> List[tuple]:
+    """Needleman-Wunsch of heard tokens against the expected requirement sets.
+    Returns ops: ('match'|'sub', req_idx, tok) · ('del', req_idx, None) · ('ins', req_idx_before, tok)."""
+    n, m = len(flat), len(tokens)
+    gap = -1.0
+    score = [[0.0] * (m + 1) for _ in range(n + 1)]
+    back = [[None] * (m + 1) for _ in range(n + 1)]
+    for i in range(1, n + 1):
+        score[i][0], back[i][0] = i * gap, "del"
+    for j in range(1, m + 1):
+        score[0][j], back[0][j] = j * gap, "ins"
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            tok = tokens[j - 1]
+            if tok in flat[i - 1]:
+                sub = 2.0
+            elif (tok in VOWELS) == _is_vowel_req(flat[i - 1]):
+                sub = 0.0   # same class (vowel for vowel): a substitution, not a gap
+            else:
+                sub = -1.5
+            diag = score[i - 1][j - 1] + sub
+            up, left = score[i - 1][j] + gap, score[i][j - 1] + gap
+            best = max(diag, up, left)
+            score[i][j] = best
+            # Ties: push insertions late (trailing artefacts) rather than splitting a diphthong.
+            back[i][j] = "ins" if best == left else ("diag" if best == diag else "del")
+    ops, i, j = [], n, m
+    while i > 0 or j > 0:
+        b = back[i][j]
+        if b == "diag":
+            ops.append(("match" if tokens[j - 1] in flat[i - 1] else "sub", i - 1, tokens[j - 1]))
+            i, j = i - 1, j - 1
+        elif b == "del":
+            ops.append(("del", i - 1, None))
+            i -= 1
+        else:
+            ops.append(("ins", i, tokens[j - 1]))
+            j -= 1
+    ops.reverse()
+    return ops
+
+
+def _sequence_view(windows: List[dict], tokens: List[str]) -> dict:
+    """Order-based second opinion: which expected sounds the heard sequence contains, what was
+    substituted, and where extra vowel/glide sounds were inserted (onglide vs. extra syllable)."""
+    flat, owner = [], []  # requirement sets in order, and the window index each belongs to
+    for i, w in enumerate(windows):
+        reqs = FLAP_REQ if w.get("flap") and w["expected"] == "t" else EXPECTED.get(w["expected"], [])
+        for r in reqs:
+            flat.append(r)
+            owner.append(i)
+    present = [True] * len(windows)      # every requirement of the slot matched in sequence
+    heard = [None] * len(windows)        # substituted token when the slot didn't match
+    intrusion = [None] * len(windows)    # {"tok", "where"} extra sound glued to this vowel
+    extra_nuclei = 0
+    if not flat or not tokens:
+        return {"present": present, "heard": heard, "intrusion": intrusion, "extra_nuclei": 0}
+    ops = _align(flat, tokens)
+    matched_req = [False] * len(flat)
+    aligned_req = [False] * len(flat)   # matched or substituted (something was said in that slot)
+    for op, k, tok in ops:
+        if op == "match":
+            matched_req[k] = aligned_req[k] = True
+        elif op == "sub":
+            aligned_req[k] = True
+            heard[owner[k]] = heard[owner[k]] or tok
+    for k, ok in enumerate(matched_req):
+        if not ok:
+            present[owner[k]] = False
+    last_aligned = max((k for k, ok in enumerate(aligned_req) if ok), default=-1)
+    # Group consecutive insertions by the requirement they sit in front of.
+    groups: dict = {}
+    for op, k, tok in ops:
+        if op == "ins":
+            groups.setdefault(k, []).append(tok)
+    for k, toks in groups.items():
+        vowelish = [t for t in toks if t in VOWELS or t in GLIDES]
+        if not vowelish or k > last_aligned:
+            continue  # consonant noise, or trailing artefacts after the word ended
+        nxt = windows[owner[k]] if k < len(flat) else None
+        prv = windows[owner[k - 1]] if k > 0 else None
+        nxt_vowel = nxt is not None and nxt["expected"] in EXPECTED_VOWELS and aligned_req[k]
+        prv_vowel = prv is not None and prv["expected"] in EXPECTED_VOWELS and aligned_req[k - 1]
+        if nxt_vowel:
+            allowed = (VOWELS | GLIDES) if nxt["expected"] in ONGLIDE_ANY_HOSTS else ONGLIDE_TOKENS
+            if all(t in allowed for t in vowelish):
+                intrusion[owner[k]] = intrusion[owner[k]] or {"tok": vowelish[0], "where": "before"}
+            else:
+                extra_nuclei += 1  # a full vowel in front of a vowel: another syllable (alu-min-i-um)
+        elif prv_vowel and all(t in ONGLIDE_TOKENS for t in vowelish):
+            intrusion[owner[k - 1]] = intrusion[owner[k - 1]] or {"tok": vowelish[0], "where": "after"}
+        elif any(t in VOWELS for t in vowelish):
+            extra_nuclei += 1
+    return {"present": present, "heard": heard, "intrusion": intrusion, "extra_nuclei": extra_nuclei}
 
 
 def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, exclude: set, flap: bool = False) -> dict:
@@ -195,23 +299,10 @@ def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, ex
         verdict = "missing"
     else:
         verdict = "unsure"
+    # Sounds the model habitually confuses (ð/θ, s/z…) are never asserted as missing by the ear alone.
+    if verdict == "missing" and not is_flap and other_tok in NEAR.get(expected, ()):
+        verdict = "unsure"
     note = None
-    # Pure vowel with an onglide in front of it (Aussie/British "yoo" or "ə-oo" for American u):
-    # the expected vowel is there, but another vowel/glide dominates the lead-in.
-    if verdict == "confirmed" and expected in PURE_VOWELS:
-        lead = seg[: max(2, int(len(seg) * ONGLIDE_FRAC))]
-        intr_tok, intr_p = None, 0.0
-        for i, t in id2tok.items():
-            if t in accept or t in _IGNORE or t in exclude or t not in ONGLIDE_TOKENS:
-                continue
-            p = float(lead[:, i].max())
-            if p > intr_p:
-                intr_tok, intr_p = t, p
-        lead_exp = max((float(lead[:, i].max()) for i, t in id2tok.items() if t in accept), default=0.0)
-        if intr_tok and intr_p >= ONGLIDE_P and lead_exp < ONGLIDE_EXP_MAX:
-            verdict = "missing"
-            other_tok, other_p, any_other_p = intr_tok, intr_p, intr_p
-            note = f"We heard an extra sound before the {expected} — it sounded like {DISPLAY.get(intr_tok, intr_tok)}{expected}. Americans use the pure {expected} sound."
     if verdict == "missing" and is_flap:
         note = "In this word the t turns to a d."
     elif verdict == "missing" and failing is _R and len(reqs) > 1:
@@ -222,7 +313,16 @@ def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, ex
         note = "The r sound wasn't heard."
     return {"expected": expected, "verdict": verdict, "p_expected": round(p_exp, 2),
             "heard": DISPLAY.get(other_tok, other_tok) if other_tok and verdict != "confirmed" else None,
-            "p_heard": round(other_p, 2), "note": note, "flap": bool(flap and expected == "t")}
+            "p_heard": round(other_p, 2), "note": note, "flap": bool(flap and expected == "t"), "r_failed": failing is _R}
+
+
+def _intrusion_note(expected: str, intr: dict) -> str:
+    tok = DISPLAY.get(intr["tok"], intr["tok"])
+    shown = expected if expected not in ("ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ") else expected[0]
+    name = " (a schwa)" if intr["tok"] == "ə" else (" (a y sound)" if intr["tok"] == "j" else "")
+    if intr["where"] == "before":
+        return f"We heard an extra sound before the {shown} — it sounded like {tok}{shown}{name}. Remove it and go straight into the pure {shown} sound."
+    return f"We heard an extra sound after the {shown} — it sounded like {shown}{tok}{name}. Finish the {shown} cleanly without adding a vowel."
 
 
 def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
@@ -237,10 +337,21 @@ def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
         neighbours = set()
         for j in (i - 1, i + 1):
             if 0 <= j < len(windows):
-                neighbours |= set().union(*EXPECTED.get(windows[j]["expected"], []))
-        # For a flap slot, a hard T is exactly the error we want to name, so don't exclude it.
-        if w.get("flap"):
-            neighbours.discard("t")
+                reqs = FLAP_REQ if windows[j].get("flap") and windows[j]["expected"] == "t" else EXPECTED.get(windows[j]["expected"], [])
+                neighbours |= set().union(*reqs)
         checks.append(_check_window(probs, id2tok, w["start_s"], w["end_s"], w["expected"], neighbours, flap=w.get("flap", False)))
-    nuclei = sum(1 for i, t in enumerate(tokens) if t in VOWELS and not (t == "ɝ" and i > 0 and tokens[i - 1] in VOWELS))
-    return {"heard": heard, "checks": checks, "tokens": tokens, "heard_vowels": nuclei}
+    seq = _sequence_view(windows, tokens)
+    for i, c in enumerate(checks):
+        # The window said "missing" but the sound is there in sequence (Azure mis-timed the slot).
+        if c["verdict"] == "missing" and seq["present"][i] and not c.get("r_failed"):
+            c["verdict"] = "unsure"
+            c["heard"], c["note"] = None, None
+        if c["verdict"] == "missing" and seq["heard"][i] and not c.get("r_failed") and not c.get("flap"):
+            c["heard"] = DISPLAY.get(seq["heard"][i], seq["heard"][i])
+        intr = seq["intrusion"][i]
+        if intr and c["verdict"] != "missing":
+            c["verdict"], c["intrusion"] = "missing", True
+            c["heard"] = DISPLAY.get(intr["tok"], intr["tok"])
+            c["note"] = _intrusion_note(c["expected"], intr)
+        c.pop("r_failed", None)
+    return {"heard": heard, "checks": checks, "tokens": tokens, "extra_nuclei": seq["extra_nuclei"]}

@@ -108,5 +108,13 @@ Checker busy / down | The pronunciation checker is busy. Please try again in a m
 - flap (lightly voiced): In this word the t is lightly voiced — it sounds like d. Firmly and quickly apply pressure with the tongue tip on the upper gum ridge and let it drop back down to the lower gum ridge. This happens after a stressed syllable (matter, water) and between a vowel, r and another vowel (quarter, parting).
 - held: In this word the t is held: make the tongue placement for t at the upper gum ridge but don't release the tip back down. This happens before another consonant (football, basketball), after n (internet, twenty) and usually at the end of a word.
 
-## New situation note — onglide before a pure vowel
-"We heard an extra sound before the u — it sounded like ju. Americans use the pure u sound."
+## Situation notes — extra sound glued to a vowel (badge "extra sound")
+Before (Aussie/British yoo, ə-oo, ə-oh) | We heard an extra sound before the u — it sounded like əu (a schwa). Remove it and go straight into the pure u sound.
+After (offglide) | We heard an extra sound after the oʊ — it sounded like oʊɪ. Finish the oʊ cleanly without adding a vowel.
+Note: an onglide/offglide is reported as a sound error, never as an "extra syllable". "Extra syllable" is only used when a full vowel is heard between the expected sounds (alu-min-i-um).
+
+## Held r thresholds (Azure phoneme timing)
+- final unstressed ɚ (mother, water): ≥ 0.42 s, or ≥ 1.25× Hannah's own take of the word (min 0.30 s)
+- final stressed ɝ/ɹ (word, serve): ≥ 0.62 s
+- word-internal r sounds: ≥ 0.45 s
+- Admin readout shows "Length (yours · Hannah)" per sound to calibrate.
