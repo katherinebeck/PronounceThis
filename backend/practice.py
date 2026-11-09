@@ -420,16 +420,15 @@ def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
 
 
 def enabled() -> bool:
-    """Preview-only until explicitly forced: needs the Azure key AND the ear worker env
-    (/opt/ear-venv exists only in preview and is never shipped). PRACTICE_MODE=force
-    is the deliberate production opt-in once the ear is hosted externally."""
+    """Needs the Azure key AND an ear: the preview side-venv worker, or the hosted ear service
+    (EAR_URL + EAR_SECRET, see ear-service/README.md). PRACTICE_MODE=force skips the ear check."""
     mode = os.environ.get("PRACTICE_MODE", "").lower()
     has_key = bool(os.environ.get("AZURE_SPEECH_KEY") and os.environ.get("AZURE_SPEECH_REGION"))
     if not has_key:
         return False
     if mode == "force":
         return True
-    return mode == "on" and os.path.exists(ear.EAR_PYTHON)
+    return mode == "on" and (bool(ear.EAR_URL) or os.path.exists(ear.EAR_PYTHON))
 
 
 def _to_wav(src: Path, dst: Path) -> float:

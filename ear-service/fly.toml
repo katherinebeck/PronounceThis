@@ -1,0 +1,20 @@
+# fly.toml — Pronounce This ear service (run `fly launch --copy-config` from the repo root)
+app = "pronouncethis-ear"
+primary_region = "iad"
+
+[build]
+  dockerfile = "ear-service/Dockerfile"
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "2gb"

@@ -48,14 +48,62 @@ _IGNORE = {"|", " ", "[UNK]", "[PAD]", "<s>", "</s>"}
 _state = {"model": None, "proc": None, "status": "idle", "error": None}
 _worker = {"proc": None, "lock": threading.Lock()}
 EAR_PYTHON = os.environ.get("EAR_PYTHON", "/opt/ear-venv/bin/python")
+# Production: the ear runs as its own small service (ear-service/); the backend only talks HTTP to it.
+EAR_URL = os.environ.get("EAR_URL", "").rstrip("/")
+EAR_SECRET = os.environ.get("EAR_SECRET", "")
+REMOTE_TIMEOUT_S = 12
+REMOTE_RECHECK_S = 60
 
 
 def status() -> dict:
-    return {"model": MODEL_ID, "status": _state["status"], "error": _state["error"]}
+    mode = "remote" if EAR_URL else ("worker" if _worker["proc"] is not None else "in-process")
+    return {"model": MODEL_ID, "status": _state["status"], "error": _state["error"], "mode": mode}
 
 
 def available() -> bool:
+    if EAR_URL:
+        return _state["status"] == "ready"
     return _state["model"] is not None or (_worker["proc"] is not None and _state["status"] == "ready")
+
+
+def _check_remote() -> bool:
+    import httpx
+    try:
+        r = httpx.get(f"{EAR_URL}/health", headers={"X-Ear-Secret": EAR_SECRET}, timeout=8)
+        body = r.json() if r.status_code == 200 else {}
+        if body.get("ready"):
+            if _state["status"] != "ready":
+                logger.info("phoneme ear ready via %s (%s)", EAR_URL, body.get("model"))
+            _state.update(status="ready", error=None)
+            return True
+        _state.update(status="error", error=f"ear service {r.status_code}: {str(body.get('error') or body.get('status') or r.text)[:200]}")
+    except Exception as exc:  # noqa: BLE001
+        _state.update(status="error", error=f"ear service unreachable: {str(exc)[:200]}")
+    return False
+
+
+def _remote_monitor() -> None:
+    import time
+    while True:
+        _check_remote()
+        time.sleep(REMOTE_RECHECK_S)
+
+
+def _ask_remote(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
+    import httpx
+    try:
+        r = httpx.post(f"{EAR_URL}/listen", json={"wav_b64": base64.b64encode(wav_bytes).decode(), "windows": windows},
+                       headers={"X-Ear-Secret": EAR_SECRET}, timeout=REMOTE_TIMEOUT_S)
+        if r.status_code != 200:
+            raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
+        out = r.json()
+        if out.get("error"):
+            raise RuntimeError(out["error"])
+        return out or None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("phoneme ear service failed, Azure-only for this take: %s", exc)
+        _state.update(status="error", error=str(exc)[:300])
+        return None
 
 
 def _start_worker() -> None:
@@ -118,6 +166,10 @@ def warm() -> None:
     """Load the model in a background thread (no-op if disabled or already loading).
     Uses the side-venv worker when present so the main env stays ML-free."""
     if os.environ.get("PHONEME_EAR", "on").lower() in ("0", "off", "false") or _state["status"] != "idle":
+        return
+    if EAR_URL:
+        _state["status"] = "loading"
+        threading.Thread(target=_remote_monitor, name="phoneme-ear-remote", daemon=True).start()
         return
     target = _start_worker if os.path.exists(EAR_PYTHON) else _load
     threading.Thread(target=target, name="phoneme-ear-load", daemon=True).start()
@@ -335,6 +387,8 @@ def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
     """windows: [{expected, start_s, end_s}] from Azure phoneme timings (16 kHz mono PCM wav)."""
     if not available():
         return None
+    if EAR_URL:
+        return _ask_remote(wav_bytes, windows)
     if _state["model"] is None:
         return _ask_worker(wav_bytes, windows)
     probs, id2tok, heard, tokens = _posteriors(wav_bytes)
