@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from auth import _membership_status, consume_trial, is_admin_email, optional_login, rate_limit, require_access
 from phonetics import ARPA_TO_IPA, CUSTOM_IPA, get_arpabet, ipa_to_arpabet
 import phoneme_ear as ear
+import formants
 import difflib
 
 logger = logging.getLogger("practice")
@@ -105,6 +106,8 @@ class PhonemeScore(BaseModel):
     start_s: Optional[float] = None
     end_s: Optional[float] = None
     ear: Optional[str] = None  # confirmed | missing | unsure
+    ear_p: Optional[float] = None  # ear confidence in the expected sound
+    formant: bool = False  # vowel flagged by the formant check
     note: Optional[str] = None
     flap: bool = False  # American flapped T expected in this slot
     t_kind: Optional[str] = None  # full | flap | held (t only)
@@ -233,6 +236,54 @@ def _display_pattern(graphemes: List[str], idx: int) -> str:
     return "-".join(g.upper() if i == idx else g.lower() for i, g in enumerate(graphemes))
 
 
+FORMANT_SKIP_NEXT = {"m", "n", "ŋ", "l", "ɹ", "r", "w", "j"}  # these colour the vowel's formants
+FORMANT_TRUST_EAR_P = 0.80
+
+
+def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[dict]:
+    """Second ear for vowels: F1/F2 vs General American targets fitted to this speaker.
+    Learns the speaker from vowels the recogniser confirmed; judges the ones it was unsure about.
+    Returns admin readings [{expected, f1, f2}]; mutates `profile` in place."""
+    readings: List[dict] = []
+    scale = formants.speaker_scale(profile)
+    hits: List[PhonemeScore] = []
+    for i, p in enumerate(out.phonemes):
+        nxt = out.phonemes[i + 1].expected if i + 1 < len(out.phonemes) else ""
+        if p.expected not in formants.CHECKED or nxt in FORMANT_SKIP_NEXT or p.start_s is None or p.end_s is None:
+            continue
+        point = formants.measure(wav_bytes, p.start_s, p.end_s)
+        if not point:
+            continue
+        readings.append({"expected": p.expected, "f1": round(point[0]), "f2": round(point[1])})
+        if p.ear == "confirmed" and (p.ear_p or 0) >= FORMANT_TRUST_EAR_P:
+            formants.profile_add(profile, p.expected, point)
+            continue
+        if p.ear == "missing":
+            continue
+        verdict = formants.judge(p.expected, point, scale)
+        if verdict:
+            p.status, p.heard, p.note, p.formant = "needs_work", verdict["heard"], verdict["note"], True
+            if p.score is None or p.score > CLOSE_AT - 1:
+                p.score = float(CLOSE_AT - 1)
+            hits.append(p)
+    if hits:
+        seen = {n.phoneme for n in out.needs_work}
+        for p in hits:
+            if p.expected in seen:
+                for n in out.needs_work:
+                    if n.phoneme == p.expected:
+                        n.confirmed, n.heard, n.note, n.score = True, p.heard, p.note, min(n.score or 100, p.score or 0)
+                continue
+            seen.add(p.expected)
+            out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=tip_for(p.expected), confirmed=True, note=p.note))
+        out.needs_work.sort(key=lambda n: (not (n.confirmed or n.intrusion), n.score or 0))
+        out.accurate = [a for a in out.accurate if a not in {p.expected for p in hits}]
+        out.score = max(0.0, min(float(out.score or 0) - MISS_PENALTY * len({p.expected for p in hits}), MISS_CAP))
+        out.band, out.summary = _band(out.score)
+        out.score10 = round(out.score / 10, 1)
+    return readings
+
+
 def stress_check(word: str, syllables: List[dict], wav_bytes: bytes) -> Optional[StressCheck]:
     """Compare the loudest/longest syllable with the CMU primary stress. Conservative:
     only 'wrong' when another syllable is clearly louder AND not shorter."""
@@ -288,6 +339,7 @@ def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
     checks = heard.get("checks") or []
     for p, c in zip(out.phonemes, checks):
         p.ear = c.get("verdict")
+        p.ear_p = c.get("p_expected")
         if c["verdict"] == "confirmed" and p.status == "close" and (c.get("p_expected") or 0) >= EAR_SURE_P:
             p.status = "accurate"  # Azure hedged, the ear clearly heard the sound: don't nag
             out.needs_work = [n for n in out.needs_work if n.phoneme != p.expected or any(
@@ -654,8 +706,17 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
             want_ref = any(p.expected in R_SOUNDS for p in out.phonemes) or is_admin_email(actor.email)
             ref = await _reference_profile(norm) if want_ref else None
             check_held_r(out, ref)
+            user_doc = await db.users.find_one({"email": actor.email}, {"_id": 0, "formant_profile": 1}) or {}
+            profile = user_doc.get("formant_profile") or {}
+            try:
+                readings = await asyncio.to_thread(vowel_check, out, wav_bytes, profile)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("formant check failed: %s", exc)
+                readings = []
+            if profile:
+                await db.users.update_one({"email": actor.email}, {"$set": {"formant_profile": profile}})
         else:
-            ref = None
+            ref, readings, profile = None, [], {}
         if out.assessable and out.syllables:
             try:
                 out.stress = await asyncio.to_thread(stress_check, reference, out.syllables, wav_bytes)
@@ -672,7 +733,8 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
                        "ref": ref_ph[i]["dur"] if i < len(ref_ph) and ref_ph[i]["expected"] == p.expected else None}
                       for i, p in enumerate(out.phonemes)]
             out.ear = {**ear.status(), "heard": (heard or {}).get("heard"), "checks": (heard or {}).get("checks"),
-                       "extra_nuclei": (heard or {}).get("extra_nuclei"), "timing": timing}
+                       "extra_nuclei": (heard or {}).get("extra_nuclei"), "timing": timing, "formants": readings,
+                       "speaker_scale": [round(x, 2) for x in (formants.speaker_scale(profile) or ())]}
         await consume_trial(db, actor)
         if not actor.is_subscriber and out.assessable:
             await db.users.update_one({"email": actor.email}, {"$addToSet": {"practice_words": norm}})

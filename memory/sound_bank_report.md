@@ -1,6 +1,6 @@
 # Sound bank — deliberate-error recordings vs Practise This Word
 
-Errors caught: **58/62** · clean American takes passing (≥8.5, target not flagged): **45/45**
+Errors caught: **60/62** · clean American takes passing (≥8.5, target not flagged): **45/45**
 
 | Target | Word | Take | Result | What the student reads |
 |---|---|---|---|---|
@@ -15,17 +15,17 @@ Errors caught: **58/62** · clean American takes passing (≥8.5, target not fla
 | /æ/ | cat | ɑ — “cot” (hannah) | ✓ caught | 5.7/10 Needs work · /æ/ not heard → ɑ |
 | /æ/ | cat | ɪ — “kit” (hannah) | ✓ caught | 0.0/10 Keep working · /æ/ not heard → ɪ |
 | /ɑ/ | hot | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
-| /ɑ/ | hot | ʌ — “hut” (hannah) | ✓ caught | 8.6/10 Good · /ɑ/ weak 54/100 → ʌ |
-| /ɑ/ | hot | AU ɒ — “hot” (tanya) | ✗ missed | 10.0/10 Excellent |
+| /ɑ/ | hot | ʌ — “hut” (hannah) | ✓ caught | 6.6/10 Needs work · /ɑ/ not heard → ʌ · “The vowel sounded closer to ʌ as in cup — Americans use the open ɑ as in father here.” |
+| /ɑ/ | hot | AU ɒ — “hot” (tanya) | ✓ caught | 7.5/10 Okay — still needs practice · /ɑ/ not heard → ɔ · “The vowel sounded closer to the rounded ɔ as in call — Americans use the open ɑ as in father here.” |
 | /ɔ/ɑ/ | caught | clean (Hannah) | ✓ pass | 9.9/10 Excellent |
 | /ɔ/ɑ/ | caught | oʊ — “coat” (hannah) | ✓ caught | 0.0/10 Keep working · /ɑ/ not heard → oʊ |
-| /ɔ/ɑ/ | caught | ʌ — “cut” (hannah) | ✓ caught | 0.3/10 Keep working · /ɑ/ weak 0/100 → ʌ |
+| /ɔ/ɑ/ | caught | ʌ — “cut” (hannah) | ✓ caught | 0.0/10 Keep working · /ɑ/ not heard → æ · “The vowel sounded closer to æ as in cat — Americans use the open ɑ as in father here.” |
 | /ʊ/ | book | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /ʊ/ | book | ʌ — “buck” (hannah) | ✓ caught | 6.4/10 Needs work · /ʊ/ not heard → ə |
 | /u/ | food | clean (Hannah) | ✓ pass | 9.9/10 Excellent |
 | /u/ | food | ju — “feud” (hannah) | ✓ caught | 6.4/10 Needs work · /u/ extra sound → j · “We heard an extra sound before the u — it sounded like ju (a y sound). Remove it and go straight into the pure u sound.” |
 | /ʌ/ | cup | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
-| /ʌ/ | cup | ɑ — “cop” (hannah) | ✗ missed | 9.4/10 Good |
+| /ʌ/ | cup | ɑ — “cop” (hannah) | ✓ caught | 7.4/10 Okay — still needs practice · /ʌ/ not heard → ɑ · “The vowel sounded closer to the open ɑ as in father — Americans use ʌ as in cup here.” |
 | /ʌ/ | cup | æ — “cap” (hannah) | ✓ caught | 0.0/10 Keep working · /ʌ/ not heard → æ |
 | /eɪ/ | face | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /eɪ/ | face | ʌ — “fuss” (hannah) | ✓ caught | 0.0/10 Keep working · /eɪ/ not heard → ə |
@@ -62,7 +62,7 @@ Errors caught: **58/62** · clean American takes passing (≥8.5, target not fla
 | /t/ | toes | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /t/ | toes | d — “doze” (hannah) | ✓ caught | 7.5/10 Okay — still needs practice · /t/ not heard → d |
 | /t (flap)/ | water | clean (Hannah) | ✓ pass | 9.8/10 Excellent |
-| /t (flap)/ | water | UK hard t — “water” (lily) | ✓ caught | 5.5/10 Needs work · /t/ not heard → t · “In this word the t turns to a d.” |
+| /t (flap)/ | water | UK hard t — “water” (lily) | ✓ caught | 3.5/10 Keep working · /t/ not heard → t · “In this word the t turns to a d.” |
 | /d/ | day | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /d/ | day | ð — “they” (hannah) | ✓ caught | 0.0/10 Keep working · /d/ not heard → ð |
 | /k/ | coat | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
@@ -99,7 +99,7 @@ Errors caught: **58/62** · clean American takes passing (≥8.5, target not fla
 | /m/ | map | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /m/ | map | n — “nap” (hannah) | ✓ caught | 7.0/10 Okay — still needs practice · /m/ weak 45/100 → n |
 | /n/ | net | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
-| /n/ | net | m — “met” (hannah) | ✓ caught | 8.9/10 Good · /n/ weak 42/100 → m |
+| /n/ | net | m — “met” (hannah) | ✓ caught | 6.9/10 Needs work · /n/ weak 42/100 → m |
 | /ŋ/ | sing | clean (Hannah) | ✓ pass | 9.9/10 Excellent |
 | /ŋ/ | sing | n — “sin” (hannah) | ✓ caught | 7.7/10 Okay — still needs practice · /ŋ/ weak 9/100 → n |
 | /l/ | light | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
@@ -112,10 +112,8 @@ Errors caught: **58/62** · clean American takes passing (≥8.5, target not fla
 | /j/ | yes | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /j/ | yes | dʒ — “jess” (hannah) | ✓ caught | 6.9/10 Needs work · /j/ not heard → dʒ |
 
-## Known limits (model, not tunable)
-- **AU/UK short o in *hot*** (ɒ): the ear's American phone set folds ɔ→ɑ, so a rounded short o reads as ɑ. Azure also accepts it. Not detectable with this ear.
-- ***cup* said as *cop*** (ʌ→ɑ): ear unsure (14% ʌ / 22% ɑ), Azure 94. Borderline vowels stay "unsure" rather than risk false flags.
-- ***think* said as *fink*** (θ→f) and ***zoo* said as *sue*** (z→s): voiceless fricatives are near-identical to the ear at 16 kHz (it heard Hannah's own *fan* as *san*), so f/θ/s and s/z swaps are never asserted by the ear; Azure's own score carries them (it was lenient here).
-- Everything else in the bank (vowels, diphthongs, r-coloured vowels incl. dropped R, stops, affricates, nasals, l/r/w/j, h-drop, yoo-onglide) is caught with the matching tip, and all 45 clean American takes pass.
+## Known limits (ear model, not tunable)
+- ***think* said as *fink*** (θ→f) and ***zoo* said as *sue*** (z→s): voiceless fricatives are near-identical to the recogniser at 16 kHz, so f/θ/s and s/z swaps are never asserted by the ear; Azure's own score carries them (lenient here). A spectral fricative check (recommendation 2) would address this.
+- Vowel swaps the recogniser was unsure about (*cup→cop*, Aussie *hot*, *hot→hut*) are now caught by the **formant ear** (`backend/formants.py`): F1/F2 of the steadiest 40 ms of the vowel vs General American targets fitted to the speaker. The speaker fit is learned from vowels the recogniser confirmed (numbers only, kept in `users.formant_profile`); until 3 vowel categories are known the check only fires when every plausible speaker size agrees.
 
 Clips: /tmp/pt_bank (regenerate with `python3 tests/sound_bank.py gen`). Re-run: `python3 tests/sound_bank.py run`.

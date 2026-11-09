@@ -33,6 +33,12 @@ function EarReadout({ ear }) {
           ))}
         </div>
       ) : null}
+      {ear.formants?.length ? (
+        <div className="mt-1 font-mono text-[11px] text-muted2 flex flex-wrap gap-x-3 gap-y-1" data-testid="practise-ear-formants">
+          <span className="uppercase tracking-[0.2em] text-[10px]">Vowel F1/F2{ear.speaker_scale?.length ? ` (your scale ×${ear.speaker_scale[0]}/${ear.speaker_scale[1]})` : " (learning your voice)"}</span>
+          {ear.formants.map((f, i) => <span key={i}>/{f.expected}/ {f.f1}·{f.f2}</span>)}
+        </div>
+      ) : null}
     </div>
   );
 }
