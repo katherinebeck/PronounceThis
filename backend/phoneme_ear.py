@@ -150,6 +150,12 @@ def _posteriors(wav_bytes: bytes):
 
 
 VOWELS = {"ɑ", "æ", "ə", "aʊ", "aɪ", "ɛ", "ɝ", "eɪ", "ɪ", "i", "oʊ", "ɔɪ", "ʊ", "u"}
+# Pure (monophthong) targets that must not be approached through another vowel or glide.
+PURE_VOWELS = {"u", "i", "ɑ", "ɔ", "æ", "ɛ", "ʊ"}
+ONGLIDE_TOKENS = {"j", "ə", "ɪ", "ʊ", "i", "ɛ", "ɨ", "w"}
+ONGLIDE_FRAC = 0.45      # lead-in portion of the window inspected
+ONGLIDE_P = 0.60         # intruder must clearly dominate the lead-in…
+ONGLIDE_EXP_MAX = 0.35   # …while the expected vowel is still weak there
 
 
 def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, exclude: set, flap: bool = False) -> dict:
@@ -190,6 +196,22 @@ def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, ex
     else:
         verdict = "unsure"
     note = None
+    # Pure vowel with an onglide in front of it (Aussie/British "yoo" or "ə-oo" for American u):
+    # the expected vowel is there, but another vowel/glide dominates the lead-in.
+    if verdict == "confirmed" and expected in PURE_VOWELS:
+        lead = seg[: max(2, int(len(seg) * ONGLIDE_FRAC))]
+        intr_tok, intr_p = None, 0.0
+        for i, t in id2tok.items():
+            if t in accept or t in _IGNORE or t in exclude or t not in ONGLIDE_TOKENS:
+                continue
+            p = float(lead[:, i].max())
+            if p > intr_p:
+                intr_tok, intr_p = t, p
+        lead_exp = max((float(lead[:, i].max()) for i, t in id2tok.items() if t in accept), default=0.0)
+        if intr_tok and intr_p >= ONGLIDE_P and lead_exp < ONGLIDE_EXP_MAX:
+            verdict = "missing"
+            other_tok, other_p, any_other_p = intr_tok, intr_p, intr_p
+            note = f"We heard an extra sound before the {expected} — it sounded like {DISPLAY.get(intr_tok, intr_tok)}{expected}. Americans use the pure {expected} sound."
     if verdict == "missing" and is_flap:
         note = "In this word the t turns to a d."
     elif verdict == "missing" and failing is _R and len(reqs) > 1:

@@ -35,31 +35,31 @@ CLOSE_AT = 60
 TIPS = {
     'i': 'As in she. Tongue: the front part of the body of the tongue is arched high. Lips: smiling. Lower jaw: only slightly opened. Tongue tip rests at the lower gum ridge.',
     'ɪ': 'As in is. Tongue: the arch of the tongue lowers ever so slightly. Lips: smiling and slightly spread apart. Lower jaw: lowers slightly. Tongue tip rests at the lower gum ridge. A short vowel.',
-    'ɛ': "As in best. Tongue: only slightly arched, with the tongue tip still resting at home base. Lips: smile in a wider position. Lower jaw: lowers a bit more. A short vowel — watch that you don't over-lengthen it.",
-    'æ': 'As in at or class. Tongue: lying flat in the mouth with the focus on the front part; the tip remains at home base. Lips: wide open smile, teeth far apart. Lower jaw: open. Typically short, but its open shape asks for a little more length than ɪ.',
-    'ʌ': 'As in lunch. Tongue: lies flat with the tip resting at home base. Lips: relaxed. Lower jaw: gently drop the jaw more to create a bigger space in the mouth. Similar to the schwa, but used in the stressed syllable with slightly more length.',
-    'ə': 'As in the. Tongue: relaxed, with a gentle, natural arch; the tip rests at home base. Lips: relaxed — neither rounded nor smiling. Jaw and lips free of tension. A short vowel heard in unstressed syllables. Keep the tongue tip at the lower gum ridge to avoid an intrusive r.',
-    'ɑ': 'As in father — the most open sound in the American accent. Tongue: the back is flat with the tip resting at home base. Lips: stretched and opened forward. Lower jaw: its most open position, teeth far apart. A long vowel.',
-    'ɔ': 'As in call. Tongue: the back is only slightly arched; the tip rests at home base. Lips: rounded and protruded — you should feel sensation in the cheeks, and your thumb should fit between your lips. Lower jaw: open, released forward and down. A long vowel.',
-    'ʊ': 'As in should. Tongue: the arch at the back lowers slightly; the tip rests at home base. Lips: open up a bit more and actively round into the shape of a circle. Lower jaw: opens slightly more. A short vowel.',
-    'u': "As in who or tune. Tongue: the arch of the back of the tongue is highest — don't let it pull back into the throat; the tip rests at home base. Lips: stretched forward in a small round circle. Lower jaw: only slightly open. A long vowel. After n, t, d, s or l Americans drop the 'liquid u' (ju) and use the pure u: tune, not tyune.",
+    'ɛ': "As in best. Tongue: only slightly arched, with the tongue tip still resting at the lower gum ridge. Lips: smile in a wider position. Lower jaw: lowers a bit more. A short vowel — watch that you don't over-lengthen it.",
+    'æ': 'As in at or class. Tongue: lying flat in the mouth with the focus on the front part; the tip remains at the lower gum ridge. Lips: wide open smile, teeth far apart. Lower jaw: open. Typically short, but its open shape asks for a little more length than ɪ.',
+    'ʌ': 'As in lunch. Tongue: lies flat with the tip resting at the lower gum ridge. Lips: relaxed. Lower jaw: gently drop the jaw more to create a bigger space in the mouth. Similar to the schwa, but used in the stressed syllable with slightly more length.',
+    'ə': 'As in the. Tongue: relaxed, with a gentle, natural arch; the tip rests at the lower gum ridge. Lips: relaxed — neither rounded nor smiling. Jaw and lips free of tension. A short vowel heard in unstressed syllables. Keep the tongue tip at the lower gum ridge to avoid an intrusive r.',
+    'ɑ': 'As in father — the most open sound in the American accent. Tongue: the back is flat with the tip resting at the lower gum ridge. Lips: stretched and opened forward. Lower jaw: its most open position, teeth far apart. A long vowel.',
+    'ɔ': 'As in call. Tongue: the back is only slightly arched; the tip rests at the lower gum ridge. Lips: rounded and protruded — you should feel sensation in the cheeks, and your thumb should fit between your lips. Lower jaw: open, released forward and down. A long vowel.',
+    'ʊ': 'As in should. Tongue: the arch at the back lowers slightly; the tip rests at the lower gum ridge. Lips: open up a bit more and actively round into the shape of a circle. Lower jaw: opens slightly more. A short vowel.',
+    'u': "As in who or tune. Tongue: the arch of the back of the tongue is highest — don't let it pull back into the throat; the tip rests at the lower gum ridge. Lips: stretched forward in a small round circle. Lower jaw: only slightly open. A long vowel. After n, t, d, s or l Americans drop the 'liquid u' (ju) and use the pure u: tune, not tyune.",
     'eɪ': 'As in sail. Two front vowels: e (similar to ɛ in best, but the jaw does not open as much) gliding to the weaker ɪ. This sound can be lengthened, but the length comes from the first sound rather than the second.',
     'aɪ': 'As in my. An open first sound and a closed, weaker second sound. Look in the mirror and make sure you open up wide enough for the first sound; let the tongue lie flat before it arches up for the second. The length comes from the first sound.',
     'oʊ': 'As in boat. Two back vowels: the pure o gliding to ʊ as in should. Feel the jaw move from open to slightly closed; the tongue is arched in the back and the lips are rounded. The length comes from the first sound.',
     'aʊ': 'As in now. Starts very open on ɑ as in father — the most open vowel in the accent — then the arch in the back of the tongue raises for ʊ. Lips start open and close to a more rounded position. The length comes from the first sound.',
     'ɔɪ': 'As in toy. Starts on the back vowel ɔ as in call and glides to ɪ. Look in the mirror: the tongue arch moves from back to front, the jaw from a wide to a small opening, and the lips from rounded to smiling. The length comes from the first sound.',
-    'ɝ': 'As in serve. Tongue: remove the tip from home base — the tip curls as the r is activated and you should feel tension in the tip. The body of the tongue should not pull back; the middle of the tongue is arched high. Lips: relaxed. Lower jaw: only slightly opened. Used in the stressed syllable (journey, herbal).',
+    'ɝ': 'As in serve. Tongue: remove the tip from the lower gum ridge — the tip curls as the r is activated and you should feel tension in the tip. The body of the tongue should not pull back; the middle of the tongue is arched high. Lips: relaxed. Lower jaw: only slightly opened. Used in the stressed syllable (journey, herbal).',
     'ɚ': 'As in mother. The tongue tip curls but is more relaxed, not as tense as ɝ in serve. Lips relaxed, jaw slightly opened. Short in duration — if this sound is stressed or lengthened the accent will begin to sound unnatural.',
-    'ɑɹ': "As in car. The back vowel ɑ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from home base. Don't let the back of the tongue pull back.",
-    'ɔɹ': "As in horse. The back vowel ɔ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from home base. Don't let the back of the tongue pull back.",
-    'ɛɹ': "As in Claire. The front vowel ɛ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from home base. Don't let the back of the tongue pull back.",
-    'ɪɹ': "As in fears. The front vowel ɪ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from home base. Don't let the back of the tongue pull back.",
-    'ʊɹ': "As in poor. The back vowel ʊ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from home base. Don't let the back of the tongue pull back.",
+    'ɑɹ': "As in car. The back vowel ɑ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
+    'ɔɹ': "As in horse. The back vowel ɔ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
+    'ɛɹ': "As in Claire. The front vowel ɛ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
+    'ɪɹ': "As in fears. The front vowel ɪ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
+    'ʊɹ': "As in poor. The back vowel ʊ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
     'ɹ': 'As in red. Either the tongue tip raises just behind the upper gum ridge, curled and pointed up to the hard palate without touching it, with the lips rounding — or the back of the tongue raises and retracts, pressing against the upper back teeth, with the tip less active. Use whichever method is best for you.',
     'r': 'As in red. Either the tongue tip raises just behind the upper gum ridge, curled and pointed up to the hard palate without touching it, with the lips rounding — or the back of the tongue raises and retracts, pressing against the upper back teeth, with the tip less active. Use whichever method is best for you.',
     'l': 'As in love. The tip and blade of the tongue make contact with the upper gum ridge and the air passes out at the sides of the tongue. The American l is darker than other accents — imagine the tip and blade pushing forward against the gum ridge as if pushing against a wall. The tip is tense; the rest of the tongue broad, flat and free of tension.',
-    't': 'As in toast — the tip of the tongue touches the upper gum ridge. Fully sounded at the start of a word, at the start of a stressed syllable, and at the end of a word (draft, apt, vast). Lightly voiced, sounding like d, after a stressed syllable (matter, water) and between a vowel, r and vowel (quarter, parting). Held, with no release, before another consonant (football, twenty).',
-    'd': 'As in doe. Firmly and quickly apply pressure with the tongue tip on the upper gum ridge, then let the tip drop back down to home base. Voiced.',
+    't': "As in toast. Fully sounded t: firmly and quickly apply pressure with the tongue tip on the upper gum ridge and let the tip drop back down to the lower gum ridge at the finish. Used at the start of a word, at the beginning of a stressed syllable, and at the end of a word after f, k, l, p or s (draft, halt, pact).",
+    'd': 'As in doe. Firmly and quickly apply pressure with the tongue tip on the upper gum ridge, then let the tip drop back down to the lower gum ridge. Voiced.',
     'θ': "As in thin. The tip of the tongue rests between the upper and lower teeth and the air passes through the mouth. Keep the rest of the mouth relaxed and watch that th doesn't sound like d — that happens if the tip pulls back. The tip needs to be between the teeth.",
     'ð': "As in then. The tip of the tongue rests between the upper and lower teeth and you add voice. Keep the rest of the mouth relaxed and watch that th doesn't sound like d — that happens if the tip pulls back. The tip needs to be between the teeth.",
     's': "As in sue. The tip of the tongue is positioned toward the upper gum ridge but doesn't actually touch. Lower jaw relaxed, teeth almost closed. Voiceless.",
@@ -68,7 +68,7 @@ TIPS = {
     'ʒ': 'As in genre. The tip is positioned toward the upper gum ridge without touching; feel the sides of the tongue touch the upper teeth as the body of the tongue raises high. Lower jaw relaxed, teeth almost closed. Voiced.',
     'tʃ': 'As in chin. The tip makes contact with the upper gum ridge (as for t), then quickly moves to the sh position just behind it without touching — fast enough to sound like one sound. Lower jaw relaxed. Voiceless.',
     'dʒ': 'As in gin. The tip makes contact with the upper gum ridge (as for d), then quickly moves to the zh position just behind it without touching — fast enough to sound like one sound. Lower jaw relaxed. Voiced.',
-    'ŋ': 'As in sing. The back of the tongue raises to make contact with the soft palate; as the sound is voiced, let it drop slightly away. The tip stays at home base. Words ending in -ing should be pronounced — avoid the temptation to drop the final g sound.',
+    'ŋ': 'As in sing. The back of the tongue raises to make contact with the soft palate; as the sound is voiced, let it drop slightly away. The tip stays at the lower gum ridge. Words ending in -ing should be pronounced — avoid the temptation to drop the final g sound.',
     'n': "As in no. The tip of the tongue touches the upper gum ridge, the body of the tongue is high, and the sound resonates in the nasal cavity. The tip drops to form the next sound — watch that the tongue doesn't pull back.",
     'm': 'As in may. The upper lip makes contact with the lower lip — closed but not overly tense. Lower jaw relaxed, tongue tip at the lower gum ridge. You may feel a buzzing on the lips.',
     'h': 'As in home. The air travels through the pharynx — imagine letting out a heavy breath onto a mirror or a window on a cold day. Unvoiced.',
@@ -83,6 +83,18 @@ TIPS = {
     'g': 'As in girl. The back of the tongue makes contact with the soft palate, then quickly drops and the breath travels through the open space. Lower jaw relaxed, tongue tip at the lower gum ridge. Voiced.',
 }
 
+T_TIPS = {
+    "full": TIPS["t"],
+    "flap": "In this word the t is lightly voiced — it sounds like d. Firmly and quickly apply pressure with the tongue tip on the upper gum ridge and let it drop back down to the lower gum ridge. This happens after a stressed syllable (matter, water) and between a vowel, r and another vowel (quarter, parting).",
+    "held": "In this word the t is held: make the tongue placement for t at the upper gum ridge but don't release the tip back down. This happens before another consonant (football, basketball), after n (internet, twenty) and usually at the end of a word.",
+}
+
+
+def tip_for(expected: str, t_kind: Optional[str] = None) -> Optional[str]:
+    if expected == "t" and t_kind:
+        return T_TIPS.get(t_kind, TIPS["t"])
+    return TIPS.get(expected)
+
 
 class PhonemeScore(BaseModel):
     expected: str
@@ -94,6 +106,7 @@ class PhonemeScore(BaseModel):
     ear: Optional[str] = None  # confirmed | missing | unsure
     note: Optional[str] = None
     flap: bool = False  # American flapped T expected in this slot
+    t_kind: Optional[str] = None  # full | flap | held (t only)
     azure_expected: Optional[str] = None  # set when Azure picked a non-American variant
 
 
@@ -167,7 +180,7 @@ def check_extra_syllables(out: "AssessResponse", heard: Optional[dict]) -> None:
 STRESS_PENALTY = 10
 R_SOUNDS = {"ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ", "ɝ", "ɚ", "ɹ", "r"}
 R_MAX_S = 0.45          # word-internal R-coloured sound held this long is being leaned on
-R_MAX_FINAL_S = 0.70    # finals are naturally longer (Hannah: 0.37–0.61 s)
+R_MAX_FINAL_S = 0.62    # finals are naturally longer (Hannah: 0.37–0.61 s)
 OVERDONE_PENALTY = 10
 
 
@@ -192,7 +205,7 @@ def check_held_r(out: "AssessResponse") -> None:
         if p.expected in seen:
             continue
         seen.add(p.expected)
-        out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, tip=TIPS.get(p.expected), overdone=True, note=p.note))
+        out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, tip=tip_for(p.expected, p.t_kind), overdone=True, note=p.note))
     out.accurate = [a for a in out.accurate if a not in {p.expected for p in hits}]
     out.score = max(0.0, min(float(out.score or 0) - OVERDONE_PENALTY * len({p.expected for p in hits}), MISS_CAP))
     out.band, out.summary = _band(out.score)
@@ -269,7 +282,7 @@ def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
                         n.confirmed, n.heard, n.score, n.note = True, p.heard or n.heard, min(n.score or 100, p.score or 0), p.note
                 continue
             seen.add(p.expected)
-            out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=TIPS.get(p.expected), confirmed=True, note=p.note))
+            out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=tip_for(p.expected, p.t_kind), confirmed=True, note=p.note))
         out.needs_work.sort(key=lambda n: (not n.confirmed, n.score or 0))
     out.score10 = round((out.score or 0) / 10, 1)
 
@@ -400,27 +413,34 @@ def align_expected(ours: List[str], azure: List[str]) -> List[Optional[str]]:
     return out
 
 
-def flap_flags(word: str, azure_phonemes: List[str]) -> List[bool]:
-    """Which Azure 't' slots are American flaps (T between a vowel/R and an unstressed vowel or syllabic L).
+def t_kinds(word: str, azure_phonemes: List[str]) -> List[Optional[str]]:
+    """Classify each Azure 't' slot as full / flap / held using CMU stress marks (All American Voice rules).
 
-    Uses CMU stress marks; falls back to all-False when the T counts don't line up.
+    Falls back to None when the T counts don't line up.
     """
     phones = get_arpabet(word) or []
-    flags_cmu: List[bool] = []
+    kinds_cmu: List[str] = []
     for i, ph in enumerate(phones):
         if ph != "T":
             continue
         prev = phones[i - 1] if i > 0 else ""
         nxt = phones[i + 1] if i + 1 < len(phones) else ""
-        prev_ok = prev[:2] in _ARPA_VOWELS or prev == "R"
-        nxt_ok = (nxt[:2] in _ARPA_VOWELS and nxt.endswith("0")) or nxt == "L"
-        flags_cmu.append(prev_ok and nxt_ok)
+        prev_v = prev[:2] in _ARPA_VOWELS
+        nxt_v = nxt[:2] in _ARPA_VOWELS
+        if (prev_v or prev == "R") and ((nxt_v and nxt.endswith("0")) or nxt == "L"):
+            kinds_cmu.append("flap")
+        elif not nxt:
+            kinds_cmu.append("full" if prev in ("F", "K", "L", "P", "S") else "held")
+        elif prev == "N" or (nxt and not nxt_v):
+            kinds_cmu.append("held")
+        else:
+            kinds_cmu.append("full")
     t_slots = [i for i, p in enumerate(azure_phonemes) if p == "t"]
-    out = [False] * len(azure_phonemes)
-    if len(t_slots) != len(flags_cmu):
+    out: List[Optional[str]] = [None] * len(azure_phonemes)
+    if len(t_slots) != len(kinds_cmu):
         return out
-    for slot, f in zip(t_slots, flags_cmu):
-        out[slot] = f
+    for slot, k in zip(t_slots, kinds_cmu):
+        out[slot] = k
     return out
 
 
@@ -474,8 +494,9 @@ def _interpret(word: str, result: dict) -> AssessResponse:
                 start_s=(p.get("Offset") or 0) / 1e7 if p.get("Offset") is not None else None,
                 end_s=((p.get("Offset") or 0) + (p.get("Duration") or 0)) / 1e7 if p.get("Offset") is not None else None,
             ))
-        for ps, is_flap in zip(w_phonemes, flap_flags(word_text, [ps.expected for ps in w_phonemes])):
-            ps.flap = is_flap
+        for ps, kind in zip(w_phonemes, t_kinds(word_text, [ps.expected for ps in w_phonemes])):
+            ps.t_kind = kind
+            ps.flap = kind == "flap"
         # Azure accepts any dictionary variant (PROH-cess); we insist on the app's American one.
         phones = our_phones(word_text.lower())
         expected_vowels += sum(1 for ph in phones if ph.rstrip("012") in _ARPA_VOWELS)
@@ -496,7 +517,7 @@ def _interpret(word: str, result: dict) -> AssessResponse:
     for p in phonemes:
         if p.status in ("needs_work", "close") and p.expected not in seen:
             seen.add(p.expected)
-            needs.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=TIPS.get(p.expected)))
+            needs.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=tip_for(p.expected, p.t_kind)))
     needs.sort(key=lambda n: n.score or 0)
     return AssessResponse(
         word=word, assessable=True, recognized=nbest.get("Display"),
