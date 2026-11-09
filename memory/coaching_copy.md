@@ -6,7 +6,7 @@ Symbol | Tip
 /i/ | As in she. Tongue: the front part of the body of the tongue is arched high. Lips: smiling. Lower jaw: only slightly opened. Tongue tip rests at the lower gum ridge.
 /ɪ/ | The arch of the tongue lowers ever so slightly. Lips: smiling and slightly spread apart. Lower jaw: lowers slightly. Tongue tip rests at the lower gum ridge. This vowel is short in length.
 /ɛ/ | Tongue: only slightly arched, with the tongue tip still resting at the lower gum ridge. Lips: smile in a wider position. Lower jaw: lowers a bit more. A short vowel — watch that you don't over-lengthen it.
-/æ/ | As in at or class. Tongue: lying flat in the mouth with the focus on the front part; the tip remains at the lower gum ridge. Lips: wide open smile, teeth far apart. Lower jaw: open. Typically short, but its open shape asks for a little more length than ɪ.
+/æ/ | Tongue: lies flat in the mouth with the tongue tip at the lower gum ridge. Lips: wide open smile, teeth far apart. Lower jaw: open.
 /ʌ/ | As in lunch. Tongue: lies flat with the tip resting at the lower gum ridge. Lips: relaxed. Lower jaw: gently drop the jaw more to create a bigger space in the mouth. Similar to the schwa, but used in the stressed syllable with slightly more length.
 /ə/ | As in the. Tongue: relaxed, with a gentle, natural arch; the tip rests at the lower gum ridge. Lips: relaxed — neither rounded nor smiling. Jaw and lips free of tension. A short vowel heard in unstressed syllables. Keep the tongue tip at the lower gum ridge to avoid an intrusive r.
 /ɑ/ | As in father — the most open sound in the American accent. Tongue: the back is flat with the tip resting at the lower gum ridge. Lips: stretched and opened forward. Lower jaw: its most open position, teeth far apart. A long vowel.
