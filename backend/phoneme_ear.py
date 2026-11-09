@@ -191,13 +191,13 @@ def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, ex
         verdict = "unsure"
     note = None
     if verdict == "missing" and is_flap:
-        note = "In American English this T is a soft flap — it sounds like a quick D. You said a hard T."
+        note = "In this word the t turns to a d."
     elif verdict == "missing" and failing is _R and len(reqs) > 1:
-        note = "The R wasn't heard — the vowel was there but not the American R after it."
+        note = "The r sound wasn't heard."
         vowel = max(((float(seg[:, i].max()), t) for i, t in id2tok.items() if t in reqs[0]), default=(0.0, None))
         other_tok = vowel[1] or other_tok
     elif verdict == "missing" and failing is _R:
-        note = "The R wasn't heard."
+        note = "The r sound wasn't heard."
     return {"expected": expected, "verdict": verdict, "p_expected": round(p_exp, 2),
             "heard": DISPLAY.get(other_tok, other_tok) if other_tok and verdict != "confirmed" else None,
             "p_heard": round(other_p, 2), "note": note, "flap": bool(flap and expected == "t")}
