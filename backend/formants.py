@@ -127,6 +127,8 @@ def speaker_scale(profile: Optional[dict]) -> Optional[Tuple[float, float]]:
 
 
 FRONTED_U_F2 = 1.40   # u with F2 this far above the speaker's target is a fronted ʉ (Aussie/British "oo")
+FRONTED_U_TIP = ("Tongue: the arch of the back of the tongue is high — don't let it pull back into the throat; "
+                 "the tip rests at the lower gum ridge. Lips: stretched forward in a small round circle. Lower jaw: only slightly open.")
 STRICT_RATIO = 2.2    # next to a nasal/liquid the vowel is coloured — demand a much clearer miss
 
 
@@ -139,7 +141,7 @@ def judge(expected: str, point: Tuple[float, float], scale: Optional[Tuple[float
     if expected == "u":
         # Fronted ʉ keeps F1 low (so it still looks like u) but pushes F2 up towards the front vowels.
         if all(point[1] >= FRONTED_U_F2 * TARGETS["u"][1] * k[1] and point[0] <= 1.6 * TARGETS["u"][0] * k[0] for k in scales):
-            return {"heard": "ʉ", "note": "The u was made too far forward in the mouth — the Australian/British ʉ. Americans use the pure back u as in who: arch the back of the tongue and round the lips."}
+            return {"heard": "ʉ", "badge": "too far forward", "tip": FRONTED_U_TIP, "note": None}
     ratio = STRICT_RATIO if strict else CLEAR_RATIO
     nearest_each = set()
     for k in scales:

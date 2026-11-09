@@ -109,6 +109,8 @@ class PhonemeScore(BaseModel):
     ear: Optional[str] = None  # confirmed | missing | unsure
     ear_p: Optional[float] = None  # ear confidence in the expected sound
     formant: bool = False  # vowel flagged by the formant check
+    badge: Optional[str] = None
+    tip: Optional[str] = None  # custom tip replacing the sound's standard tip
     note: Optional[str] = None
     flap: bool = False  # American flapped T expected in this slot
     t_kind: Optional[str] = None  # full | flap | held (t only)
@@ -124,6 +126,7 @@ class NeedsWork(BaseModel):
     confirmed: bool = False  # the ear heard a different sound in this slot
     overdone: bool = False   # sound present but held/leaned on too long
     intrusion: bool = False  # sound present but with an extra vowel/glide glued to it
+    badge: Optional[str] = None  # custom label replacing "not heard" (e.g. "too far forward")
     note: Optional[str] = None
 
 
@@ -269,7 +272,8 @@ def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[
         if trusted and not verdict and not coloured:
             formants.profile_add(profile, p.expected, point)
         if verdict:
-            p.status, p.heard, p.note, p.formant = "needs_work", verdict["heard"], verdict["note"], True
+            p.status, p.heard, p.note, p.formant = "needs_work", verdict["heard"], verdict.get("note"), True
+            p.badge, p.tip = verdict.get("badge"), verdict.get("tip")
             if p.score is None or p.score > CLOSE_AT - 1:
                 p.score = float(CLOSE_AT - 1)
             hits.append(p)
@@ -286,9 +290,13 @@ def _flag_sounds(out: "AssessResponse", hits: List["PhonemeScore"]) -> None:
             for n in out.needs_work:
                 if n.phoneme == p.expected:
                     n.confirmed, n.heard, n.note, n.score = True, p.heard, p.note, min(n.score or 100, p.score or 0)
+                    n.badge, n.tip = p.badge, p.tip or n.tip
+                    if p.badge:
+                        n.heard = None  # the sound was there; the badge says what was wrong
             continue
         seen.add(p.expected)
-        out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=p.heard, tip=tip_for(p.expected), confirmed=True, note=p.note))
+        out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, heard=None if p.badge else p.heard, tip=p.tip or tip_for(p.expected),
+                                        confirmed=True, note=p.note, badge=p.badge))
     out.needs_work.sort(key=lambda n: (not (n.confirmed or n.intrusion), n.score or 0))
     out.accurate = [a for a in out.accurate if a not in {p.expected for p in hits}]
     out.score = max(0.0, min(float(out.score or 0) - MISS_PENALTY * len({p.expected for p in hits}), MISS_CAP))

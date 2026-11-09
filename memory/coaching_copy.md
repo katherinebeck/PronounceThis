@@ -118,3 +118,7 @@ Note: an onglide/offglide is reported as a sound error, never as an "extra sylla
 - final stressed ɝ/ɹ (word, serve): ≥ 0.62 s
 - word-internal r sounds: ≥ 0.45 s
 - Admin readout shows "Length (yours · Hannah)" per sound to calibrate.
+
+## Fronted u (Aussie/British ʉ) — formant ear, user-approved copy
+Badge: "too far forward" (no "not heard", no "sounded closer to", no note). Tip shown instead of the standard u tip:
+"Tongue: the arch of the back of the tongue is high — don't let it pull back into the throat; the tip rests at the lower gum ridge. Lips: stretched forward in a small round circle. Lower jaw: only slightly open."
