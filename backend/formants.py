@@ -126,17 +126,26 @@ def speaker_scale(profile: Optional[dict]) -> Optional[Tuple[float, float]]:
     return math.exp(float(np.median(r1))), math.exp(float(np.median(r2)))
 
 
-def judge(expected: str, point: Tuple[float, float], scale: Optional[Tuple[float, float]] = None) -> Optional[dict]:
+FRONTED_U_F2 = 1.40   # u with F2 this far above the speaker's target is a fronted ʉ (Aussie/British "oo")
+STRICT_RATIO = 2.2    # next to a nasal/liquid the vowel is coloured — demand a much clearer miss
+
+
+def judge(expected: str, point: Tuple[float, float], scale: Optional[Tuple[float, float]] = None, strict: bool = False) -> Optional[dict]:
     """None when the vowel is acceptable/unsure; else {"heard": other vowel, "note": coaching line}.
     With a speaker scale the table is fitted to this speaker; without one every plausible size must agree."""
     if expected not in CHECKED:
         return None
     scales = [scale] if scale else [(s, s) for s in SCALES]
+    if expected == "u":
+        # Fronted ʉ keeps F1 low (so it still looks like u) but pushes F2 up towards the front vowels.
+        if all(point[1] >= FRONTED_U_F2 * TARGETS["u"][1] * k[1] and point[0] <= 1.6 * TARGETS["u"][0] * k[0] for k in scales):
+            return {"heard": "ʉ", "note": "The u was made too far forward in the mouth — the Australian/British ʉ. Americans use the pure back u as in who: arch the back of the tongue and round the lips."}
+    ratio = STRICT_RATIO if strict else CLEAR_RATIO
     nearest_each = set()
     for k in scales:
         d = {v: _dist(point, t, k) for v, t in TARGETS.items()}
         best = min(d, key=d.get)
-        if best == expected or d[expected] < CLEAR_RATIO * d[best]:
+        if best == expected or d[expected] < ratio * d[best]:
             return None
         nearest_each.add(best)
     if len(nearest_each) != 1:

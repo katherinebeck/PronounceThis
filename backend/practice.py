@@ -250,18 +250,24 @@ def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[
     hits: List[PhonemeScore] = []
     for i, p in enumerate(out.phonemes):
         nxt = out.phonemes[i + 1].expected if i + 1 < len(out.phonemes) else ""
-        if p.expected not in formants.CHECKED or nxt in FORMANT_SKIP_NEXT or p.start_s is None or p.end_s is None:
+        if p.expected not in formants.CHECKED or p.start_s is None or p.end_s is None:
             continue
+        coloured = nxt in FORMANT_SKIP_NEXT  # nasal/liquid after the vowel shifts its formants
         point = formants.measure(wav_bytes, p.start_s, p.end_s)
         if not point:
             continue
         readings.append({"expected": p.expected, "f1": round(point[0]), "f2": round(point[1])})
-        if p.ear == "confirmed" and (p.ear_p or 0) >= FORMANT_TRUST_EAR_P:
-            formants.profile_add(profile, p.expected, point)
-            continue
         if p.ear == "missing":
             continue
-        verdict = formants.judge(p.expected, point, scale)
+        trusted = p.ear == "confirmed" and (p.ear_p or 0) >= FORMANT_TRUST_EAR_P
+        if trusted and p.expected != "u":
+            if not coloured:
+                formants.profile_add(profile, p.expected, point)
+            continue
+        # u is always re-checked: the recogniser folds a fronted Aussie/British ʉ into u.
+        verdict = formants.judge(p.expected, point, scale, strict=coloured)
+        if trusted and not verdict and not coloured:
+            formants.profile_add(profile, p.expected, point)
         if verdict:
             p.status, p.heard, p.note, p.formant = "needs_work", verdict["heard"], verdict["note"], True
             if p.score is None or p.score > CLOSE_AT - 1:
