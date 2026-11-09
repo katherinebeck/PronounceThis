@@ -18,12 +18,12 @@ COOKIE = {"accent_session": _issue_jwt(os.environ["ADMIN_EMAILS"].split(",")[0].
 
 async def main():
     filt = sys.argv[1] if len(sys.argv) > 1 else ""
-    files = sorted(f for f in os.listdir("/tmp/pt_rhotic") if f.endswith(".mp3") and filt in f)
+    files = sorted(f for f in os.listdir(os.environ.get("CLIP_DIR", "/tmp/pt_rhotic")) if f.endswith(".mp3") and filt in f)
     async with httpx.AsyncClient(timeout=120) as c:
         for f in files:
             voice, word = f[:-4].split("_", 1)
-            ref = "aluminum" if word == "aluminium" else word
-            audio = open(f"/tmp/pt_rhotic/{f}", "rb").read()
+            ref = os.environ.get("REF_WORD") or ("aluminum" if word == "aluminium" else word)
+            audio = open(f"{os.environ.get('CLIP_DIR', '/tmp/pt_rhotic')}/{f}", "rb").read()
             r = await c.post(f"{API}/practice/assess", data={"word": ref}, files={"audio": (f, io.BytesIO(audio), "audio/mpeg")}, cookies=COOKIE)
             b = r.json()
             if r.status_code != 200:

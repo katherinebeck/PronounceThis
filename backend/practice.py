@@ -99,6 +99,7 @@ def tip_for(expected: str, t_kind: Optional[str] = None) -> Optional[str]:
 class PhonemeScore(BaseModel):
     expected: str
     score: Optional[float] = None
+    azure_score: Optional[float] = None  # Azure's own accuracy score, untouched by the ear
     heard: Optional[str] = None
     status: str  # accurate | close | needs_work | unknown
     start_s: Optional[float] = None
@@ -270,6 +271,14 @@ def stress_check(word: str, syllables: List[dict], wav_bytes: bytes) -> Optional
 MISS_PENALTY = 20   # points off the 100-scale per sound the ear confirms as missing/replaced
 MISS_CAP = 75       # a confirmed miss can never read "Excellent"
 EAR_SURE_P = 0.90   # ear confidence that overrides an Azure "close" (60–79) hedge
+# Neighbouring vowels the ear mishears on some voices (Hannah's ɛ→æ, æ→ɑ): a swap between these
+# is only asserted when Azure also doubted the sound.
+ADJACENT_VOWELS = {("ɛ", "æ"), ("æ", "ɑ"), ("ɪ", "i"), ("ʊ", "u"), ("ʌ", "ɑ"), ("ɔ", "oʊ"), ("ʊ", "ə"), ("æ", "ʌ")}
+ADJACENT_AZURE_OK = 80
+
+
+def _adjacent(expected: str, heard: Optional[str]) -> bool:
+    return bool(heard) and ((expected, heard) in ADJACENT_VOWELS or (heard, expected) in ADJACENT_VOWELS)
 
 
 def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
@@ -283,6 +292,10 @@ def apply_ear(out: "AssessResponse", heard: Optional[dict]) -> None:
             p.status = "accurate"  # Azure hedged, the ear clearly heard the sound: don't nag
             out.needs_work = [n for n in out.needs_work if n.phoneme != p.expected or any(
                 q.expected == p.expected and q.status in ("close", "needs_work") for q in out.phonemes if q is not p)]
+        if c["verdict"] == "missing" and not c.get("intrusion") and _adjacent(p.expected, c.get("heard")) \
+                and (p.azure_score or 0) >= ADJACENT_AZURE_OK:
+            p.ear = "unsure"
+            continue
         if c["verdict"] == "missing":
             p.status = "needs_work"
             p.heard = c.get("heard") or p.heard
@@ -515,7 +528,7 @@ def _interpret(word: str, result: dict) -> AssessResponse:
             else:
                 st = "needs_work"
             w_phonemes.append(PhonemeScore(
-                expected=exp, score=sc, heard=heard, status=st,
+                expected=exp, score=sc, azure_score=sc, heard=heard, status=st,
                 start_s=(p.get("Offset") or 0) / 1e7 if p.get("Offset") is not None else None,
                 end_s=((p.get("Offset") or 0) + (p.get("Duration") or 0)) / 1e7 if p.get("Offset") is not None else None,
             ))
@@ -609,7 +622,7 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
         # Free trial: one analysis per trial word.
         if not actor.is_subscriber and await _trial_used(actor.email, norm):
             raise HTTPException(status_code=402, detail={"code": "practice_exhausted", "kind": "practice"})
-        rate_limit(f"practice:{actor.email}", 40, 3600)
+        rate_limit(f"practice:{actor.email}", 600 if is_admin_email(actor.email) else 40, 3600)
 
         data = await audio.read(MAX_BYTES + 1)
         if len(data) > MAX_BYTES:
