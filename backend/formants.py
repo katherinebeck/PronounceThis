@@ -21,6 +21,12 @@ CHECKED = {"i", "ɪ", "ɛ", "æ", "ɑ", "ɔ", "ʊ", "u", "ʌ"}
 SCALES = (0.78, 0.88, 1.0, 1.12, 1.25)
 CLEAR_RATIO = 1.6     # expected must be this many times further away than the nearest other vowel
 MIN_FRAMES = 3
+# Glide (diphthongisation) check on pure vowels.
+GLIDE_CHECKED = {"i", "u", "ɪ", "ʊ", "ɛ", "æ", "ɑ", "ɔ"}
+GLIDE_MIN_S = 0.11   # vowel must be this long to judge movement
+GLIDE_F2 = 0.30      # F2 travel (log-Hz) start→end of the vowel body towards the target…
+GLIDE_F1 = 0.20      # …together with F1 falling (the start was a more open/central vowel).
+                     # Hannah's clean takes move up to 0.23/0.30 on one axis only.
 MAX_MOVE = 0.45       # total log-Hz movement across the steadiest run; more = no steady vowel found
 # Swaps we never flag: General American itself allows them.
 ALLOWED = {("ɔ", "ɑ"), ("ʌ", "ə")}
@@ -94,6 +100,46 @@ def measure(wav_bytes: bytes, start_s: float, end_s: float) -> Optional[Tuple[fl
         return None
     arr = np.array(best)
     return float(np.median(arr[:, 0])), float(np.median(arr[:, 1]))
+
+
+def trajectory(wav_bytes: bytes, start_s: float, end_s: float) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
+    """(F1,F2) at the start and the end of the vowel body (middle 70 % of the window, so the
+    consonant transitions at the edges don't count). None when the vowel is too short to tell."""
+    with wave.open(io.BytesIO(wav_bytes)) as wf:
+        sr = wf.getframerate()
+        audio = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16).astype(np.float64) / 32768.0
+    dur = end_s - start_s
+    if dur < GLIDE_MIN_S:
+        return None
+    a, b = int((start_s + dur * 0.15) * sr), int((end_s - dur * 0.15) * sr)
+    seg = audio[max(0, a):min(len(audio), b)]
+    win, hop = int(0.025 * sr), int(0.010 * sr)
+    seg = np.append(seg[0], seg[1:] - 0.97 * seg[:-1])
+    hamming = np.hamming(win)
+    pts = [ff for ff in (_frame_formants(seg[i:i + win] * hamming, sr) for i in range(0, len(seg) - win + 1, hop)) if ff]
+    if len(pts) < 6:
+        return None
+    third = max(2, len(pts) // 3)
+    head, tail = np.array(pts[:third]), np.array(pts[-third:])
+    return (float(np.median(head[:, 0])), float(np.median(head[:, 1]))), (float(np.median(tail[:, 0])), float(np.median(tail[:, 1])))
+
+
+def judge_glide(expected: str, traj: Tuple[Tuple[float, float], Tuple[float, float]]) -> Optional[dict]:
+    """A pure vowel that travels: Australian/British [əi] for i, [əʉ]/[ɪu] for u, etc."""
+    if expected not in GLIDE_CHECKED:
+        return None
+    (f1a, f2a), (f1b, f2b) = traj
+    d1, d2 = math.log(f1b / f1a), math.log(f2b / f2a)
+    # Both axes must travel, in the direction of an onglide from a central vowel towards the target
+    # (front vowels: F2 rising + F1 falling; back vowels: F2 falling + F1 falling).
+    if expected in ("i", "ɪ", "ɛ", "æ") and not (d2 >= GLIDE_F2 and d1 <= -GLIDE_F1):
+        return None
+    if expected in ("u", "ʊ", "ɔ", "ɑ") and not (d2 <= -GLIDE_F2 and d1 <= -GLIDE_F1):
+        return None
+    start = "ə" if expected in ("i", "ɪ", "u", "ʊ") else "another vowel"
+    return {"badge": "glided", "heard": f"{start}{expected}",
+            "note": f"The {expected} moved while you said it — it started on {start if start != 'ə' else 'a schwa (ə)'} and slid into {expected}. Americans hold one pure {expected} from start to finish."}
+
 
 
 def _dist(p: Tuple[float, float], t: Tuple[float, float], k: Tuple[float, float]) -> float:

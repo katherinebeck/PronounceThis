@@ -36,8 +36,8 @@ CLOSE_AT = 60
 # Coaching cues per General American phoneme — wording from the All American Voice pronunciation guides.
 TIPS = {
     'i': 'As in she. Tongue: the front part of the body of the tongue is arched high. Lips: smiling. Lower jaw: only slightly opened. Tongue tip rests at the lower gum ridge.',
-    'ɪ': 'As in is. Tongue: the arch of the tongue lowers ever so slightly. Lips: smiling and slightly spread apart. Lower jaw: lowers slightly. Tongue tip rests at the lower gum ridge. A short vowel.',
-    'ɛ': "As in best. Tongue: only slightly arched, with the tongue tip still resting at the lower gum ridge. Lips: smile in a wider position. Lower jaw: lowers a bit more. A short vowel — watch that you don't over-lengthen it.",
+    'ɪ': 'The arch of the tongue lowers ever so slightly. Lips: smiling and slightly spread apart. Lower jaw: lowers slightly. Tongue tip rests at the lower gum ridge. This vowel is short in length.',
+    'ɛ': "Tongue: only slightly arched, with the tongue tip still resting at the lower gum ridge. Lips: smile in a wider position. Lower jaw: lowers a bit more. A short vowel — watch that you don't over-lengthen it.",
     'æ': 'As in at or class. Tongue: lying flat in the mouth with the focus on the front part; the tip remains at the lower gum ridge. Lips: wide open smile, teeth far apart. Lower jaw: open. Typically short, but its open shape asks for a little more length than ɪ.',
     'ʌ': 'As in lunch. Tongue: lies flat with the tip resting at the lower gum ridge. Lips: relaxed. Lower jaw: gently drop the jaw more to create a bigger space in the mouth. Similar to the schwa, but used in the stressed syllable with slightly more length.',
     'ə': 'As in the. Tongue: relaxed, with a gentle, natural arch; the tip rests at the lower gum ridge. Lips: relaxed — neither rounded nor smiling. Jaw and lips free of tension. A short vowel heard in unstressed syllables. Keep the tongue tip at the lower gum ridge to avoid an intrusive r.',
@@ -113,6 +113,7 @@ class PhonemeScore(BaseModel):
     tip: Optional[str] = None  # custom tip replacing the sound's standard tip
     note: Optional[str] = None
     flap: bool = False  # American flapped T expected in this slot
+    reduced: bool = False  # unstressed ɪ: ə is accepted
     t_kind: Optional[str] = None  # full | flap | held (t only)
     azure_expected: Optional[str] = None  # set when Azure picked a non-American variant
     intrusion: bool = False  # extra vowel/glide glued to this sound (ə-u, j-u)
@@ -241,7 +242,8 @@ def _display_pattern(graphemes: List[str], idx: int) -> str:
 
 
 FORMANT_SKIP_NEXT = {"m", "n", "ŋ", "l", "ɹ", "r", "w", "j"}  # these colour the vowel's formants
-FORMANT_TRUST_EAR_P = 0.80
+FORMANT_TRUST_EAR_P = 0.80   # ear confidence needed before a vowel teaches the speaker scale
+FORMANT_JUDGE_EAR_P = 0.60   # below this the formant table gets a say even if the ear said "confirmed"
 
 
 def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[dict]:
@@ -262,15 +264,17 @@ def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[
         readings.append({"expected": p.expected, "f1": round(point[0]), "f2": round(point[1])})
         if p.ear == "missing":
             continue
-        trusted = p.ear == "confirmed" and (p.ear_p or 0) >= FORMANT_TRUST_EAR_P
-        if trusted and p.expected != "u":
-            if not coloured:
-                formants.profile_add(profile, p.expected, point)
-            continue
-        # u is always re-checked: the recogniser folds a fronted Aussie/British ʉ into u.
-        verdict = formants.judge(p.expected, point, scale, strict=coloured)
-        if trusted and not verdict and not coloured:
-            formants.profile_add(profile, p.expected, point)
+        trusted = p.ear == "confirmed" and (p.ear_p or 0) >= FORMANT_JUDGE_EAR_P  # a sure recogniser outranks the table…
+        # The recogniser folds a fronted ʉ into u and a glided [əi] into i, so these run even when it is sure.
+        traj = formants.trajectory(wav_bytes, p.start_s, p.end_s)
+        verdict = formants.judge_glide(p.expected, traj) if traj else None
+        if not verdict and (not trusted or p.expected == "u"):
+            verdict = formants.judge(p.expected, point, scale, strict=coloured)
+            # A neighbouring-vowel call against a recogniser confirmation (even a weak one) is not worth asserting.
+            if verdict and p.ear == "confirmed" and _adjacent(p.expected, verdict.get("heard")):
+                verdict = None
+        if trusted and (p.ear_p or 0) >= FORMANT_TRUST_EAR_P and not verdict and not coloured:
+            formants.profile_add(profile, p.expected, point)  # …but only sure ones teach the speaker scale
         if verdict:
             p.status, p.heard, p.note, p.formant = "needs_work", verdict["heard"], verdict.get("note"), True
             p.badge, p.tip = verdict.get("badge"), verdict.get("tip")
@@ -367,7 +371,8 @@ MISS_CAP = 75       # a confirmed miss can never read "Excellent"
 EAR_SURE_P = 0.90   # ear confidence that overrides an Azure "close" (60–79) hedge
 # Neighbouring vowels the ear mishears on some voices (Hannah's ɛ→æ, æ→ɑ): a swap between these
 # is only asserted when Azure also doubted the sound.
-ADJACENT_VOWELS = {("ɛ", "æ"), ("æ", "ɑ"), ("ɪ", "i"), ("ʊ", "u"), ("ʌ", "ɑ"), ("ɔ", "oʊ"), ("ʊ", "ə"), ("æ", "ʌ")}
+ADJACENT_VOWELS = {("ɛ", "æ"), ("æ", "ɑ"), ("ɪ", "i"), ("ʊ", "u"), ("ʌ", "ɑ"), ("ɔ", "oʊ"), ("ʊ", "ə"), ("æ", "ʌ"), ("æ", "ə"),
+                   ("tʃ", "ʃ"), ("dʒ", "ʒ"), ("dʒ", "j")}  # affricate/fricative too: the ear drops the stop onset
 ADJACENT_AZURE_OK = 80
 
 
@@ -576,6 +581,19 @@ def t_kinds(word: str, azure_phonemes: List[str]) -> List[Optional[str]]:
     return out
 
 
+def reduced_i_slots(word: str, azure_phonemes: List[str]) -> List[bool]:
+    """Mark ɪ slots that CMU has unstressed (IH0): Americans say those as ə, so ə must be accepted."""
+    phones = get_arpabet(word) or []
+    cmu = [ph.endswith("0") for ph in phones if ph[:2] == "IH"]
+    slots = [i for i, p in enumerate(azure_phonemes) if p == "ɪ"]
+    out = [False] * len(azure_phonemes)
+    if len(slots) != len(cmu):
+        return out
+    for slot, r in zip(slots, cmu):
+        out[slot] = r
+    return out
+
+
 def _pa(item: dict) -> dict:
     """Azure REST puts scores flat on the item; the SDK nests them under PronunciationAssessment."""
     return {**item, **(item.get("PronunciationAssessment") or {})}
@@ -635,6 +653,8 @@ def _interpret(word: str, result: dict) -> AssessResponse:
         for ps, ours in zip(w_phonemes, align_expected(expected_sequence(phones), [p.expected for p in w_phonemes])):
             if ours and ours in ear.EXPECTED:
                 ps.azure_expected, ps.expected = ps.expected, ours
+        for ps, reduced in zip(w_phonemes, reduced_i_slots(word_text, [ps.expected for ps in w_phonemes])):
+            ps.reduced = reduced
         phonemes.extend(w_phonemes)
 
     score = nbest.get("PronScore")
@@ -737,7 +757,7 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
         out = _interpret(reference, result)
         heard = None
         if out.assessable and ear.available():
-            windows = [{"expected": p.expected, "start_s": p.start_s or 0.0, "end_s": p.end_s or 0.0, "flap": p.flap} for p in out.phonemes]
+            windows = [{"expected": p.expected, "start_s": p.start_s or 0.0, "end_s": p.end_s or 0.0, "flap": p.flap, "reduced": p.reduced} for p in out.phonemes]
             try:
                 heard = await asyncio.to_thread(ear.listen, wav_bytes, windows)
             except Exception as exc:  # noqa: BLE001

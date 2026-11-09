@@ -209,9 +209,20 @@ ONGLIDE_TOKENS = {"j", "w", "ə", "ɪ", "ʊ"}
 # Before u ("yoo", "ə-oo") and oʊ (Aussie/British "ə-oh") any inserted vowel is an onglide, never a syllable.
 ONGLIDE_ANY_HOSTS = {"u", "oʊ"}
 # Acoustically confusable pairs the ear never asserts as "missing" on its own (Azure still scores them).
-NEAR = {"ð": {"θ", "d", "v"}, "θ": {"ð", "f"}, "s": {"z"}, "z": {"s"}, "f": {"v", "θ", "s"}, "v": {"f", "ð"},
+NEAR = {"ð": {"θ", "d", "v"}, "θ": {"ð", "f"}, "s": {"z"}, "z": {"s"}, "f": {"v", "θ", "s"}, "v": {"f", "ð", "z"},
         "ʃ": {"ʒ"}, "ʒ": {"ʃ"}, "w": {"m", "v"}, "ʌ": {"ɑ"}, "ɑ": {"ə"}, "ɔ": {"oʊ"}}
 EXPECTED_VOWELS = set(EXPECTED) & (VOWELS | {"ɔ", "ʌ", "ɚ", "ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ"})
+
+
+REDUCED_I = [{"ɪ", "ə"}]  # unstressed ɪ (be-lieve, mu-sic) is said as ə by most Americans
+
+
+def _reqs_for(w: dict) -> list:
+    if w.get("flap") and w["expected"] == "t":
+        return FLAP_REQ
+    if w.get("reduced") and w["expected"] == "ɪ":
+        return REDUCED_I
+    return EXPECTED.get(w["expected"], [])
 
 
 def _is_vowel_req(req: set) -> bool:
@@ -234,6 +245,8 @@ def _align(flat: List[set], tokens: List[str]) -> List[tuple]:
             tok = tokens[j - 1]
             if tok in flat[i - 1]:
                 sub = 2.0
+            elif flat[i - 1] is _R and tok in VOWELS:
+                sub = -0.5   # a plain vowel where an r-coloured vowel should be (British "bird")
             elif (tok in VOWELS) == _is_vowel_req(flat[i - 1]):
                 sub = 0.0   # same class (vowel for vowel): a substitution, not a gap
             else:
@@ -265,7 +278,7 @@ def _sequence_view(windows: List[dict], tokens: List[str]) -> dict:
     substituted, and where extra vowel/glide sounds were inserted (onglide vs. extra syllable)."""
     flat, owner = [], []  # requirement sets in order, and the window index each belongs to
     for i, w in enumerate(windows):
-        reqs = FLAP_REQ if w.get("flap") and w["expected"] == "t" else EXPECTED.get(w["expected"], [])
+        reqs = _reqs_for(w)
         for r in reqs:
             flat.append(r)
             owner.append(i)
@@ -276,6 +289,8 @@ def _sequence_view(windows: List[dict], tokens: List[str]) -> dict:
     extra_nuclei = 0
     if not flat or not tokens:
         return {"present": present, "heard": heard, "intrusion": intrusion, "extra_nuclei": 0, "r_dropped": r_dropped}
+    # CTC emits the same vowel twice when it is long or glided ("liiv"); that is one sound.
+    tokens = [t for i, t in enumerate(tokens) if i == 0 or t != tokens[i - 1]]
     ops = _align(flat, tokens)
     matched_req = [False] * len(flat)
     aligned_req = [False] * len(flat)   # matched or substituted (something was said in that slot)
@@ -291,6 +306,9 @@ def _sequence_view(windows: List[dict], tokens: List[str]) -> dict:
     for i, w in enumerate(windows):
         ks = [k for k, o in enumerate(owner) if o == i]
         if len(ks) == 2 and flat[ks[1]] is _R and aligned_req[ks[0]] and not matched_req[ks[1]]:
+            r_dropped[i] = True
+        # ɝ/ɚ said as a plain vowel (British "bird" = bɜːd): the R slot was filled by a vowel.
+        if len(ks) == 1 and flat[ks[0]] is _R and not matched_req[ks[0]] and heard[i] in VOWELS:
             r_dropped[i] = True
     last_aligned = max((k for k, ok in enumerate(aligned_req) if ok), default=-1)
     # Group consecutive insertions by the requirement they sit in front of.
@@ -319,8 +337,8 @@ def _sequence_view(windows: List[dict], tokens: List[str]) -> dict:
     return {"present": present, "heard": heard, "intrusion": intrusion, "extra_nuclei": extra_nuclei, "r_dropped": r_dropped}
 
 
-def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, exclude: set, flap: bool = False) -> dict:
-    reqs = FLAP_REQ if (flap and expected == "t") else EXPECTED.get(expected)
+def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, exclude: set, flap: bool = False, reduced: bool = False) -> dict:
+    reqs = _reqs_for({"expected": expected, "flap": flap, "reduced": reduced})
     if not reqs:
         return {"expected": expected, "verdict": "unsure", "p_expected": None, "heard": None}
     a = max(0, int((start_s - PAD_S) / FRAME_S))
@@ -397,9 +415,9 @@ def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
         neighbours = set()
         for j in (i - 1, i + 1):
             if 0 <= j < len(windows):
-                reqs = FLAP_REQ if windows[j].get("flap") and windows[j]["expected"] == "t" else EXPECTED.get(windows[j]["expected"], [])
+                reqs = _reqs_for(windows[j])
                 neighbours |= set().union(*reqs)
-        checks.append(_check_window(probs, id2tok, w["start_s"], w["end_s"], w["expected"], neighbours, flap=w.get("flap", False)))
+        checks.append(_check_window(probs, id2tok, w["start_s"], w["end_s"], w["expected"], neighbours, flap=w.get("flap", False), reduced=w.get("reduced", False)))
     seq = _sequence_view(windows, tokens)
     last = len(windows) - 1
     for i, c in enumerate(checks):
