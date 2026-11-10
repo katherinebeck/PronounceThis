@@ -1,6 +1,6 @@
 # Sound bank — deliberate-error recordings vs Practise This Word
 
-Errors caught: **60/62** · clean American takes passing (≥8.5, target not flagged): **43/45**
+Errors caught: **60/62** · clean American takes passing (≥8.5, target not flagged): **44/45**
 
 | Target | Word | Take | Result | What the student reads |
 |---|---|---|---|---|
@@ -22,7 +22,7 @@ Errors caught: **60/62** · clean American takes passing (≥8.5, target not fla
 | /ɔ/ɑ/ | caught | ʌ — “cut” (hannah) | ✓ caught | 0.0/10 Keep working · /ɑ/ not heard → æ · “The vowel sounded closer to æ as in cat — Americans use the open ɑ as in father here.” |
 | /ʊ/ | book | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /ʊ/ | book | ʌ — “buck” (hannah) | ✓ caught | 6.8/10 Needs work · /ʊ/ not heard → ə |
-| /u/ | food | clean (Hannah) | ✗ FALSE FLAG | 7.5/10 Okay — still needs practice · /u/ not heard |
+| /u/ | food | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /u/ | food | ju — “feud” (hannah) | ✓ caught | 6.5/10 Needs work · /u/ extra sound → j · “We heard an extra sound before the u — it sounded like ju (a y sound). Remove it and go straight into the pure u sound.” |
 | /ʌ/ | cup | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /ʌ/ | cup | ɑ — “cop” (hannah) | ✓ caught | 7.5/10 Okay — still needs practice · /ʌ/ not heard → ɑ · “The vowel sounded closer to the open ɑ as in father — Americans use ʌ as in cup here.” |
@@ -34,7 +34,7 @@ Errors caught: **60/62** · clean American takes passing (≥8.5, target not fla
 | /aɪ/ | time | ɑ — “tom” (hannah) | ✓ caught | 6.3/10 Needs work · /aɪ/ not heard → ɑ |
 | /oʊ/ | boat | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /oʊ/ | boat | ɔ — “bought” (hannah) | ✓ caught | 5.8/10 Needs work · /oʊ/ not heard → ɑ |
-| /oʊ/ | boat | AU əʉ — “boat” (tanya) | ✓ caught | 7.5/10 Okay — still needs practice · /oʊ/ not heard → əʉ · “The o was made too far forward — the Australian/British əʉ. Americans start on a pure back o with the lips rounded and glide to ʊ.” |
+| /oʊ/ | boat | AU əʉ — “boat” (tanya) | ✗ missed | 10.0/10 Excellent |
 | /aʊ/ | house | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /aʊ/ | house | oʊ — “hose” (hannah) | ✓ caught | 1.1/10 Keep working · /aʊ/ weak 33/100 → oʊ |
 | /ɔɪ/ | boy | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
@@ -61,12 +61,12 @@ Errors caught: **60/62** · clean American takes passing (≥8.5, target not fla
 | /b/ | bat | p — “pat” (hannah) | ✓ caught | 4.2/10 Keep working · /b/ not heard → p |
 | /t/ | toes | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /t/ | toes | d — “doze” (hannah) | ✓ caught | 7.0/10 Okay — still needs practice · /t/ not heard → d |
-| /t (flap)/ | water | clean (Hannah) | ✓ pass | 9.7/10 Excellent · other flags: /ɚ/ |
-| /t (flap)/ | water | UK hard t — “water” (lily) | ✗ missed | 7.5/10 Okay — still needs practice · other flags: /ɔ/*, /ɚ/ |
+| /t (flap)/ | water | clean (Hannah) | ✓ pass | 9.7/10 Excellent |
+| /t (flap)/ | water | UK hard t — “water” (lily) | ✓ caught | 3.8/10 Keep working · /t/ not heard → t · “In this word the t turns to a d.” |
 | /d/ | day | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
-| /d/ | day | ð — “they” (hannah) | ✓ caught | 7.8/10 Okay — still needs practice · /d/ weak 27/100 → ð |
+| /d/ | day | ð — “they” (hannah) | ✓ caught | 5.8/10 Needs work · /d/ not heard → ð |
 | /k/ | coat | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
-| /k/ | coat | g — “goat” (hannah) | ✓ caught | 8.9/10 Good · /k/ weak 18/100 → g |
+| /k/ | coat | g — “goat” (hannah) | ✓ caught | 6.9/10 Needs work · /k/ not heard → ɡ |
 | /ɡ/ | goat | clean (Hannah) | ✓ pass | 10.0/10 Excellent |
 | /ɡ/ | goat | k — “coat” (hannah) | ✓ caught | 6.8/10 Needs work · /ɡ/ not heard → k |
 | /f/ | fan | clean (Hannah) | ✓ pass | 10.0/10 Excellent |

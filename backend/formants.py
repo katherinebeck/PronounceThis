@@ -230,8 +230,7 @@ def own_u_f2(profile: Optional[dict]) -> Optional[float]:
     return float(np.median(e["f2"])) if len(e.get("f2") or []) >= OWN_U_MIN else None
 
 
-FRONTED_O_NOTE = ("The o was made too far forward — the Australian/British əʉ. Americans start on a pure back o "
-                  "with the lips rounded and glide to ʊ.")
+FRONTED_O_NOTE = "The o was made too far forward. Americans start on a pure back o with the lips rounded and glide to ʊ."
 O_START = (555, 1100)   # where a General American oʊ begins (women); the Australian əʉ begins central, F2 ≈ 1500+
 O_START_F2 = 1.35
 

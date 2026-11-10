@@ -4,16 +4,20 @@ Audio is held in a temp dir for ffmpeg + the Azure call only; nothing is stored.
 """
 import asyncio
 import base64
+import io
 import json
 import logging
+import math
 import os
 import re
 import subprocess
 import tempfile
+import wave
 from pathlib import Path
 from typing import List, Optional
 
 import httpx
+import numpy as np
 from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel
@@ -327,8 +331,8 @@ def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[
             # A neighbouring-vowel call against a recogniser confirmation (even a weak one, or a leaning "unsure") is not worth asserting.
             if verdict and (p.ear == "confirmed" or (p.ear_p or 0) >= ADJACENT_UNSURE_P) and _adjacent(p.expected, verdict.get("heard")):
                 verdict = None
-        if trusted and (p.ear_p or 0) >= FORMANT_TRUST_EAR_P and not verdict and not coloured:
-            formants.profile_add(profile, p.expected, point)  # …but only sure ones teach the speaker scale
+        if trusted and (p.ear_p or 0) >= FORMANT_TRUST_EAR_P and not verdict and not coloured and not (p.expected == "u" and prv in formants.CORONALS):
+            formants.profile_add(profile, p.expected, point)  # …but only sure ones teach the speaker scale (and only back-context u)
         if verdict:
             p.status, p.heard, p.note, p.formant = "needs_work", verdict["heard"], verdict.get("note"), True
             p.badge, p.tip = verdict.get("badge"), verdict.get("tip")
@@ -525,6 +529,36 @@ def _to_wav(src: Path, dst: Path) -> float:
     if p.returncode or not dst.exists():
         raise HTTPException(status_code=415, detail="We couldn't read that recording. Please try again.")
     return max(0.0, (dst.stat().st_size - 44) / 32000.0)
+
+
+TAIL_FLOOR = 0.08   # frame rms below this share of the loudest frame is room noise / breath, not speech
+TAIL_PAD_S = 0.04
+
+
+def _speech_end(wav_bytes: bytes) -> Optional[float]:
+    with wave.open(io.BytesIO(wav_bytes)) as wf:
+        sr = wf.getframerate()
+        audio = np.frombuffer(wf.readframes(wf.getnframes()), dtype=np.int16).astype(np.float64) / 32768.0
+    win, hop = int(0.025 * sr), int(0.010 * sr)
+    if len(audio) < win:
+        return None
+    rms = np.array([math.sqrt(float(np.mean(audio[i:i + win] ** 2))) for i in range(0, len(audio) - win + 1, hop)])
+    loud = np.nonzero(rms >= TAIL_FLOOR * rms.max())[0]
+    return (loud[-1] * hop + win) / sr + TAIL_PAD_S if len(loud) else None
+
+
+def _clip_tail(out: "AssessResponse", wav_bytes: bytes) -> None:
+    """Azure stretches the last sound to the end of the file; cut it back to where the voice actually stopped,
+    so a short final er (farmer) isn't read as held, and trailing room noise never enters a measurement."""
+    end = _speech_end(wav_bytes)
+    timed = [p for p in out.phonemes if p.start_s is not None and p.end_s is not None]
+    if end is None or not timed:
+        return
+    last = timed[-1]
+    if last.end_s > end > last.start_s + 0.04:
+        last.end_s = end
+    if out.syllables and out.syllables[-1].get("end_s", 0) > end > out.syllables[-1].get("start_s", 0) + 0.04:
+        out.syllables[-1]["end_s"] = end
 
 
 def _assessment_header(reference: str) -> str:
@@ -797,7 +831,10 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
                 src, wav = Path(d) / "ref.bin", Path(d) / "ref.wav"
                 src.write_bytes(base64.b64decode(clip["audio_b64"]))
                 await asyncio.to_thread(_to_wav, src, wav)
-                ref = _interpret(norm, await _call_azure(wav.read_bytes(), norm))
+                ref_wav = wav.read_bytes()
+                ref = _interpret(norm, await _call_azure(ref_wav, norm))
+                if ref.assessable:
+                    _clip_tail(ref, ref_wav)
             if ref.assessable:
                 profile["phonemes"] = [{"expected": p.expected, "dur": round((p.end_s or 0) - (p.start_s or 0), 3)} for p in ref.phonemes]
         except Exception as exc:  # noqa: BLE001
@@ -850,6 +887,8 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
         del data
         result = await _call_azure(wav_bytes, reference)
         out = _interpret(reference, result)
+        if out.assessable:
+            _clip_tail(out, wav_bytes)
         heard = None
         if out.assessable and ear.available():
             windows = [{"expected": p.expected, "start_s": p.start_s or 0.0, "end_s": p.end_s or 0.0, "flap": p.flap, "reduced": p.reduced, "stress": p.stress} for p in out.phonemes]
