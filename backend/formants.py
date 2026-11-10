@@ -76,6 +76,7 @@ def _frame_formants(frame: np.ndarray, sr: int) -> Optional[Tuple[float, float]]
 
 R_F3_BASE = 2250.0   # women: r-coloured vowels sit at F3 ≈ 1800–2100 Hz, plain vowels ≥ 2500 Hz
 R_F3_MIN_FRAMES = 3
+R_F3_SURE_MARGIN = 1.10   # non-rhotic takes sit ≥ 2440 Hz (women); Hannah's clipped final ɚ reaches 2280
 
 
 def f3_median(wav_bytes: bytes, start_s: float, end_s: float) -> Optional[float]:
@@ -104,10 +105,11 @@ def f3_median(wav_bytes: bytes, start_s: float, end_s: float) -> Optional[float]
     return float(np.median(f3s))
 
 
-def rhotic_missing(f3: float, scale: Optional[Tuple[float, float]]) -> bool:
-    """True when F3 is too high for an r-coloured vowel, for this speaker's size."""
+def rhotic_missing(f3: float, scale: Optional[Tuple[float, float]], ear_sure: bool = False) -> bool:
+    """True when F3 is too high for an r-coloured vowel, for this speaker's size. A recogniser that is
+    certain it heard the r gets the benefit of the doubt in the borderline band just above the line."""
     k = scale[1] if scale else 1.0
-    return f3 >= R_F3_BASE * k
+    return f3 >= R_F3_BASE * k * (R_F3_SURE_MARGIN if ear_sure else 1.0)
 
 
 def measure(wav_bytes: bytes, start_s: float, end_s: float) -> Optional[Tuple[float, float]]:

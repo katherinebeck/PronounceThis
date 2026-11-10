@@ -205,6 +205,7 @@ R_MAX_FINAL_UNSTRESSED_S = 0.42  # final ɚ (mother, water) is short by nature: 
 R_REL = 1.25            # or clearly longer than Hannah's own take of this word
 R_REL_MIN_S = 0.30
 R_F3_MIN_S = 0.10       # shortest window the F3 r-colouring check will judge
+R_EAR_SURE_P = 0.95     # recogniser confidence that earns the borderline F3 margin
 OVERDONE_PENALTY = 10
 
 
@@ -362,7 +363,7 @@ def rhotic_check(out: "AssessResponse", wav_bytes: bytes, scale) -> List[dict]:
         if f3 is None:
             continue
         readings.append({"expected": p.expected, "f3": round(f3)})
-        if formants.rhotic_missing(f3, scale):
+        if formants.rhotic_missing(f3, scale, ear_sure=p.ear == "confirmed" and (p.ear_p or 0) >= R_EAR_SURE_P):
             p.status, p.note = "needs_work", "The r sound wasn't heard."
             p.heard = {"ɝ": "ɜ", "ɚ": "ə"}.get(p.expected, p.expected[:-1])
             if p.score is None or p.score > CLOSE_AT - 1:

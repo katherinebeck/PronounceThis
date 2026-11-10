@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import threading
+import wave
 from typing import List, Optional
 
 logger = logging.getLogger("ear")
@@ -52,7 +53,7 @@ EAR_PYTHON = os.environ.get("EAR_PYTHON", "/opt/ear-venv/bin/python")
 # Production: the ear runs as its own small service (ear-service/); the backend only talks HTTP to it.
 EAR_URL = os.environ.get("EAR_URL", "").rstrip("/")
 EAR_SECRET = os.environ.get("EAR_SECRET", "")
-REMOTE_TIMEOUT_S = 12
+REMOTE_TIMEOUT_S = 25
 REMOTE_RECHECK_S = 60
 
 
@@ -422,10 +423,37 @@ def _intrusion_note(expected: str, intr: dict) -> str:
     return f"We heard an extra sound after the {shown} — it sounded like {shown}{tok}{name}. Finish the {shown} cleanly without adding a vowel."
 
 
+CROP_MARGIN_S = 0.25   # audio kept either side of the Azure word span
+
+
+def _crop(wav_bytes: bytes, windows: List[dict]):
+    """Send the model only the word (plus a margin): inference time grows with audio length, and a
+    mic take carries a second or two of room either side (3.5 s → ~20 s on a shared CPU)."""
+    timed = [w for w in windows if w.get("end_s", 0) > w.get("start_s", 0)]
+    if not timed:
+        return wav_bytes, windows
+    with wave.open(io.BytesIO(wav_bytes)) as wf:
+        sr, n = wf.getframerate(), wf.getnframes()
+        params = wf.getparams()
+        frames = wf.readframes(n)
+    a = max(0.0, min(w["start_s"] for w in timed) - CROP_MARGIN_S)
+    b = min(n / sr, max(w["end_s"] for w in timed) + CROP_MARGIN_S)
+    if a < 0.05 and b > n / sr - 0.05:
+        return wav_bytes, windows
+    width = params.sampwidth * params.nchannels
+    out = io.BytesIO()
+    with wave.open(out, "wb") as wf:
+        wf.setparams(params)
+        wf.writeframes(frames[int(a * sr) * width:int(b * sr) * width])
+    shifted = [{**w, "start_s": max(0.0, w["start_s"] - a), "end_s": max(0.0, w["end_s"] - a)} for w in windows]
+    return out.getvalue(), shifted
+
+
 def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
     """windows: [{expected, start_s, end_s}] from Azure phoneme timings (16 kHz mono PCM wav)."""
     if not available():
         return None
+    wav_bytes, windows = _crop(wav_bytes, windows)
     if EAR_URL:
         return _ask_remote(wav_bytes, windows)
     if _state["model"] is None:
