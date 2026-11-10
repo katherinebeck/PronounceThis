@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { trimRecording } from "./audioTrim";
 
 // Mic capture → auto-trimmed WAV blob + preview URL.
-export function useRecorder({ onError, trim = true } = {}) {
+export function useRecorder({ onError, trim = true, raw = false } = {}) {
   const [recording, setRecording] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [blob, setBlob] = useState(null);
@@ -20,7 +20,9 @@ export function useRecorder({ onError, trim = true } = {}) {
 
   const start = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // raw: no browser noise suppression / auto-gain — they strip the quiet voiced closure of b d g (beer → "peer").
+      const constraints = raw ? { echoCancellation: false, noiseSuppression: false, autoGainControl: false } : true;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
       const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
         : MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4" : "";
       const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
@@ -44,7 +46,7 @@ export function useRecorder({ onError, trim = true } = {}) {
       if (onError) onError(err);
       else toast.error("Microphone access was blocked. Allow the mic in your browser and try again.");
     }
-  }, [reset, onError, trim]);
+  }, [reset, onError, trim, raw]);
 
   const stop = useCallback(() => {
     recRef.current?.stop();

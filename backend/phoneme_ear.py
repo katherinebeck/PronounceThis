@@ -211,6 +211,9 @@ ONGLIDE_ANY_HOSTS = {"u", "oʊ"}
 # Acoustically confusable pairs the ear never asserts as "missing" on its own (Azure still scores them).
 NEAR = {"ð": {"θ", "d", "v"}, "θ": {"ð", "f"}, "s": {"z"}, "z": {"s"}, "f": {"v", "θ", "s"}, "v": {"f", "ð", "z"},
         "ʃ": {"ʒ"}, "ʒ": {"ʃ"}, "w": {"m", "v"}, "ʌ": {"ɑ"}, "ɑ": {"ə"}, "ɔ": {"oʊ"}}
+SURE_NEAR = {("θ", "f")}   # the one near pair the ear may call alone, and only when certain
+SURE_NEAR_P, SURE_NEAR_EXP_P = 0.95, 0.03
+
 EXPECTED_VOWELS = set(EXPECTED) & (VOWELS | {"ɔ", "ʌ", "ɚ", "ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ"})
 
 
@@ -333,8 +336,8 @@ def _sequence_view(windows: List[dict], tokens: List[str]) -> dict:
                 intrusion[owner[k]] = intrusion[owner[k]] or {"tok": vowelish[0], "where": "before"}
             else:
                 extra_nuclei += 1  # a full vowel in front of a vowel: another syllable (alu-min-i-um)
-        elif prv_vowel and all(t in ONGLIDE_TOKENS for t in vowelish):
-            continue  # offglide (æ→[æə] before nasals is normal American): never an error, never a syllable
+        elif prv_vowel and all(t in ONGLIDE_TOKENS or (t == "u" and prv["expected"] in ONGLIDE_ANY_HOSTS) for t in vowelish):
+            continue  # offglide (æ→[æə] before nasals is normal American; oʊ→[oʊu] is a fronted tail the formant ear judges)
         elif any(t in VOWELS for t in vowelish):
             extra_nuclei += 1
     return {"present": present, "heard": heard, "intrusion": intrusion, "extra_nuclei": extra_nuclei, "r_dropped": r_dropped}
@@ -378,8 +381,10 @@ def _check_window(probs, id2tok, start_s: float, end_s: float, expected: str, ex
         verdict = "missing"
     else:
         verdict = "unsure"
-    # Sounds the model habitually confuses (ð/θ, s/z…) are never asserted as missing by the ear alone.
-    if verdict == "missing" and not is_flap and other_tok in NEAR.get(expected, ()):
+    # Sounds the model habitually confuses (ð/θ, s/z…) are never asserted as missing by the ear alone…
+    # …except θ→f when the model is certain (fink: f 0.97, θ 0.02); its clean-θ readings run ≥ 0.9.
+    sure = (expected, other_tok) in SURE_NEAR and other_p >= SURE_NEAR_P and p_exp <= SURE_NEAR_EXP_P
+    if verdict == "missing" and not is_flap and other_tok in NEAR.get(expected, ()) and not sure:
         verdict = "unsure"
     note = None
     if verdict == "missing" and is_flap:

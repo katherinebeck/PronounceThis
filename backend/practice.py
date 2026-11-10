@@ -46,17 +46,17 @@ TIPS = {
     'ʊ': 'The arch at the back of the tongue lowers slightly; the tip rests at the lower gum ridge. Lips: open up and actively round into the shape of a circle. Lower jaw: opens slightly. This is a short vowel sound.',
     'u': "As in who or tune. Tongue: the arch of the back of the tongue is highest — don't let it pull back into the throat; the tip rests at the lower gum ridge. Lips: stretched forward in a small round circle. Lower jaw: only slightly open. A long vowel. After n, t, d, s or l Americans drop the 'liquid u' (ju) and use the pure u: tune, not tyune.",
     'eɪ': 'As in sail. Two front vowels: e (similar to ɛ in best, but the jaw does not open as much) gliding to the weaker ɪ. This sound can be lengthened, but the length comes from the first sound rather than the second.',
-    'aɪ': 'As in my. An open first sound and a closed, weaker second sound. Look in the mirror and make sure you open up wide enough for the first sound; let the tongue lie flat before it arches up for the second. The length comes from the first sound.',
-    'oʊ': 'As in boat. Two back vowels: the pure o gliding to ʊ as in should. Feel the jaw move from open to slightly closed; the tongue is arched in the back and the lips are rounded. The length comes from the first sound.',
-    'aʊ': 'As in now. Starts very open on ɑ as in father — the most open vowel in the accent — then the arch in the back of the tongue raises for ʊ. Lips start open and close to a more rounded position. The length comes from the first sound.',
-    'ɔɪ': 'As in toy. Starts on the back vowel ɔ as in call and glides to ɪ. Look in the mirror: the tongue arch moves from back to front, the jaw from a wide to a small opening, and the lips from rounded to smiling. The length comes from the first sound.',
+    'aɪ': 'This is an open first sound and a closed, weaker second sound. Look in the mirror and make sure you open up the lower jaw wide enough for the first sound; let the tongue lie almost flat before it arches up for the second. The length comes from the first sound.',
+    'oʊ': 'Two back vowels: the pure o gliding to ʊ as in should. Feel the jaw move from open to slightly closed; the tongue is arched in the back and the lips are rounded. The length comes from the first sound.',
+    'aʊ': 'Starts very open on ɑ as in father, the most open vowel in the accent, then the arch in the back of the tongue raises for ʊ. Lips start open and close to a more rounded position. The length comes from the first sound.',
+    'ɔɪ': 'Starts on the back vowel ɔ as in call and glides to ɪ. Look in the mirror: the tongue arch moves from back to front, the jaw from a wide to a small opening, and the lips from rounded to smiling. The length comes from the first sound.',
     'ɝ': 'Tongue: remove the tip from the lower gum ridge — the tip curls as the r is activated and you should feel tension in the tip. The body of the tongue should not pull back; the middle of the tongue is arched high. Lips: relaxed. Lower jaw: only slightly opened. Used in the stressed syllable (journey, herbal).',
     'ɚ': 'The tongue tip curls but is more relaxed, not as tense as ɝ in serve. Lips relaxed, jaw slightly opened. Short in duration — if this sound is stressed or lengthened the accent will begin to sound unnatural.',
     'ɑɹ': "As in car. The back vowel ɑ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
     'ɔɹ': "As in horse. The back vowel ɔ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
-    'ɛɹ': "As in Claire. The front vowel ɛ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
-    'ɪɹ': "As in fears. The front vowel ɪ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
-    'ʊɹ': "As in poor. The back vowel ʊ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
+    'ɛɹ': "The front vowel ɛ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
+    'ɪɹ': "The front vowel ɪ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
+    'ʊɹ': "The back vowel ʊ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
     'ɹ': 'As in red. Either the tongue tip raises just behind the upper gum ridge, curled and pointed up to the hard palate without touching it, with the lips rounding — or the back of the tongue raises and retracts, pressing against the upper back teeth, with the tip less active. Use whichever method is best for you.',
     'r': 'As in red. Either the tongue tip raises just behind the upper gum ridge, curled and pointed up to the hard palate without touching it, with the lips rounding — or the back of the tongue raises and retracts, pressing against the upper back teeth, with the tip less active. Use whichever method is best for you.',
     'l': 'As in love. The tip and blade of the tongue make contact with the upper gum ridge and the air passes out at the sides of the tongue. The American l is darker than other accents — imagine the tip and blade pushing forward against the gum ridge as if pushing against a wall. The tip is tense; the rest of the tongue broad, flat and free of tension.',
@@ -197,6 +197,7 @@ R_MAX_FINAL_S = 0.62    # stressed final ɝ/ɹ (word, serve): Hannah runs 0.37�
 R_MAX_FINAL_UNSTRESSED_S = 0.42  # final ɚ (mother, water) is short by nature: Hannah 0.32–0.41 s
 R_REL = 1.25            # or clearly longer than Hannah's own take of this word
 R_REL_MIN_S = 0.30
+R_F3_MIN_S = 0.10       # shortest window the F3 r-colouring check will judge
 OVERDONE_PENALTY = 10
 
 
@@ -212,17 +213,39 @@ def _held_r(p: "PhonemeScore", i: int, timed: List["PhonemeScore"], ref: Optiona
     return False
 
 
+DIPHTHONGS = {"eɪ", "aɪ", "ɔɪ", "oʊ", "aʊ"}
+D_MAX_S = 0.50          # a diphthong held this long is being drawled (Hannah's run 0.15–0.35 s)
+D_REL = 1.40            # or clearly longer than Hannah's own take of this word
+D_REL_MIN_S = 0.28
+DRAWL_NOTE = ("The {v} was stretched out. In General American the diphthong moves quickly "
+              "from its first vowel to its second; say it and move on, don't linger on either part.")
+
+
+def _drawled(p: "PhonemeScore", i: int, ref: Optional[dict]) -> bool:
+    dur = p.end_s - p.start_s
+    if dur >= D_MAX_S:
+        return True
+    ref_ph = (ref or {}).get("phonemes") or []
+    if i < len(ref_ph) and ref_ph[i]["expected"] == p.expected and ref_ph[i]["dur"] > 0:
+        return dur >= D_REL_MIN_S and dur >= D_REL * ref_ph[i]["dur"]
+    return False
+
+
 def check_held_r(out: "AssessResponse", ref: Optional[dict] = None) -> None:
-    """Flag R-coloured sounds the speaker holds too long (Azure phoneme timings vs Hannah's reference take)."""
+    """Flag R-coloured sounds the speaker holds too long and diphthongs that are drawled
+    (Azure phoneme timings vs Hannah's reference take)."""
     timed = [p for p in out.phonemes if p.start_s is not None and p.end_s is not None]
     if not timed:
         return
     hits = []
     for i, p in enumerate(timed):
-        if p.expected not in R_SOUNDS or p.ear == "missing":
+        if p.ear == "missing":
             continue
-        if _held_r(p, i, timed, ref):
+        if p.expected in R_SOUNDS and _held_r(p, i, timed, ref):
             p.status, p.note = "needs_work", "The r was held too long. Pronounce the r but don’t linger on the sound."
+            hits.append(p)
+        elif p.expected in DIPHTHONGS and _drawled(p, i, ref):
+            p.status, p.note = "needs_work", DRAWL_NOTE.format(v=p.expected)
             hits.append(p)
     if not hits:
         return
@@ -231,7 +254,8 @@ def check_held_r(out: "AssessResponse", ref: Optional[dict] = None) -> None:
         if p.expected in seen:
             continue
         seen.add(p.expected)
-        out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, tip=tip_for(p.expected, p.t_kind), overdone=True, note=p.note))
+        out.needs_work.append(NeedsWork(phoneme=p.expected, score=p.score, tip=tip_for(p.expected, p.t_kind), overdone=True,
+                                        badge=p.badge, note=p.note))
     out.accurate = [a for a in out.accurate if a not in {p.expected for p in hits}]
     out.score = max(0.0, min(float(out.score or 0) - OVERDONE_PENALTY * len({p.expected for p in hits}), MISS_CAP))
     out.band, out.summary = _band(out.score)
@@ -245,6 +269,7 @@ def _display_pattern(graphemes: List[str], idx: int) -> str:
 FORMANT_SKIP_NEXT = {"m", "n", "ŋ", "l", "ɹ", "r", "w", "j"}  # these colour the vowel's formants
 FORMANT_TRUST_EAR_P = 0.80   # ear confidence needed before a vowel teaches the speaker scale
 FORMANT_JUDGE_EAR_P = 0.60   # below this the formant table gets a say even if the ear said "confirmed"
+ADJACENT_UNSURE_P = 0.30     # an "unsure" ear leaning this far towards the expected vowel still vetoes a next-door formant call
 
 
 def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[dict]:
@@ -257,9 +282,36 @@ def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[
     hits: List[PhonemeScore] = []
     for i, p in enumerate(out.phonemes):
         nxt = out.phonemes[i + 1].expected if i + 1 < len(out.phonemes) else ""
+        prv = out.phonemes[i - 1].expected if i > 0 else ""
+        if p.expected == "oʊ" and p.start_s is not None and p.end_s is not None:
+            # The recogniser hears the Australian [əʉ] as oʊ or as ɑ; the trajectory tells it apart from both.
+            traj = formants.trajectory(wav_bytes, p.start_s, p.end_s)
+            if traj:
+                readings.append({"expected": "oʊ", "f1": round(traj[0][0]), "f2": round(traj[0][1]), "f1_end": round(traj[1][0]), "f2_end": round(traj[1][1])})
+                verdict = formants.judge_ou(traj, scale, own_u)
+                if verdict:
+                    p.status, p.heard, p.note, p.formant = "needs_work", verdict["heard"], verdict["note"], True
+                    p.badge = verdict["badge"]
+                    if p.score is None or p.score > CLOSE_AT - 1:
+                        p.score = float(CLOSE_AT - 1)
+                    hits.append(p)
+            continue
+        if p.expected in formants.FLAT and p.start_s is not None and p.end_s is not None and not (p.ear == "confirmed" and (p.ear_p or 0) >= FORMANT_TRUST_EAR_P):
+            traj = formants.trajectory(wav_bytes, p.start_s, p.end_s)
+            if traj:
+                readings.append({"expected": p.expected, "f1": round(traj[0][0]), "f2": round(traj[0][1]), "f1_end": round(traj[1][0]), "f2_end": round(traj[1][1])})
+                verdict = formants.judge_flat(p.expected, traj)
+                if verdict:
+                    p.status, p.heard, p.note, p.formant, p.badge = "needs_work", verdict["heard"], verdict["note"], True, verdict["badge"]
+                    if p.score is None or p.score > CLOSE_AT - 1:
+                        p.score = float(CLOSE_AT - 1)
+                    hits.append(p)
+            continue
         if p.expected not in formants.CHECKED or p.start_s is None or p.end_s is None:
             continue
         coloured = nxt in FORMANT_SKIP_NEXT  # nasal/liquid after the vowel shifts its formants
+        if p.expected == "æ" and nxt in ("m", "n", "ŋ"):
+            continue  # American æ is raised to [ɛə] before nasals (jam, man): never judge it against ɛ
         point = formants.measure(wav_bytes, p.start_s, p.end_s)
         if not point:
             continue
@@ -271,9 +323,9 @@ def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[
         traj = formants.trajectory(wav_bytes, p.start_s, p.end_s)
         verdict = formants.judge_glide(p.expected, traj) if traj else None
         if not verdict and (not trusted or p.expected == "u"):
-            verdict = formants.judge(p.expected, point, scale, strict=coloured, own_u=own_u)
-            # A neighbouring-vowel call against a recogniser confirmation (even a weak one) is not worth asserting.
-            if verdict and p.ear == "confirmed" and _adjacent(p.expected, verdict.get("heard")):
+            verdict = formants.judge(p.expected, point, scale, strict=coloured, own_u=own_u, after_coronal=prv in formants.CORONALS)
+            # A neighbouring-vowel call against a recogniser confirmation (even a weak one, or a leaning "unsure") is not worth asserting.
+            if verdict and (p.ear == "confirmed" or (p.ear_p or 0) >= ADJACENT_UNSURE_P) and _adjacent(p.expected, verdict.get("heard")):
                 verdict = None
         if trusted and (p.ear_p or 0) >= FORMANT_TRUST_EAR_P and not verdict and not coloured:
             formants.profile_add(profile, p.expected, point)  # …but only sure ones teach the speaker scale
@@ -294,7 +346,9 @@ def rhotic_check(out: "AssessResponse", wav_bytes: bytes, scale) -> List[dict]:
     readings: List[dict] = []
     hits: List[PhonemeScore] = []
     for p in out.phonemes:
-        if p.expected not in R_SOUNDS or p.start_s is None or p.end_s is None or p.ear == "missing":
+        if p.expected not in R_SOUNDS or p.expected in ("ɹ", "r") or p.start_s is None or p.end_s is None or p.ear == "missing":
+            continue  # consonant r is too short/transitional for F3; the recogniser judges it
+        if p.end_s - p.start_s < R_F3_MIN_S:  # Azure clips a final ɚ to ~0.06 s: too few frames to judge
             continue
         start = p.start_s if p.expected in ("ɝ", "ɚ", "ɹ", "r") else p.start_s + 0.6 * (p.end_s - p.start_s)
         f3 = formants.f3_median(wav_bytes, start, p.end_s)
@@ -806,10 +860,14 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
             apply_ear(out, heard)
             check_extra_syllables(out, heard)
         if out.assessable:
-            want_ref = any(p.expected in R_SOUNDS for p in out.phonemes) or is_admin_email(actor.email)
+            want_ref = any(p.expected in R_SOUNDS or p.expected in DIPHTHONGS for p in out.phonemes) or is_admin_email(actor.email)
             ref = await _reference_profile(norm) if want_ref else None
             check_held_r(out, ref)
-            user_doc = await db.users.find_one({"email": actor.email}, {"_id": 0, "formant_profile": 1}) or {}
+            bank = request.headers.get("x-practice-bank") == "1" and is_admin_email(actor.email)  # test clips: own profile
+            if bank:
+                user_doc = await db.practice_bank.find_one({"_id": "profile"}, {"_id": 0}) or {}
+            else:
+                user_doc = await db.users.find_one({"email": actor.email}, {"_id": 0, "formant_profile": 1}) or {}
             profile = user_doc.get("formant_profile") or {}
             try:
                 readings = await asyncio.to_thread(vowel_check, out, wav_bytes, profile)
@@ -818,7 +876,9 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("formant/fricative check failed: %s", exc)
                 readings, fric, rho = [], [], []
-            if profile:
+            if profile and bank:
+                await db.practice_bank.update_one({"_id": "profile"}, {"$set": {"formant_profile": profile}}, upsert=True)
+            elif profile:
                 await db.users.update_one({"email": actor.email}, {"$set": {"formant_profile": profile}})
         else:
             ref, readings, fric, rho, profile = None, [], [], [], {}

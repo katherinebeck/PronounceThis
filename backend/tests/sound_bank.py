@@ -104,7 +104,8 @@ def _base(sym: str) -> set:
 async def assess(c: httpx.AsyncClient, cookies: dict, word: str, path: str) -> dict:
     audio = open(path, "rb").read()
     for attempt in range(3):
-        r = await c.post(f"{API}/practice/assess", data={"word": word}, files={"audio": (os.path.basename(path), io.BytesIO(audio), "audio/mpeg")}, cookies=cookies)
+        r = await c.post(f"{API}/practice/assess", data={"word": word}, files={"audio": (os.path.basename(path), io.BytesIO(audio), "audio/mpeg")},
+                         cookies=cookies, headers={"X-Practice-Bank": "1"})
         if r.status_code != 503 or attempt == 2:
             break
         await asyncio.sleep(3)
@@ -134,6 +135,9 @@ async def run() -> None:
     cookies = {"accent_session": _issue_jwt(os.environ["ADMIN_EMAILS"].split(",")[0].strip())}
     rows, caught, total, clean_ok, clean_total = [], 0, 0, 0, 0
     async with httpx.AsyncClient(timeout=120) as c:
+        for _, word, _ in BANK:  # warm-up: let the bank's own speaker profile learn Hannah's clean vowels first
+            await assess(c, cookies, word, clip_path("hannah", word))
+        print("warm-up done")
         for target, word, errs in BANK:
             tgt = _base(target)
             b = await assess(c, cookies, word, clip_path("hannah", word))

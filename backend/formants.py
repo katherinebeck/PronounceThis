@@ -30,6 +30,7 @@ GLIDE_F1 = 0.20      # …together with F1 falling (the start was a more open/ce
 MAX_MOVE = 0.45       # total log-Hz movement across the steadiest run; more = no steady vowel found
 # Swaps we never flag: General American itself allows them.
 ALLOWED = {("ɔ", "ɑ"), ("ʌ", "ə")}
+ROUNDED_BACK = {"ɔ", "ʊ", "u"}   # an expected ɑ landing here = lips rounded = the British/Australian ɒ
 NAMES = {"ɑ": "the open ɑ as in father", "ɔ": "the rounded ɔ as in call", "ʌ": "ʌ as in cup", "æ": "æ as in cat",
          "ɛ": "ɛ as in bed", "ɪ": "ɪ as in ship", "i": "i as in sheep", "ʊ": "ʊ as in book", "u": "u as in food"}
 
@@ -213,9 +214,11 @@ def speaker_scale(profile: Optional[dict]) -> Optional[Tuple[float, float]]:
     return math.exp(float(np.median(r1))), math.exp(float(np.median(r2)))
 
 
-FRONTED_U_F2 = 1.40   # u with F2 this far above the speaker's target is a fronted ʉ (Aussie/British "oo")
+FRONTED_U_F2 = 1.52   # u with F2 this far above the speaker's target is a fronted ʉ (Aussie/British "oo"); clean American u reaches 1.42×
 OWN_U_RATIO = 1.22    # …or this far above the speaker's own clean u (coach's clean food/who sat 1206–1351 Hz, Aussie ʉ ≥ 1650)
 OWN_U_MIN = 2         # own-u takes needed before that anchor is used
+FRONTED_U_F2_CORONAL, OWN_U_RATIO_CORONAL = 1.80, 1.40   # after a coronal (Hannah's zoo u: F2 1487)
+CORONALS = {"t", "d", "s", "z", "n", "l", "ʃ", "ʒ", "tʃ", "dʒ", "θ", "ð", "j"}
 FRONTED_U_TIP = ("Tongue: the arch of the back of the tongue is high — don't let it pull back into the throat; "
                  "the tip rests at the lower gum ridge. Lips: stretched forward in a small round circle. Lower jaw: only slightly open.")
 STRICT_RATIO = 2.2    # next to a nasal/liquid the vowel is coloured — demand a much clearer miss
@@ -227,8 +230,46 @@ def own_u_f2(profile: Optional[dict]) -> Optional[float]:
     return float(np.median(e["f2"])) if len(e.get("f2") or []) >= OWN_U_MIN else None
 
 
+FRONTED_O_NOTE = ("The o was made too far forward — the Australian/British əʉ. Americans start on a pure back o "
+                  "with the lips rounded and glide to ʊ.")
+O_START = (555, 1100)   # where a General American oʊ begins (women); the Australian əʉ begins central, F2 ≈ 1500+
+O_START_F2 = 1.35
+
+
+FLAT_MOVE = 0.18   # a diphthong whose F1/F2 travel less than this (log-Hz) never glided (Hannah's clean ones move 0.29–0.91)
+FLAT = {"aʊ": ("ɑ", "ʊ", "raise the back of the tongue and round the lips"), "aɪ": ("ɑ", "ɪ", "arch the tongue up and forward"),
+        "eɪ": ("ɛ", "ɪ", "close the jaw and arch the tongue higher"), "ɔɪ": ("ɔ", "ɪ", "move the tongue arch forward and spread the lips")}
+
+
+def judge_flat(expected: str, traj: Tuple[Tuple[float, float], Tuple[float, float]]) -> Optional[dict]:
+    """A diphthong said as one steady vowel (now → "nah", ride → "rahd")."""
+    if expected not in FLAT:
+        return None
+    (f1a, f2a), (f1b, f2b) = traj
+    if math.hypot(math.log(f1b / f1a), math.log(f2b / f2a)) >= FLAT_MOVE:
+        return None
+    first, second, how = FLAT[expected]
+    return {"heard": first, "badge": "no glide",
+            "note": f"The {expected} stayed on one vowel — it sounded like a long {first} and never moved. "
+                    f"Start on {first}, then {how} to finish on {second}."}
+
+
+def judge_ou(traj: Tuple[Tuple[float, float], Tuple[float, float]], scale: Optional[Tuple[float, float]] = None,
+             own_u: Optional[float] = None) -> Optional[dict]:
+    """oʊ said as the fronted Australian/British [əʉ]: starts central and/or ends on a fronted ʉ."""
+    (f1a, f2a), (f1b, f2b) = traj
+    scales = [scale] if scale else [(s, s) for s in SCALES]
+    floor = OWN_U_RATIO * own_u if own_u else 0.0
+    high_end = all(f1b <= 1.6 * TARGETS["u"][0] * k[0] for k in scales)   # the tail is a close vowel, not an open ɑ
+    central_start = all(f2a >= O_START_F2 * O_START[1] * k[1] for k in scales)
+    fronted_end = all(f2b >= max(floor, FRONTED_U_F2 * TARGETS["u"][1] * k[1]) for k in scales)
+    if high_end and (central_start or fronted_end):
+        return {"heard": "əʉ", "badge": "too far forward", "tip": None, "note": FRONTED_O_NOTE}
+    return None
+
+
 def judge(expected: str, point: Tuple[float, float], scale: Optional[Tuple[float, float]] = None, strict: bool = False,
-          own_u: Optional[float] = None) -> Optional[dict]:
+          own_u: Optional[float] = None, after_coronal: bool = False) -> Optional[dict]:
     """None when the vowel is acceptable/unsure; else {"heard": other vowel, "note": coaching line}.
     With a speaker scale the table is fitted to this speaker; without one every plausible size must agree."""
     if expected not in CHECKED:
@@ -237,8 +278,10 @@ def judge(expected: str, point: Tuple[float, float], scale: Optional[Tuple[float
     if expected == "u":
         # Fronted ʉ keeps F1 low (so it still looks like u) but pushes F2 up towards the front vowels.
         # Once the speaker's own clean u is known it anchors the line: real American u varies ±10% take to take.
-        floor = OWN_U_RATIO * own_u if own_u else 0.0
-        if all(point[1] >= max(floor, FRONTED_U_F2 * TARGETS["u"][1] * k[1]) and point[0] <= 1.6 * TARGETS["u"][0] * k[0] for k in scales):
+        # After t d s z n l (zoo, too, new) General American itself fronts u, so the line moves up.
+        mult, own_mult = (FRONTED_U_F2_CORONAL, OWN_U_RATIO_CORONAL) if after_coronal else (FRONTED_U_F2, OWN_U_RATIO)
+        floor = own_mult * own_u if own_u else 0.0
+        if all(point[1] >= max(floor, mult * TARGETS["u"][1] * k[1]) and point[0] <= 1.6 * TARGETS["u"][0] * k[0] for k in scales):
             return {"heard": None, "badge": "too far forward", "tip": FRONTED_U_TIP, "note": None}
     ratio = STRICT_RATIO if strict else CLEAR_RATIO
     nearest_each = set()
@@ -253,5 +296,11 @@ def judge(expected: str, point: Tuple[float, float], scale: Optional[Tuple[float
     other = nearest_each.pop()
     if (expected, other) in ALLOWED:
         return None
+    if expected == "ɑ" and other in ROUNDED_BACK:
+        return {"heard": "ɒ", "note": "The vowel was rounded and closed — the British/Australian short o (ɒ). "
+                                      "Americans use the open ɑ here: unround the lips and let the jaw drop."}
+    if expected == "ɔ" and other in ("u", "ʊ"):
+        return {"heard": "oː", "note": "The vowel was too closed — the tight British ɔː (as in RP water). "
+                                       "The American ɔ is more open: drop the jaw and keep the rounding loose."}
     note = f"The vowel sounded closer to {NAMES.get(other, other)} — Americans use {NAMES.get(expected, expected)} here."
     return {"heard": other, "note": note}
