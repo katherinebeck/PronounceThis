@@ -43,7 +43,7 @@ TIPS = {
     'ə': 'Tongue: relaxed, with a gentle, natural arch; the tip rests at the lower gum ridge. Lips: relaxed — neither rounded nor smiling. Jaw and lips free of tension. A short vowel heard in unstressed syllables. Keep the tongue tip at the lower gum ridge to avoid an intrusive r.',
     'ɑ': 'As in father — the most open sound in the American accent. Tongue: the back is flat with the tip resting at the lower gum ridge. Lips: stretched and opened forward. Lower jaw: its most open position, teeth far apart. A long vowel.',
     'ɔ': 'As in call. Tongue: the back is only slightly arched; the tip rests at the lower gum ridge. Lips: rounded and protruded — you should feel sensation in the cheeks, and your thumb should fit between your lips. Lower jaw: open, released forward and down. A long vowel.',
-    'ʊ': 'As in should. Tongue: the arch at the back lowers slightly; the tip rests at the lower gum ridge. Lips: open up a bit more and actively round into the shape of a circle. Lower jaw: opens slightly more. A short vowel.',
+    'ʊ': 'The arch at the back of the tongue lowers slightly; the tip rests at the lower gum ridge. Lips: open up and actively round into the shape of a circle. Lower jaw: opens slightly. This is a short vowel sound.',
     'u': "As in who or tune. Tongue: the arch of the back of the tongue is highest — don't let it pull back into the throat; the tip rests at the lower gum ridge. Lips: stretched forward in a small round circle. Lower jaw: only slightly open. A long vowel. After n, t, d, s or l Americans drop the 'liquid u' (ju) and use the pure u: tune, not tyune.",
     'eɪ': 'As in sail. Two front vowels: e (similar to ɛ in best, but the jaw does not open as much) gliding to the weaker ɪ. This sound can be lengthened, but the length comes from the first sound rather than the second.',
     'aɪ': 'As in my. An open first sound and a closed, weaker second sound. Look in the mirror and make sure you open up wide enough for the first sound; let the tongue lie flat before it arches up for the second. The length comes from the first sound.',
@@ -253,6 +253,7 @@ def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[
     Returns admin readings [{expected, f1, f2}]; mutates `profile` in place."""
     readings: List[dict] = []
     scale = formants.speaker_scale(profile)
+    own_u = formants.own_u_f2(profile)
     hits: List[PhonemeScore] = []
     for i, p in enumerate(out.phonemes):
         nxt = out.phonemes[i + 1].expected if i + 1 < len(out.phonemes) else ""
@@ -270,7 +271,7 @@ def vowel_check(out: "AssessResponse", wav_bytes: bytes, profile: dict) -> List[
         traj = formants.trajectory(wav_bytes, p.start_s, p.end_s)
         verdict = formants.judge_glide(p.expected, traj) if traj else None
         if not verdict and (not trusted or p.expected == "u"):
-            verdict = formants.judge(p.expected, point, scale, strict=coloured)
+            verdict = formants.judge(p.expected, point, scale, strict=coloured, own_u=own_u)
             # A neighbouring-vowel call against a recogniser confirmation (even a weak one) is not worth asserting.
             if verdict and p.ear == "confirmed" and _adjacent(p.expected, verdict.get("heard")):
                 verdict = None
@@ -838,7 +839,8 @@ def create_practice_router(db: AsyncIOMotorDatabase) -> APIRouter:
                       for i, p in enumerate(out.phonemes)]
             out.ear = {**ear.status(), "heard": (heard or {}).get("heard"), "checks": (heard or {}).get("checks"),
                        "extra_nuclei": (heard or {}).get("extra_nuclei"), "timing": timing, "formants": readings, "fricatives": fric, "rhotic": rho,
-                       "speaker_scale": [round(x, 2) for x in (formants.speaker_scale(profile) or ())]}
+                       "speaker_scale": [round(x, 2) for x in (formants.speaker_scale(profile) or ())],
+                       "own_u_f2": round(formants.own_u_f2(profile) or 0) or None}
         await consume_trial(db, actor)
         if not actor.is_subscriber and out.assessable:
             await db.users.update_one({"email": actor.email}, {"$addToSet": {"practice_words": norm}})

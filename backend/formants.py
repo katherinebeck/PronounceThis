@@ -214,12 +214,21 @@ def speaker_scale(profile: Optional[dict]) -> Optional[Tuple[float, float]]:
 
 
 FRONTED_U_F2 = 1.40   # u with F2 this far above the speaker's target is a fronted ʉ (Aussie/British "oo")
+OWN_U_RATIO = 1.22    # …or this far above the speaker's own clean u (coach's clean food/who sat 1206–1351 Hz, Aussie ʉ ≥ 1650)
+OWN_U_MIN = 2         # own-u takes needed before that anchor is used
 FRONTED_U_TIP = ("Tongue: the arch of the back of the tongue is high — don't let it pull back into the throat; "
                  "the tip rests at the lower gum ridge. Lips: stretched forward in a small round circle. Lower jaw: only slightly open.")
 STRICT_RATIO = 2.2    # next to a nasal/liquid the vowel is coloured — demand a much clearer miss
 
 
-def judge(expected: str, point: Tuple[float, float], scale: Optional[Tuple[float, float]] = None, strict: bool = False) -> Optional[dict]:
+def own_u_f2(profile: Optional[dict]) -> Optional[float]:
+    """Median F2 of this speaker's own confirmed u takes (needs OWN_U_MIN of them)."""
+    e = (profile or {}).get("u") or {}
+    return float(np.median(e["f2"])) if len(e.get("f2") or []) >= OWN_U_MIN else None
+
+
+def judge(expected: str, point: Tuple[float, float], scale: Optional[Tuple[float, float]] = None, strict: bool = False,
+          own_u: Optional[float] = None) -> Optional[dict]:
     """None when the vowel is acceptable/unsure; else {"heard": other vowel, "note": coaching line}.
     With a speaker scale the table is fitted to this speaker; without one every plausible size must agree."""
     if expected not in CHECKED:
@@ -227,7 +236,9 @@ def judge(expected: str, point: Tuple[float, float], scale: Optional[Tuple[float
     scales = [scale] if scale else [(s, s) for s in SCALES]
     if expected == "u":
         # Fronted ʉ keeps F1 low (so it still looks like u) but pushes F2 up towards the front vowels.
-        if all(point[1] >= FRONTED_U_F2 * TARGETS["u"][1] * k[1] and point[0] <= 1.6 * TARGETS["u"][0] * k[0] for k in scales):
+        # Once the speaker's own clean u is known it anchors the line: real American u varies ±10% take to take.
+        floor = OWN_U_RATIO * own_u if own_u else 0.0
+        if all(point[1] >= max(floor, FRONTED_U_F2 * TARGETS["u"][1] * k[1]) and point[0] <= 1.6 * TARGETS["u"][0] * k[0] for k in scales):
             return {"heard": None, "badge": "too far forward", "tip": FRONTED_U_TIP, "note": None}
     ratio = STRICT_RATIO if strict else CLEAR_RATIO
     nearest_each = set()
