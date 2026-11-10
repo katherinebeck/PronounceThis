@@ -54,6 +54,7 @@ EAR_PYTHON = os.environ.get("EAR_PYTHON", "/opt/ear-venv/bin/python")
 EAR_URL = os.environ.get("EAR_URL", "").rstrip("/")
 EAR_SECRET = os.environ.get("EAR_SECRET", "")
 REMOTE_TIMEOUT_S = 25
+REMOTE_CONNECT_S = 10   # a suspended Fly machine resumes in ~1–2 s; a stopped one needs ~30 s (model load) and will miss this take
 REMOTE_RECHECK_S = 60
 
 
@@ -85,9 +86,12 @@ def _check_remote() -> bool:
 
 
 def _remote_monitor() -> None:
+    """Re-check the ear only while it is down: a steady 60 s heartbeat would keep an auto-suspending
+    Fly machine awake around the clock. Once ready, the next real take is the check."""
     import time
     while True:
-        _check_remote()
+        if _state["status"] != "ready":
+            _check_remote()
         time.sleep(REMOTE_RECHECK_S)
 
 
@@ -95,16 +99,21 @@ def _ask_remote(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
     import httpx
     try:
         r = httpx.post(f"{EAR_URL}/listen", json={"wav_b64": base64.b64encode(wav_bytes).decode(), "windows": windows},
-                       headers={"X-Ear-Secret": EAR_SECRET}, timeout=REMOTE_TIMEOUT_S)
+                       headers={"X-Ear-Secret": EAR_SECRET}, timeout=httpx.Timeout(REMOTE_TIMEOUT_S, connect=REMOTE_CONNECT_S))
         if r.status_code != 200:
             raise RuntimeError(f"HTTP {r.status_code}: {r.text[:200]}")
         out = r.json()
         if out.get("error"):
             raise RuntimeError(out["error"])
+        _state["error"] = None
         return out or None
+    except httpx.ConnectError as exc:
+        logger.warning("phoneme ear service unreachable, Azure-only for this take: %s", exc)
+        _state.update(status="error", error=f"ear service unreachable: {str(exc)[:200]}")  # monitor starts re-checking
+        return None
     except Exception as exc:  # noqa: BLE001
         logger.warning("phoneme ear service failed, Azure-only for this take: %s", exc)
-        _state.update(status="error", error=str(exc)[:300])
+        _state["error"] = str(exc)[:300]  # a busy/slow take is not an outage: stay ready for the next one
         return None
 
 

@@ -21,12 +21,18 @@ The model (~1.2 GB) is baked into the image at build time, so starts take ~20 s,
 
 ## 2. Host it (pick one)
 
-**Fly.io (~$8–10/month)** — `fly.toml` is included.
+**Fly.io (~$8–14/month always-on; much less with idle-suspend)** — `fly.toml` is included.
 ```bash
 fly launch --no-deploy --copy-config --name pronouncethis-ear   # from the repo root
+cp ear-service/fly.toml fly.toml                                 # launch writes a 1 GB default; ours is 2 GB + idle-suspend
 fly secrets set EAR_SECRET='choose-a-long-random-string'
-fly deploy --dockerfile ear-service/Dockerfile
+fly deploy
+fly scale count 1                                                # launch creates two machines by default
 ```
+Cost controls: `fly.toml` suspends the machine when idle (resumes in ~1–2 s, model kept in memory; suspended
+machines aren't billed for CPU/RAM) and runs one analysis at a time, refusing with 503 "ear busy" when
+more than `EAR_MAX_WAITING` takes are queued (the backend then scores that take Azure-only). Check with
+`fly status` (one machine) and `fly scale show`. Redeploy after any change to `backend/phoneme_ear.py`.
 Public URL: `https://pronouncethis-ear.fly.dev`
 
 **Render / Railway / DigitalOcean App Platform** — new Web Service from this repo,

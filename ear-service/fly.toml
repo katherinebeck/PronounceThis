@@ -1,19 +1,27 @@
-# fly.toml — Pronounce This ear service (run `fly launch --copy-config` from the repo root)
+# fly.toml — Pronounce This ear service. From the repo root: cp ear-service/fly.toml fly.toml && fly deploy
 app = "pronouncethis-ear"
-primary_region = "iad"
+primary_region = "syd"
 
 [build]
   dockerfile = "ear-service/Dockerfile"
 
 [env]
   PORT = "8080"
+  EAR_MAX_WAITING = "3"
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = false
+  # Suspend (not stop) when idle: resumes in ~1–2 s with the model still in memory, and a suspended
+  # machine isn't billed for CPU/RAM. "stop" would mean a ~30 s cold start = Azure-only first take.
+  auto_stop_machines = "suspend"
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    hard_limit = 8
+    soft_limit = 4
 
 [[vm]]
   size = "shared-cpu-2x"
