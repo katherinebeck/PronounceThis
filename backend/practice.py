@@ -61,6 +61,9 @@ TIPS = {
     'ɛɹ': "The front vowel ɛ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
     'ɪɹ': "The front vowel ɪ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
     'ʊɹ': "The back vowel ʊ followed by the schwa with the activated r: curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
+    'aɪɹ': "The diphthong aɪ followed by the schwa with the activated r (fire, tired): curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
+    'aʊɹ': "The diphthong aʊ followed by the schwa with the activated r (hour, power): curl the tip of the tongue, the tip and blade tense as they raise away from the lower gum ridge. Don't let the back of the tongue pull back.",
+
     'ɹ': 'Either the tongue tip raises just behind the upper gum ridge, curled and pointed up to the hard palate without touching it, with the lips rounding — or the back of the tongue raises and retracts, pressing against the upper back teeth, with the tip less active. Use whichever method is best for you.',
     'r': 'Either the tongue tip raises just behind the upper gum ridge, curled and pointed up to the hard palate without touching it, with the lips rounding — or the back of the tongue raises and retracts, pressing against the upper back teeth, with the tip less active. Use whichever method is best for you.',
     'l': 'The tip and blade of the tongue make contact with the upper gum ridge and the air passes out at the sides of the tongue. The American l is darker than other accents — imagine the tip and blade pushing forward against the gum ridge as if pushing against a wall. The tip is tense; the rest of the tongue broad, flat and free of tension.',
@@ -195,7 +198,7 @@ def check_extra_syllables(out: "AssessResponse", heard: Optional[dict]) -> None:
 
 
 STRESS_PENALTY = 10
-R_SOUNDS = {"ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ", "ɝ", "ɚ", "ɹ", "r"}
+R_SOUNDS = {"ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ", "aɪɹ", "aʊɹ", "ɝ", "ɚ", "ɹ", "r"}
 R_MAX_S = 0.45          # word-internal R-coloured sound held this long is being leaned on
 R_MAX_FINAL_S = 0.62    # stressed final ɝ/ɹ (word, serve): Hannah runs 0.37–0.61 s
 R_MAX_FINAL_UNSTRESSED_S = 0.42  # final ɚ (mother, water) is short by nature: Hannah 0.32–0.41 s
@@ -361,7 +364,7 @@ def rhotic_check(out: "AssessResponse", wav_bytes: bytes, scale) -> List[dict]:
         readings.append({"expected": p.expected, "f3": round(f3)})
         if formants.rhotic_missing(f3, scale):
             p.status, p.note = "needs_work", "The r sound wasn't heard."
-            p.heard = {"ɝ": "ɜ", "ɚ": "ə"}.get(p.expected, p.expected[0])
+            p.heard = {"ɝ": "ɜ", "ɚ": "ə"}.get(p.expected, p.expected[:-1])
             if p.score is None or p.score > CLOSE_AT - 1:
                 p.score = float(CLOSE_AT - 1)
             hits.append(p)
@@ -625,7 +628,7 @@ def _band(score: float) -> tuple[str, str]:
 
 
 _ARPA_VOWELS = {"AA", "AE", "AH", "AO", "AW", "AY", "EH", "ER", "EY", "IH", "IY", "OW", "OY", "UH", "UW"}
-_R_COMBO = {"ɑ": "ɑɹ", "ɔ": "ɔɹ", "ɛ": "ɛɹ", "ɪ": "ɪɹ", "ʊ": "ʊɹ", "ə": "ɚ", "ʌ": "ɝ"}
+_R_COMBO = {"ɑ": "ɑɹ", "ɔ": "ɔɹ", "ɛ": "ɛɹ", "ɪ": "ɪɹ", "ʊ": "ʊɹ", "aɪ": "aɪɹ", "aʊ": "aʊɹ", "ə": "ɚ", "ʌ": "ɝ"}
 
 
 def our_phones(word: str) -> List[str]:

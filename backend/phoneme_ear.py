@@ -31,7 +31,8 @@ _R = {"ɹ", "ɝ"}
 _FLAP = {"ɾ", "d"}
 EXPECTED = {
     "ɑɹ": [{"ɑ"}, _R], "ɔɹ": [{"ɑ", "oʊ"}, _R], "ɛɹ": [{"ɛ", "eɪ", "æ"}, _R],
-    "ɪɹ": [{"ɪ", "i"}, _R], "ʊɹ": [{"ʊ", "u", "ɑ"}, _R], "ɝ": [_R], "ɚ": [_R], "ɹ": [_R], "r": [_R],
+    "ɪɹ": [{"ɪ", "i"}, _R], "ʊɹ": [{"ʊ", "u", "ɑ"}, _R], "aɪɹ": [{"aɪ", "ɑ"}, _R], "aʊɹ": [{"aʊ", "ɑ"}, _R],
+    "ɝ": [_R], "ɚ": [_R], "ɹ": [_R], "r": [_R],
     "ɑ": [{"ɑ"}], "ɔ": [{"ɑ", "ə"}], "ʌ": [{"ə"}], "ə": [{"ə", "ɪ"}],
     "æ": [{"æ"}], "ɛ": [{"ɛ"}], "ɪ": [{"ɪ"}], "i": [{"i"}], "ʊ": [{"ʊ"}], "u": [{"u"}],
     "eɪ": [{"eɪ"}], "aɪ": [{"aɪ"}], "oʊ": [{"oʊ"}], "aʊ": [{"aʊ"}], "ɔɪ": [{"ɔɪ"}],
@@ -214,7 +215,8 @@ NEAR = {"ð": {"θ", "d", "v"}, "θ": {"ð", "f"}, "s": {"z"}, "z": {"s"}, "f": 
 SURE_NEAR = {("θ", "f")}   # the one near pair the ear may call alone, and only when certain
 SURE_NEAR_P, SURE_NEAR_EXP_P = 0.95, 0.03
 
-EXPECTED_VOWELS = set(EXPECTED) & (VOWELS | {"ɔ", "ʌ", "ɚ", "ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ"})
+R_COMBOS = {"ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ", "aɪɹ", "aʊɹ"}
+EXPECTED_VOWELS = set(EXPECTED) & (VOWELS | {"ɔ", "ʌ", "ɚ"} | R_COMBOS)
 
 
 REDUCED_I = [{"ɪ", "ə"}]  # unstressed ɪ (be-lieve, mu-sic) is said as ə by most Americans
@@ -325,6 +327,8 @@ def _sequence_view(windows: List[dict], tokens: List[str]) -> dict:
             continue  # consonant noise, or trailing artefacts after the word ended
         nxt = windows[owner[k]] if k < len(flat) else None
         prv = windows[owner[k - 1]] if k > 0 else None
+        if nxt is not None and prv is nxt and all(t in ONGLIDE_TOKENS for t in vowelish):
+            continue  # a glide inside an r-combo (hour → [aʊwɚ], fire → [aɪjɚ]) is just the transition into the r
         nxt_vowel = nxt is not None and nxt["expected"] in EXPECTED_VOWELS and aligned_req[k]
         prv_vowel = prv is not None and prv["expected"] in EXPECTED_VOWELS and aligned_req[k - 1]
         if nxt_vowel:
@@ -411,7 +415,7 @@ def _glide_note(expected: str, glide: str) -> str:
 
 def _intrusion_note(expected: str, intr: dict) -> str:
     tok = DISPLAY.get(intr["tok"], intr["tok"])
-    shown = expected if expected not in ("ɑɹ", "ɔɹ", "ɛɹ", "ɪɹ", "ʊɹ") else expected[0]
+    shown = expected[:-1] if expected in R_COMBOS else expected
     name = " (a schwa)" if intr["tok"] == "ə" else (" (a y sound)" if intr["tok"] == "j" else "")
     if intr["where"] == "before":
         return f"We heard an extra sound before the {shown} — it sounded like {tok}{shown}{name}. Remove it and go straight into the pure {shown} sound."
@@ -449,7 +453,7 @@ def listen(wav_bytes: bytes, windows: List[dict]) -> Optional[dict]:
         # R-coloured vowel: vowel said, no R anywhere in the sequence and none in the window → dropped R.
         if c["verdict"] == "unsure" and c.get("r_failed") and seq["r_dropped"][i] and (c.get("p_expected") or 0) < MISSING_P:
             c["verdict"], c["note"] = "missing", "The r sound wasn't heard."
-            c["heard"] = DISPLAY.get(seq["heard"][i], seq["heard"][i]) if seq["heard"][i] else c["expected"][0]
+            c["heard"] = DISPLAY.get(seq["heard"][i], seq["heard"][i]) if seq["heard"][i] else c["expected"][:-1]
         if c["verdict"] == "missing" and seq["heard"][i] and not c.get("r_failed") and not c.get("flap"):
             c["heard"] = DISPLAY.get(seq["heard"][i], seq["heard"][i])
         intr = seq["intrusion"][i]
